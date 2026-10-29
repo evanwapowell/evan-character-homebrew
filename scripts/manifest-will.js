@@ -85,6 +85,39 @@ async function onTurnStart(combatant) {
     if (toCreate.length > 0) await actor.createEmbeddedDocuments("Item", toCreate);
 }
 
+/** One-shot JB2A (free) animations played when the aura is applied, matching the aura's looping texture */
+const CAST_ANIMATIONS = {
+    arcane: "Generic/Magic_Signs/AbjurationCircleComplete_02_Regular_Blue_800x800.webm",
+    divine: "2nd_Level/Divine_Smite/DivineSmite_01_Regular_BlueYellow_Caster_400x400.webm",
+    occult: "Generic/Magic_Signs/EnchantmentCircleComplete_02_Dark_Pink_800x800.webm",
+    primal: "1st_Level/Entangle/Entangle02_02_Regular_Green_500x500.webm",
+};
+
+/** Play the cast animation at the emanation's center, sized to the 10-foot emanation */
+function playCastAnimation(auraEffect) {
+    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+
+    const file = CAST_ANIMATIONS[getTradition(auraEffect)];
+    const token = auraEffect.actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene);
+    if (!(file && token)) return;
+
+    new Sequence()
+        .effect()
+        .file(`modules/JB2A_DnD5e/Library/${file}`)
+        .atLocation(token)
+        .size(Math.max(token.width, token.height) + 4, { gridUnits: true })
+        .belowTokens()
+        .fadeIn(300)
+        .fadeOut(500)
+        .play();
+}
+
+// Cast or Sustain: the aura effect is applied to the caster or, for a seneschal, their charge
+Hooks.on("createItem", (item, _options, userId) => {
+    if (userId !== game.user.id || item.type !== "effect" || item.slug !== "aura-manifest-will") return;
+    playCastAnimation(item);
+});
+
 Hooks.on("updateCombat", (combat, changed) => {
     if (game.user !== game.users.activeGM) return;
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
