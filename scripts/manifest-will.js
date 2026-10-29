@@ -14,19 +14,21 @@ const EFFECTS = {
     primal: `${PACK}.DJJvRoc5yfNaraKe`,
 };
 
-/** The tradition chosen on the caster's Aura: Manifest Will effect */
-function getTradition(caster) {
-    const auraEffect = caster.itemTypes.effect.find((e) => e.slug === "aura-manifest-will");
-    const choiceSet = auraEffect?._source.system.rules.find((r) => r.key === "ChoiceSet");
+/** The tradition chosen on an Aura: Manifest Will effect */
+function getTradition(auraEffect) {
+    const choiceSet = auraEffect._source.system.rules.find((r) => r.key === "ChoiceSet");
     return choiceSet?.selection ?? null;
 }
 
-/** Whether a creature beginning its turn in the emanation is affected (the caster opts in only when it helps) */
-function isAffected(tradition, actor, caster) {
+/**
+ * Whether a creature beginning its turn in the emanation is affected. The center is the creature emitting the aura:
+ * the caster, or a seneschal's charge. The caster chooses whether the center is affected, so only when it helps.
+ */
+function isAffected(tradition, actor, { caster, center }) {
     switch (tradition) {
         case "arcane":
         case "primal":
-            return actor !== caster;
+            return actor !== center;
         case "divine":
             return ["living", "undead"].includes(actor.modeOfBeing);
         case "occult":
@@ -50,24 +52,28 @@ async function onTurnStart(combatant) {
 
     const toCreate = [];
     const traditionsApplied = new Set();
-    for (const casterToken of token.parent.tokens) {
-        const caster = casterToken.actor;
-        const aura = casterToken.auras?.get(AURA_SLUG);
-        const auraData = caster?.auras?.get(AURA_SLUG);
-        if (!(caster && aura && auraData && aura.containsToken(token))) continue;
+    for (const centerToken of token.parent.tokens) {
+        const center = centerToken.actor;
+        const aura = centerToken.auras?.get(AURA_SLUG);
+        if (!(center?.auras?.has(AURA_SLUG) && aura?.containsToken(token))) continue;
 
-        const tradition = getTradition(caster);
-        if (!EFFECTS[tradition] || traditionsApplied.has(tradition) || !isAffected(tradition, actor, caster)) {
-            continue;
-        }
+        const auraEffect = center.itemTypes.effect.find((e) => e.slug === "aura-manifest-will");
+        if (!auraEffect) continue;
+        // The witch who cast the spell, even when the emanation is centered on their charge
+        const caster = auraEffect.origin ?? center;
+
+        const tradition = getTradition(auraEffect);
+        if (!EFFECTS[tradition] || traditionsApplied.has(tradition)) continue;
+        if (!isAffected(tradition, actor, { caster, center })) continue;
 
         const effect = await fromUuid(EFFECTS[tradition]);
         if (!effect) continue;
 
         const source = effect.toObject();
-        source.system.level.value = auraData.level ?? source.system.level.value;
+        // Spell rank: set when dragged from the chat card, otherwise the caster's cantrip rank
+        source.system.level.value = Math.max(auraEffect.level, Math.ceil(caster.level / 2));
         source.system.context = {
-            origin: { actor: caster.uuid, token: casterToken.uuid, item: null, spellcasting: null },
+            origin: { actor: caster.uuid, token: centerToken.uuid, item: null, spellcasting: null },
             target: null,
             roll: null,
         };
