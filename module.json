@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "authors": [
     {
       "name": "Evan Powell",
@@ -12,8 +12,28 @@
     }
   ],
   "compatibility": {
-    "minimum": "0.8.6",
-    "verified": "12.331"
+    "minimum": "12",
+    "verified": "14"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system"
+      }
+    ],
+    "recommends": [
+      {
+        "id": "JB2A_DnD5e",
+        "type": "module",
+        "reason": "Manifest Will aura and cast animations"
+      },
+      {
+        "id": "sequencer",
+        "type": "module",
+        "reason": "Manifest Will cast animation"
+      }
+    ]
   },
   "esmodules": [
     "scripts/manifest-will.js"
@@ -32,6 +52,6 @@
       "flags": {}
     }
   ],
-  "manifest": "https://github.com/EWAP333/evan-character-homebrew/releases/latest/download/module.json",
-  "download": "https://github.com/EWAP333/evan-character-homebrew/releases/download/1.2.8/evan-character-homebrew.zip"
+  "manifest": "https://github.com/evanwapowell/evan-character-homebrew/releases/latest/download/module.json",
+  "download": "https://github.com/evanwapowell/evan-character-homebrew/releases/download/1.2.9/evan-character-homebrew.zip"
 }
