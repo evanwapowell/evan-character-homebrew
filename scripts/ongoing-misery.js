@@ -55,6 +55,8 @@ function warnOnce(message) {
 
 /** Whether a chat message is the card of a hex being cast */
 function isHexCast(message) {
+    // Sustaining reposts the spell's card: the Sustain handler below covers it
+    if (message.flags[MODULE_ID]?.sustain) return false;
     const flags = message.flags.pf2e ?? {};
     const item = message.item;
     // Attack and damage rolls from the spell also carry it: only the cast card has no other roll context
