@@ -9,7 +9,7 @@ const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the pf2e compendium items, the same in every pf2e version */
 const ABILITY_ID = "mu9OL8v4rmr9311e";
-const SUSTAIN_ID = "3f5DMFu8fPiqHpRg";
+const RESENTMENT_ID = "9OwWgOP8ZWxTAqbg";
 const RANGE = 15;
 /** Conditions that benefit the creature that has them */
 const POSITIVE_CONDITIONS = new Set([
@@ -30,22 +30,41 @@ function isFromSource(item, id) {
     return [item?.sourceId, item?.uuid].some((uuid) => typeof uuid === "string" && uuid.endsWith(`.${id}`));
 }
 
-function hasOngoingMisery(familiar) {
-    return familiar.items.some(
-        (i) => isFromSource(i, ABILITY_ID) || i.name.toLowerCase() === "familiar of ongoing misery",
+/**
+ * Whether the witch's familiar has the ability. pf2e grants it through the witch's patron (The Resentment), which
+ * boxes it in hex descriptions instead of adding it to the familiar, but it can also be on the familiar's sheet.
+ */
+function hasOngoingMisery(witch, familiar) {
+    const fromPatron = witch.items.some(
+        (i) => isFromSource(i, RESENTMENT_ID) || JSON.stringify(i._source.system.rules ?? []).includes("OngoingMisery"),
+    );
+    return (
+        fromPatron ||
+        !!familiar?.items.some(
+            (i) => isFromSource(i, ABILITY_ID) || i.name.toLowerCase() === "familiar of ongoing misery",
+        )
     );
 }
 
-/** Whether a chat message is the card of a hex being cast, or the Sustain action */
-function isHexCastOrSustain(message) {
+const warned = new Set();
+function warnOnce(message) {
+    if (warned.has(message)) return;
+    warned.add(message);
+    ui.notifications.warn(`Familiar of Ongoing Misery: ${message}`);
+}
+
+/** Whether a chat message is the card of a hex being cast */
+function isHexCast(message) {
     const flags = message.flags.pf2e ?? {};
     const item = message.item;
-    if (item?.type === "spell") {
-        // Attack and damage rolls from the spell also carry it: only the cast card has no other roll context
-        const contextType = flags.context?.type;
-        return !!flags.casting && (!contextType || contextType === "spell-cast") && item.traits.has("hex");
-    }
-    return isFromSource(item, SUSTAIN_ID) || String(flags.origin?.uuid ?? "").endsWith(`.${SUSTAIN_ID}`);
+    // Attack and damage rolls from the spell also carry it: only the cast card has no other roll context
+    const contextType = flags.context?.type;
+    return (
+        item?.type === "spell" &&
+        item.traits.has("hex") &&
+        !!flags.casting &&
+        (!contextType || contextType === "spell-cast")
+    );
 }
 
 /** Timed effects granting a negative condition to creatures within 15 feet of the familiar */
@@ -89,11 +108,14 @@ async function extendEffect(effect) {
 /** Prompt the witch's user to curse a creature, extending the chosen condition */
 async function promptOngoingMisery(actor) {
     const witch = actor?.isOfType?.("familiar") ? actor.master : actor;
-    const familiar = witch?.isOfType?.("character") ? witch.familiar : null;
-    if (!familiar || !hasOngoingMisery(familiar)) return;
+    if (!witch?.isOfType?.("character")) return;
+    const familiar = witch.familiar;
+    if (!hasOngoingMisery(witch, familiar)) return;
+    if (!familiar) return warnOnce(`${witch.name} has no familiar actor linked.`);
 
+    // The 15-foot range is measured from the familiar
     const familiarToken = familiar.getActiveTokens(true, true).find((t) => t.parent === canvas.scene);
-    if (!familiarToken) return;
+    if (!familiarToken) return warnOnce(`${familiar.name} has no token on this scene.`);
     const options = getEligibleEffects(familiarToken);
     if (options.length === 0) return;
 
@@ -147,12 +169,18 @@ async function promptOngoingMisery(actor) {
 }
 
 Hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id || !isHexCastOrSustain(message)) return;
+    if (userId !== game.user.id || !isHexCast(message)) return;
     promptOngoingMisery(message.actor).catch((error) => console.error(`${MODULE_ID} | Ongoing Misery`, error));
 });
 
+// Sustaining through scripts/sustain.js, which knows whether the sustained spell is a hex
+Hooks.on(`${MODULE_ID}.sustain`, (actor, { hex }) => {
+    if (!hex) return;
+    promptOngoingMisery(actor).catch((error) => console.error(`${MODULE_ID} | Ongoing Misery`, error));
+});
+
 Hooks.once("init", () => {
-    // For a macro, e.g. after Sustaining a hex without posting the action: pass the witch or their familiar
+    // For a macro: pass the witch or their familiar
     const module = game.modules.get(MODULE_ID);
     module.api = { ...module.api, ongoingMisery: (actor) => promptOngoingMisery(actor) };
 });
