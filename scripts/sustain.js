@@ -1,8 +1,8 @@
 /**
  * Sustain support. pf2e's Sustain action only posts its description, without saying what was sustained. This adds a
  * Sustain button to the chat cards of sustained spells and a prompt listing the caster's sustained effects, and posts
- * which spell was sustained. The module's other scripts react through `sustainHandlers` on the module, run in turn so
- * their prompts don't overlap; other modules can use the `evan-character-homebrew.sustain` hook.
+ * the sustained spell's card again. The module's other scripts react through `sustainHandlers` on the module, run in
+ * turn so their prompts don't overlap; other modules can use the `evan-character-homebrew.sustain` hook.
  */
 
 const MODULE_ID = "evan-character-homebrew";
@@ -20,20 +20,33 @@ function getOriginSpell(effect) {
     return item?.type === "spell" ? item : null;
 }
 
-/** Post that a spell was sustained, then let automations react */
-async function sustain(actor, { spell = null, effect = null } = {}) {
+/**
+ * Post that a spell was sustained, then let automations react. When the spell is known, its card is posted again at
+ * the rank it was cast, so damage, attacks, saves, and templates can be rolled from it. Nothing is spent.
+ */
+async function sustain(actor, { spell = null, effect = null, castRank = null } = {}) {
     spell ??= effect ? getOriginSpell(effect) : null;
+    // An effect dragged from the spell's chat card has the spell's cast rank as its level
+    castRank ??= spell && effect ? Math.max(spell.rank, effect.system.level?.value ?? 0) : (spell?.rank ?? null);
     const hex = !!(spell?.traits.has("hex") || effect?.system.traits?.value?.includes("hex"));
     const esc = Handlebars.escapeExpression;
+    const glyph = `<span class="pf2-icon larger">1</span>`;
+    const header = `<h4 class="action"><strong>${esc(sustainTitle())}</strong> ${glyph}</h4>`;
+    const flags = { sustain: { spell: spell?.uuid ?? null, effect: effect?.uuid ?? null, hex } };
 
-    await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: [
-            `<h4 class="action"><strong>${esc(sustainTitle())}</strong> <span class="pf2-icon larger">1</span></h4>`,
-            `<p>${esc(actor.name)} Sustains <strong>${esc(spell?.name ?? effect?.name ?? "a spell")}</strong>.</p>`,
-        ].join(""),
-        flags: { [MODULE_ID]: { sustain: { spell: spell?.uuid ?? null, effect: effect?.uuid ?? null, hex } } },
-    });
+    const card = spell?.actor ? await spell.toMessage(undefined, { create: false, data: { castRank } }) : null;
+    if (card) {
+        const source = card.toObject();
+        source.flavor = `${header}${source.flavor ?? ""}`;
+        source.flags[MODULE_ID] = flags;
+        await ChatMessage.implementation.create(source);
+    } else {
+        await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            content: `${header}<p>${esc(actor.name)} Sustains <strong>${esc(effect?.name ?? "a spell")}</strong>.</p>`,
+            flags: { [MODULE_ID]: flags },
+        });
+    }
 
     const data = { spell, effect, hex };
     for (const handler of game.modules.get(MODULE_ID).sustainHandlers ?? []) {
@@ -107,7 +120,8 @@ function addSustainButton(message, html) {
     button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        sustain(actor, { spell }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+        const castRank = message.flags.pf2e?.origin?.castRank ?? spell.rank;
+        sustain(actor, { spell, castRank }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
     });
     wrapper.append(button);
     buttons.append(wrapper);
