@@ -118,6 +118,124 @@ Hooks.on("createItem", (item, _options, userId) => {
     playCastAnimation(item);
 });
 
+/* Seneschal: "When you cast or Sustain manifest will, as long as your charge is within 30 feet, you can choose to
+ * center the spell's emanation on your charge instead of yourself." */
+
+const SOCKET = `module.${MODULE_ID}`;
+/** ID of pf2e's Effect: Witch's Charge, the same in every pf2e version */
+const CHARGE_EFFECT_ID = "ugeStF0Rj8phBPWL";
+const CHARGE_RANGE = 30;
+
+function getSceneToken(actor) {
+    return actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
+}
+
+/** The caster's Aura: Manifest Will effect, on themselves or a creature it's centered on */
+function findAuraEffect(caster) {
+    const actors = new Set([caster, ...canvas.scene.tokens.map((t) => t.actor).filter((a) => a)]);
+    for (const actor of actors) {
+        const effect = actor.itemTypes.effect.find(
+            (e) => e.slug === "aura-manifest-will" && (actor === caster || e.origin === caster),
+        );
+        if (effect) return effect;
+    }
+    return null;
+}
+
+/** Tokens of the caster's charges within 30 feet: creatures with Effect: Witch's Charge from the caster */
+function getChargeTokens(caster, casterToken) {
+    return canvas.scene.tokens.filter((token) => {
+        const actor = token.actor;
+        if (!actor || actor === caster || !token.object || !casterToken.object) return false;
+        const isCharge = actor.itemTypes.effect.some((e) => {
+            const fromCompendium = [e.sourceId, e.uuid].some((u) => String(u ?? "").endsWith(`.${CHARGE_EFFECT_ID}`));
+            // Without an origin, the effect counts as its holder's own: assume it's from this caster
+            return (fromCompendium || e.name === "Effect: Witch's Charge") && [caster, actor].includes(e.origin);
+        });
+        return isCharge && casterToken.object.distanceTo(token.object) <= CHARGE_RANGE;
+    });
+}
+
+/** Re-create the aura effect on a new center, keeping its tradition, rank, caster, and start time */
+async function moveAuraEffect(effectUuid, centerActorUuid) {
+    const effect = await fromUuid(effectUuid);
+    const center = await fromUuid(centerActorUuid);
+    if (!effect || !center || effect.actor === center) return;
+
+    const source = effect.toObject();
+    delete source._id;
+    const [created] = await center.createEmbeddedDocuments("Item", [source]);
+    // pf2e sets a new start time on creation; keep counting the spell's duration from when it was cast
+    await created?.update({ "system.start": effect._source.system.start });
+    await effect.delete();
+}
+
+/** On Sustaining Manifest Will, offer to center it on the caster or a charge within 30 feet */
+async function offerRecenter(caster, { spell, effect }) {
+    if (![spell?.slug, effect?.slug].some((s) => s === "manifest-will" || s === "aura-manifest-will")) return;
+
+    const auraEffect = findAuraEffect(caster);
+    const casterToken = getSceneToken(caster);
+    if (!auraEffect || !casterToken) return;
+    const chargeTokens = getChargeTokens(caster, casterToken);
+    if (chargeTokens.length === 0) return;
+
+    const esc = Handlebars.escapeExpression;
+    const centers = [casterToken, ...chargeTokens];
+    const content = centers
+        .map((token, index) => {
+            const label = index === 0 ? `${token.name} (you)` : `${token.name} (charge)`;
+            const current = token.actor === auraEffect.actor;
+            return [
+                `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
+                `<input type="radio" name="choice" value="${index}" ${current ? "checked" : ""}>`,
+                `<span>${esc(label)}${current ? " <em>(current)</em>" : ""}</span>`,
+                `</label>`,
+            ].join("");
+        })
+        .join("");
+
+    const choice = await foundry.applications.api.DialogV2.wait({
+        window: { title: "Center Manifest Will on" },
+        content,
+        buttons: [
+            {
+                action: "center",
+                label: "Center",
+                default: true,
+                callback: (_event, button) => button.form.elements.choice.value,
+            },
+            { action: "keep", label: "Keep" },
+        ],
+        rejectClose: false,
+    });
+    if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
+    const center = centers[Number(choice)].actor;
+    if (center === auraEffect.actor) return;
+
+    if (auraEffect.isOwner && center.isOwner) {
+        await moveAuraEffect(auraEffect.uuid, center.uuid);
+    } else if (game.users.activeGM) {
+        game.socket.emit(SOCKET, { action: "moveManifestWill", effectUuid: auraEffect.uuid, centerUuid: center.uuid });
+    } else {
+        ui.notifications.warn("Manifest Will: a GM must be logged in to center it on that creature.");
+    }
+}
+
+Hooks.once("init", () => {
+    // Run when the caster Sustains a spell through scripts/sustain.js, before other Sustain follow-ups
+    const module = game.modules.get(MODULE_ID);
+    module.sustainHandlers = [...(module.sustainHandlers ?? []), offerRecenter];
+});
+
+Hooks.once("ready", () => {
+    // Players can't edit creatures they don't own, so the active GM moves the aura for them
+    game.socket.on(SOCKET, async (data) => {
+        if (data?.action !== "moveManifestWill" || game.user !== game.users.activeGM) return;
+        await moveAuraEffect(data.effectUuid, data.centerUuid);
+    });
+});
+
 Hooks.on("updateCombat", (combat, changed) => {
     if (game.user !== game.users.activeGM) return;
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;

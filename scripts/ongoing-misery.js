@@ -173,15 +173,14 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
     promptOngoingMisery(message.actor).catch((error) => console.error(`${MODULE_ID} | Ongoing Misery`, error));
 });
 
-// Sustaining through scripts/sustain.js, which knows whether the sustained spell is a hex
-Hooks.on(`${MODULE_ID}.sustain`, (actor, { hex }) => {
-    if (!hex) return;
-    promptOngoingMisery(actor).catch((error) => console.error(`${MODULE_ID} | Ongoing Misery`, error));
-});
-
 Hooks.once("init", () => {
-    // For a macro: pass the witch or their familiar
     const module = game.modules.get(MODULE_ID);
+    // Sustaining through scripts/sustain.js, which knows whether the sustained spell is a hex
+    module.sustainHandlers = [
+        ...(module.sustainHandlers ?? []),
+        (actor, { hex }) => (hex ? promptOngoingMisery(actor) : undefined),
+    ];
+    // For a macro: pass the witch or their familiar
     module.api = { ...module.api, ongoingMisery: (actor) => promptOngoingMisery(actor) };
 });
 

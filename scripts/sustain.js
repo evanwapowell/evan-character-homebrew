@@ -1,8 +1,8 @@
 /**
  * Sustain support. pf2e's Sustain action only posts its description, without saying what was sustained. This adds a
- * Sustain button to the chat cards of sustained spells and a prompt listing the caster's sustained effects, posts
- * which spell was sustained, and calls the `evan-character-homebrew.sustain` hook so automations such as Familiar of
- * Ongoing Misery can react.
+ * Sustain button to the chat cards of sustained spells and a prompt listing the caster's sustained effects, and posts
+ * which spell was sustained. The module's other scripts react through `sustainHandlers` on the module, run in turn so
+ * their prompts don't overlap; other modules can use the `evan-character-homebrew.sustain` hook.
  */
 
 const MODULE_ID = "evan-character-homebrew";
@@ -35,7 +35,15 @@ async function sustain(actor, { spell = null, effect = null } = {}) {
         flags: { [MODULE_ID]: { sustain: { spell: spell?.uuid ?? null, effect: effect?.uuid ?? null, hex } } },
     });
 
-    Hooks.callAll(`${MODULE_ID}.sustain`, actor, { spell, effect, hex });
+    const data = { spell, effect, hex };
+    for (const handler of game.modules.get(MODULE_ID).sustainHandlers ?? []) {
+        try {
+            await handler(actor, data);
+        } catch (error) {
+            console.error(`${MODULE_ID} | Sustain`, error);
+        }
+    }
+    Hooks.callAll(`${MODULE_ID}.sustain`, actor, data);
 }
 
 /** Choose which of an actor's sustained effects to Sustain */
