@@ -7,9 +7,10 @@
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
-/** IDs of the action in this module's compendium, pf2e's Witch's Communion feat, and pf2e's Effect: Witch's Charge */
+/** IDs of the action in this module's compendium, pf2e's feats, and pf2e's Effect: Witch's Charge */
 const ACTION_ID = "f0BUHuiZLiODSsg3";
 const COMMUNION_ID = "4IeAAmx2vZEHmRLX";
+const SENESCHAL_DEDICATION_ID = "HIu1miRRGvGvHevN";
 const CHARGE_EFFECT_UUID = "Compendium.pf2e.feat-effects.Item.ugeStF0Rj8phBPWL";
 
 function isDesignateAction(message) {
@@ -26,13 +27,15 @@ function isChargeEffect(effect) {
     );
 }
 
+function hasFeat(actor, id, name) {
+    return actor.itemTypes.feat.some(
+        (f) => [f.sourceId, f.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`)) || f.name === name,
+    );
+}
+
 /** How many charges the witch can designate: 1, or their Intelligence modifier with Witch's Communion */
 function getMaxCharges(witch) {
-    const hasCommunion = witch.itemTypes.feat.some(
-        (f) =>
-            [f.sourceId, f.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${COMMUNION_ID}`)) ||
-            f.name === "Witch's Communion",
-    );
+    const hasCommunion = hasFeat(witch, COMMUNION_ID, "Witch's Communion");
     return hasCommunion ? Math.max(1, witch.system.abilities?.int?.mod ?? 1) : 1;
 }
 
@@ -131,6 +134,12 @@ function requestCharge(witch) {
     }
     if (targetTokens.some((t) => t.actor === witch)) {
         return ui.notifications.warn("Witch's Charge: you can't be your own charge.");
+    }
+    // Seneschal Witch Dedication: "can't choose your familiar or another creature with the minion trait as a charge"
+    const isSeneschal = hasFeat(witch, SENESCHAL_DEDICATION_ID, "Seneschal Witch Dedication");
+    const isMinion = (actor) => actor.isOfType("familiar") || actor.traits?.has("minion");
+    if (isSeneschal && targetTokens.some((t) => isMinion(t.actor))) {
+        return ui.notifications.warn("Witch's Charge: a seneschal can't choose a familiar or minion as a charge.");
     }
 
     const targetTokenUuids = targetTokens.map((t) => t.uuid);
