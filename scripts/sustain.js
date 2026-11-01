@@ -1,8 +1,8 @@
 /**
  * Sustain support. pf2e's Sustain action only posts its description, without saying what was sustained. This adds a
- * Sustain button to the chat cards of sustained spells and a prompt listing the caster's sustained effects, and posts
- * the sustained spell's card again. The module's other scripts react through `sustainHandlers` on the module, run in
- * turn so their prompts don't overlap; other modules can use the `evan-character-homebrew.sustain` hook.
+ * Sustain button beside the Cast button of sustained spells on actor sheets and a prompt listing the caster's
+ * sustained effects, and posts the sustained spell's card again. The module's other scripts react through
+ * `sustainHandlers` on the module, run in turn so their prompts don't overlap.
  */
 
 const MODULE_ID = "evan-character-homebrew";
@@ -32,7 +32,8 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
     const esc = Handlebars.escapeExpression;
     const glyph = `<span class="pf2-icon larger">1</span>`;
     const header = `<h4 class="action"><strong>${esc(sustainTitle())}</strong> ${glyph}</h4>`;
-    const flags = { sustain: { spell: spell?.uuid ?? null, effect: effect?.uuid ?? null, hex } };
+    // Marks the message as a Sustain rather than a cast
+    const flags = { sustain: true };
 
     const card = spell?.actor ? await spell.toMessage(undefined, { create: false, data: { castRank } }) : null;
     if (card) {
@@ -56,7 +57,6 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
             console.error(`${MODULE_ID} | Sustain`, error);
         }
     }
-    Hooks.callAll(`${MODULE_ID}.sustain`, actor, data);
 }
 
 /** Choose which of an actor's sustained effects to Sustain */
@@ -64,7 +64,7 @@ async function promptSustain(actor, { skipIfSingle = false } = {}) {
     const effects = actor.itemTypes.effect.filter((e) => e.system.duration.sustained && !e.remainingDuration.expired);
     if (effects.length === 0) {
         ui.notifications.info(
-            `${actor.name} has no sustained effects. Use the Sustain button on the spell's chat card instead.`,
+            `${actor.name} has no sustained effects. Use the Sustain button beside the spell's Cast button instead.`,
         );
         return;
     }
@@ -100,31 +100,59 @@ async function promptSustain(actor, { skipIfSingle = false } = {}) {
     return sustain(actor, { effect: effects[Number(choice)] });
 }
 
-/** Add a Sustain button to the chat card of a sustained spell, for the caster's owners */
-function addSustainButton(message, html) {
-    const spell = message.item;
-    const flags = message.flags.pf2e ?? {};
-    const contextType = flags.context?.type;
-    if (spell?.type !== "spell" || !spell.system.duration?.sustained || !flags.casting) return;
-    if (contextType && contextType !== "spell-cast") return;
+const BUTTON_GAP = 4;
 
-    const actor = message.actor;
-    const buttons = html?.querySelector("section.card-buttons");
-    if (!actor?.isOwner || !buttons) return;
+/** The width of a button styled like `reference` showing `label` */
+function measureButton(reference, label) {
+    const style = getComputedStyle(reference);
+    const context = (measureButton.canvas ??= document.createElement("canvas")).getContext("2d");
+    context.font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const text = style.textTransform === "uppercase" ? label.toUpperCase() : label;
+    const edges = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"];
+    const extra = edges.reduce((sum, property) => sum + (parseFloat(style[property]) || 0), 0);
+    return Math.max(Math.ceil(context.measureText(text).width + extra), parseFloat(style.minWidth) || 0);
+}
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "spell-button";
-    const button = document.createElement("button");
-    button.type = "button";
-    button.innerHTML = `${Handlebars.escapeExpression(sustainTitle())} <span class="action-glyph">1</span>`;
-    button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const castRank = message.flags.pf2e?.origin?.castRank ?? spell.rank;
-        sustain(actor, { spell, castRank }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
-    });
-    wrapper.append(button);
-    buttons.append(wrapper);
+/** Add a Sustain button beside the Cast button of each sustained spell on a creature's sheet */
+function addSheetSustainButtons(sheet, html) {
+    const actor = sheet.actor;
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    if (!actor?.isOwner || !actor.spellcasting || !root) return;
+
+    const lists = new Set();
+    for (const row of root.querySelectorAll("ol.spell-list > li.spell[data-item-id][data-entry-id]")) {
+        const castButton = row.querySelector('button.cast-spell[data-action="cast-spell"]');
+        const { itemId, entryId, castRank } = row.dataset;
+        const spell = actor.spellcasting.collections.get(entryId)?.get(itemId);
+        if (!castButton || !spell?.system.duration?.sustained) continue;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "cast-spell blue";
+        button.textContent = sustainTitle();
+        button.dataset.tooltip = "Post this spell's card again without spending anything";
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const rank = Number(castRank) || spell.rank;
+            sustain(actor, { spell, castRank: rank }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+        });
+
+        const wrapper = document.createElement("div");
+        wrapper.style.cssText = `display: flex; gap: ${BUTTON_GAP}px; justify-self: end`;
+        castButton.replaceWith(wrapper);
+        wrapper.append(button, castButton);
+        lists.add(row.parentElement);
+    }
+
+    // Each row is its own grid: widen the Cast column on every row of the list so the columns stay aligned
+    for (const list of lists) {
+        const castButtons = [...list.querySelectorAll(":scope > li button.cast-spell:not([data-tooltip])")];
+        if (castButtons.length === 0) continue;
+        const castWidth = Math.max(...castButtons.map((b) => measureButton(b, b.textContent.trim())));
+        const width = castWidth + BUTTON_GAP + measureButton(castButtons[0], sustainTitle());
+        for (const item of list.children) item.style.setProperty("--cast-spell-width", `${width}px`);
+    }
 }
 
 /** Whether a chat message is pf2e's own Sustain action, which doesn't say what was sustained */
@@ -147,13 +175,10 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
     promptSustain(actor, { skipIfSingle: true }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
 });
 
-Hooks.once("init", () => {
-    if (game.release.generation >= 13) {
-        Hooks.on("renderChatMessageHTML", (message, html) => addSustainButton(message, html));
-    } else {
-        Hooks.on("renderChatMessage", (message, $html) => addSustainButton(message, $html[0]));
-    }
+// pf2e's actor sheets use Foundry's original sheet framework in every version from v12 to v14
+Hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html));
 
+Hooks.once("init", () => {
     // For a macro: Sustain one of the selected token's (or your character's) sustained effects
     const module = game.modules.get(MODULE_ID);
     module.api = {
