@@ -2,7 +2,7 @@
  * Familiar of Ongoing Misery: "When you Cast or Sustain a hex, your familiar can curse a creature within 15 feet of it,
  * prolonging one negative condition of your choice affecting the creature by 1 round." Only conditions with a timed
  * duration qualify, which in pf2e means a condition granted by an effect with a timed duration: that effect is the one
- * extended. Each case can be extended only once.
+ * extended. The errata's "only once to a given case of a condition" is a world setting, off by default.
  */
 
 const MODULE_ID = "evan-character-homebrew";
@@ -25,6 +25,11 @@ const POSITIVE_CONDITIONS = new Set([
     "unnoticed",
 ]);
 const ROUNDS_PER_UNIT = { rounds: 1, minutes: 10, hours: 600, days: 14400 };
+
+/** Whether each case of a condition can be prolonged only once (the errata), rather than on every hex */
+function isOncePerCase() {
+    return game.settings.get(MODULE_ID, "ongoingMiseryOncePerCase");
+}
 
 function isFromSource(item, id) {
     return [item?.sourceId, item?.uuid].some((uuid) => typeof uuid === "string" && uuid.endsWith(`.${id}`));
@@ -81,7 +86,7 @@ function getEligibleEffects(familiarToken) {
 
         for (const effect of actor.itemTypes.effect) {
             if (!ROUNDS_PER_UNIT[effect.system.duration.unit] || effect.remainingDuration.expired) continue;
-            if (effect.flags[MODULE_ID]?.ongoingMisery) continue;
+            if (isOncePerCase() && effect.flags[MODULE_ID]?.ongoingMisery) continue;
 
             const conditions = actor.conditions.contents.filter(
                 (c) => c.flags.pf2e?.grantedBy?.id === effect.id && !POSITIVE_CONDITIONS.has(c.slug),
@@ -95,15 +100,20 @@ function getEligibleEffects(familiarToken) {
     return options;
 }
 
-/** Add 1 round to an effect's duration and mark it as extended */
-async function extendEffect(effect) {
+/** Add 1 round to an effect's duration, mark it as extended, and announce it from the familiar */
+async function extendEffect(effect, { familiarTokenUuid, announcement }) {
     const { value, unit } = effect._source.system.duration;
     const perUnit = ROUNDS_PER_UNIT[unit];
-    if (!perUnit || effect.flags[MODULE_ID]?.ongoingMisery) return;
+    if (!perUnit || (isOncePerCase() && effect.flags[MODULE_ID]?.ongoingMisery)) return;
     await effect.update({
         "system.duration.value": value * perUnit + 1,
         "system.duration.unit": "rounds",
         [`flags.${MODULE_ID}.ongoingMisery`]: true,
+    });
+    // Posted by whoever extended it, so it only appears once the extension is applied
+    await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ token: fromUuidSync(familiarTokenUuid) }),
+        content: `<p><strong>Familiar of Ongoing Misery</strong> ${announcement}</p>`,
     });
 }
 
@@ -153,21 +163,17 @@ async function promptOngoingMisery(actor) {
     });
     if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
     const { token, effect, conditions } = options[Number(choice)];
+    const conditionNames = esc(conditions.map((c) => c.name).join(", "));
+    const announcement = `${esc(familiar.name)} curses ${esc(token.name)}, prolonging ${conditionNames} by 1 round.`;
+    const extension = { familiarTokenUuid: familiarToken.uuid, announcement };
 
     if (effect.canUserModify(game.user, "update")) {
-        await extendEffect(effect);
+        await extendEffect(effect, extension);
     } else if (game.users.activeGM) {
-        game.socket.emit(SOCKET, { action: "ongoingMisery", effectUuid: effect.uuid });
+        game.socket.emit(SOCKET, { action: "ongoingMisery", effectUuid: effect.uuid, ...extension });
     } else {
         ui.notifications.warn("Familiar of Ongoing Misery: a GM must be logged in to curse that creature.");
-        return;
     }
-
-    const conditionNames = esc(conditions.map((c) => c.name).join(", "));
-    await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ token: familiarToken }),
-        content: `<p><strong>Familiar of Ongoing Misery</strong> ${esc(familiar.name)} curses ${esc(token.name)}, prolonging ${conditionNames} by 1 round.</p>`,
-    });
 }
 
 Hooks.on("createChatMessage", (message, _options, userId) => {
@@ -176,6 +182,17 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
 });
 
 Hooks.once("init", () => {
+    game.settings.register(MODULE_ID, "ongoingMiseryOncePerCase", {
+        name: "Familiar of Ongoing Misery: once per condition",
+        hint:
+            "Errata: each case of a condition can be prolonged only once. " +
+            "When off, it can be prolonged again on every Cast or Sustain of a hex.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: false,
+    });
+
     const module = game.modules.get(MODULE_ID);
     // Sustaining through scripts/sustain.js, which knows whether the sustained spell is a hex
     module.sustainHandlers = [
@@ -191,6 +208,6 @@ Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
         if (data?.action !== "ongoingMisery" || game.user !== game.users.activeGM) return;
         const effect = await fromUuid(data.effectUuid);
-        if (effect) await extendEffect(effect);
+        if (effect) await extendEffect(effect, data);
     });
 });
