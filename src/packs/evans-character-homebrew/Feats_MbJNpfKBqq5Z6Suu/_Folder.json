@@ -1,0 +1,22 @@
+{
+  "name": "Feats",
+  "sorting": "a",
+  "folder": null,
+  "type": "Item",
+  "_id": "MbJNpfKBqq5Z6Suu",
+  "description": "",
+  "sort": 0,
+  "color": null,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1737595278636,
+    "modifiedTime": 1737595278636,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "_key": "!folders!MbJNpfKBqq5Z6Suu"
+}

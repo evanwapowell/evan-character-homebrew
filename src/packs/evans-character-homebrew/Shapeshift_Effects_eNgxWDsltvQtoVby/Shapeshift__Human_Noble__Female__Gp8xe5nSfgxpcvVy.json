@@ -1,0 +1,78 @@
+{
+  "name": "Shapeshift: Human Noble (Female)",
+  "type": "effect",
+  "effects": [],
+  "system": {
+    "description": {
+      "gm": "",
+      "value": ""
+    },
+    "rules": [
+      {
+        "key": "TokenImage",
+        "value": "modules/evan-character-homebrew/token-subjects/gmg-noble.webp",
+        "ring": {
+          "subject": {
+            "texture": "modules/evan-character-homebrew/token-subjects/gmg-noble.webp",
+            "scale": 2
+          }
+        },
+        "scale": 2
+      }
+    ],
+    "slug": null,
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null
+    },
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": -1,
+      "unit": "unlimited",
+      "expiry": null,
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "img": "modules/evan-character-homebrew/token-subjects/gmg-noble.webp",
+  "folder": "eNgxWDsltvQtoVby",
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.5",
+    "createdTime": 1738534117470,
+    "modifiedTime": 1738635658004,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "_id": "Gp8xe5nSfgxpcvVy",
+  "sort": 1000000,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!Gp8xe5nSfgxpcvVy"
+}

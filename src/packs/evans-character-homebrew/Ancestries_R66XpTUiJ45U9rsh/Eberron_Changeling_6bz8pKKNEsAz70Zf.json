@@ -1,0 +1,108 @@
+{
+  "name": "Eberron Changeling",
+  "type": "ancestry",
+  "img": "systems/pf2e/icons/default-icons/ancestry.svg",
+  "effects": [],
+  "folder": "R66XpTUiJ45U9rsh",
+  "flags": {
+    "core": {
+      "sourceId": "Item.gBocZEUiCx5yaP7F"
+    }
+  },
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p><em>Known under the moniker of \"The Children of Jes\", changelings are humanoid creatures with shape-changing abilities. In particular, their abilities allow them to take the form of other humanoid creatures with little limitation.</em></p>\n<hr />\n<p>Changelings are shapeshifters capable of replicating any other humanoid creatures near perfectly. While this talent makes them a highly-valuable asset to espionage agencies, most Changelings simply wish to make their own way with their own personas.</p>\n<h2>You might…</h2>\n<ul>\n<li>Shift your shape to a persona that matches your mood or current activity. Though you, never use a particular form for too long before moving on to the next.</li>\n<li>Travel light, and keep an eye on the road, never settling down - whether that be a fear of being driven away or simply a restless desire to travel.</li>\n<li>Take a great interest in the people around you, their stories, and their histories. After all, these new learnings might be the basis for one of your future personas.</li>\n</ul>\n<h2>Others Probably…</h2>\n<ul>\n<li>Others assume that because you have the uncanny ability to change their faces at will, that you will use it for malevolent ends, cheating honest folk before moving on.</li>\n<li>Employ you for your ability to shift your shape to any number of forms, whether this is for entertainment, acting, or protection.</li>\n<li>Don't understand the fluid nature you have with gender, form, or personality.</li>\n</ul>\n<h2>Physical Description…</h2>\n<p>Changelings are typically 5 to 6ft tall, weighing between 120 to 180lbs. Their base form is a nondescript humanoid shape with white skin, hair, and featureless eyes - not unlike a mannequin. Beyond this, because of their ability to shift-shape, changelings do not have a set physical description.</p>\n<h2>Society…</h2>\n<p>Changeling society is fragmented, and no two groups of changelings have the same culture. However, for changelings that live in areas where other of their kind reside, and often shared feature is a fluidity in concepts of identity, gender, and personality.</p>\n<h2>Alignment and Religion…</h2>\n<p>Changelings tend towards pragmatic neutrality, and few changelings embrace evil. As changelings are primarily products of the culture in which they grow, their moral alignment tends to match the alignment of their peers. Similarly, for religion, a changeling might be inclined to follow the dominant faith of their peers.</p>\n<h2>Names…</h2>\n<p>The true name of a changeling tends to be simple and monosyllabic.</p>\n<h3>Sample Names</h3>\n<p>Changeling Names: Aunn, Bin, Cas, Dox, Fie, Hars, Jin, Lam, Mas, Nix, Ot, Paik, Ruz, Sim, Toox, Vil, Yug</p>\n<p>You gain access to the following action</p>\n<p>@Compendium[pathfinders-guide-to-eberron-compendium.eberron-actions.mRp2OajR9Xx7uZ5g]{Shift shape (Eberron Changeling)}</p>"
+    },
+    "rules": [
+      {
+        "key": "GrantItem",
+        "uuid": "Compendium.pathfinders-guide-to-eberron.eberron-actions.Item.mRp2OajR9Xx7uZ5g",
+        "allowDuplicate": false
+      }
+    ],
+    "slug": null,
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null,
+      "previous": {
+        "schema": 0.812,
+        "foundry": "12.331",
+        "system": "6.8.3"
+      }
+    },
+    "traits": {
+      "otherTags": [],
+      "value": [
+        "eberron-changelings",
+        "humanoid"
+      ],
+      "rarity": "common"
+    },
+    "publication": {
+      "title": "Pathfinder's Guide to Eberron",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "hp": 6,
+    "size": "med",
+    "reach": 5,
+    "speed": 25,
+    "boosts": {
+      "0": {
+        "value": [
+          "cha"
+        ]
+      },
+      "1": {
+        "value": []
+      },
+      "2": {
+        "value": [
+          "str",
+          "dex",
+          "con",
+          "int",
+          "wis",
+          "cha"
+        ]
+      }
+    },
+    "flaws": {
+      "0": {
+        "value": []
+      }
+    },
+    "languages": {
+      "value": [
+        "common"
+      ],
+      "custom": ""
+    },
+    "additionalLanguages": {
+      "count": 1,
+      "value": [],
+      "custom": ""
+    },
+    "items": {},
+    "vision": "normal"
+  },
+  "_stats": {
+    "compendiumSource": "Item.gBocZEUiCx5yaP7F",
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1737595278713,
+    "modifiedTime": 1737595278713,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "_id": "6bz8pKKNEsAz70Zf",
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!6bz8pKKNEsAz70Zf"
+}

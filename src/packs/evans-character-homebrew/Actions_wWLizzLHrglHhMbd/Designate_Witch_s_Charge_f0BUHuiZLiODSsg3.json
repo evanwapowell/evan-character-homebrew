@@ -1,0 +1,56 @@
+{
+  "_id": "f0BUHuiZLiODSsg3",
+  "name": "Designate Witch's Charge",
+  "type": "action",
+  "img": "systems/pf2e/icons/equipment/other/magic-pots/walking-cauldron.webp",
+  "effects": [],
+  "flags": {},
+  "system": {
+    "description": {
+      "value": "<p>Designate the creature you're targeting as your charge, as from @UUID[Compendium.pf2e.feats-srd.Item.52QyoGaysrfBOy5H]{Witch's Charge}. It gains @UUID[Compendium.pf2e.feat-effects.Item.ugeStF0Rj8phBPWL]{Effect: Witch's Charge}, and anyone else who has your charge loses it.</p><p>Target one creature, then use this action (post it to chat). With @UUID[Compendium.pf2e.feats-srd.Item.4IeAAmx2vZEHmRLX]{Witch's Communion}, you can target up to as many creatures as your Intelligence modifier: they become your charges. You normally designate your charges during your daily preparations.</p>",
+      "gm": ""
+    },
+    "traits": {
+      "value": [],
+      "otherTags": []
+    },
+    "rules": [],
+    "slug": "designate-witchs-charge",
+    "actionType": {
+      "value": "passive"
+    },
+    "actions": {
+      "value": null
+    },
+    "deathNote": false,
+    "publication": {
+      "title": "",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null,
+      "previous": null
+    },
+    "category": null
+  },
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1793552627921,
+    "modifiedTime": 1793552893859,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "folder": "wWLizzLHrglHhMbd",
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!f0BUHuiZLiODSsg3"
+}

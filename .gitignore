@@ -1,0 +1,4 @@
+node_modules/
+# Built from src/packs by `npm run build` (the release workflow does this)
+/packs/
+*.zip

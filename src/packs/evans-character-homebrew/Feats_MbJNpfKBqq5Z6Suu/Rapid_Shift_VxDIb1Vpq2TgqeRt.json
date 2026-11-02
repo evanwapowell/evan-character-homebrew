@@ -1,0 +1,75 @@
+{
+  "name": "Rapid Shift",
+  "type": "feat",
+  "img": "systems/pf2e/icons/default-icons/feats.webp",
+  "effects": [],
+  "folder": "MbJNpfKBqq5Z6Suu",
+  "flags": {
+    "core": {
+      "sourceId": "Item.y3MWNTGuJE1150l0"
+    }
+  },
+  "_id": "VxDIb1Vpq2TgqeRt",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>You can shift your form more quickly than most Changelings. Shift Shape no longer has a maximum frequency and loses the concentrate trait.</p>"
+    },
+    "rules": [],
+    "slug": null,
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null,
+      "previous": {
+        "schema": 0.812,
+        "foundry": "12.331",
+        "system": "6.8.3"
+      }
+    },
+    "traits": {
+      "otherTags": [],
+      "value": [
+        "eberron-changelings"
+      ],
+      "rarity": "common"
+    },
+    "publication": {
+      "title": "Pathfinder's Guide to Eberron",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "level": {
+      "value": 1
+    },
+    "category": "ancestry",
+    "onlyLevel1": false,
+    "maxTakable": 1,
+    "actionType": {
+      "value": "passive"
+    },
+    "actions": {
+      "value": null
+    },
+    "prerequisites": {
+      "value": []
+    },
+    "location": null
+  },
+  "_stats": {
+    "compendiumSource": "Item.y3MWNTGuJE1150l0",
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1737595278713,
+    "modifiedTime": 1737595278713,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!VxDIb1Vpq2TgqeRt"
+}
