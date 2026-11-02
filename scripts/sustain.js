@@ -278,7 +278,7 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
     promptSustain(actor, { skipIfSingle: true }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
 });
 
-// pf2e's actor sheets use Foundry's original sheet framework in every version from v12 to v14
+// pf2e's actor sheets use Foundry's original sheet framework in v13 and v14, whose render hooks pass jQuery
 Hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html));
 Hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, element));
 
