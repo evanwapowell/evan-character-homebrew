@@ -421,9 +421,5 @@ Hooks.once("init", () => {
         addApplyButton(message, html).catch(log);
         addToolbeltApplyButton(message, html).catch(log);
     };
-    if (game.release.generation >= 13) {
-        Hooks.on("renderChatMessageHTML", render);
-    } else {
-        Hooks.on("renderChatMessage", (message, $html) => render(message, $html[0]));
-    }
+    Hooks.on("renderChatMessageHTML", render);
 });
