@@ -209,7 +209,7 @@ async function applyProposal(save, { effects, conditions }) {
         origin:
             relativeTo === "target" || !caster
                 ? { actor: target.uuid, token: targetToken?.uuid ?? null, item: null, spellcasting: null }
-                : { actor: caster.uuid, token: casterToken?.uuid ?? null, item: null, spellcasting: null },
+                : { actor: caster.uuid, token: casterToken?.uuid ?? null, item: spell.uuid, spellcasting: null },
         target: { actor: target.uuid, token: targetToken?.uuid ?? null },
         roll: null,
     });
@@ -248,7 +248,8 @@ async function applyProposal(save, { effects, conditions }) {
                     value: duration.value,
                     unit: duration.unit,
                     expiry: duration.expiry ?? "turn-start",
-                    sustained: false,
+                    // Lasting for a sustained spell's duration, it ends when the spell isn't Sustained
+                    sustained: !!spell.system.duration?.sustained && grouped.some((c) => c.fromSpellDuration),
                 },
                 tokenIcon: { show: true },
                 rules: grouped.map((c) => ({
