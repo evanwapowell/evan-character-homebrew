@@ -117,6 +117,38 @@ async function extendEffect(effect, { familiarTokenUuid, announcement }) {
     });
 }
 
+/** JB2A (free) animations: a purple bolt from the familiar, by the longest distance each file covers, then a curse */
+const JB2A_LIBRARY = "modules/JB2A_DnD5e/Library";
+const CURSE_BOLTS = [
+    [5, "Cantrip/Eldritch_Blast/EldritchBlast_01_Regular_Purple_05ft_600x400.webm"],
+    [15, "Cantrip/Eldritch_Blast/EldritchBlast_01_Regular_Purple_15ft_1000x400.webm"],
+    [30, "Cantrip/Eldritch_Blast/EldritchBlast_01_Regular_Purple_30ft_1600x400.webm"],
+];
+const CURSE_MARKS = 24;
+
+/** The familiar hurls a curse at the creature, which lands as a curse sigil on it */
+function playCurseAnimation(familiarToken, targetToken) {
+    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!familiarToken.object || !targetToken.object) return;
+
+    const distance = familiarToken.object.distanceTo(targetToken.object);
+    const bolt = (CURSE_BOLTS.find(([feet]) => distance <= feet) ?? CURSE_BOLTS.at(-1))[1];
+    const mark = String(Math.floor(Math.random() * CURSE_MARKS) + 1).padStart(3, "0");
+    new Sequence()
+        .effect()
+        .file(`${JB2A_LIBRARY}/${bolt}`)
+        .atLocation(familiarToken)
+        .stretchTo(targetToken)
+        .effect()
+        .file(`${JB2A_LIBRARY}/Generic/Conditions/Curse01/ConditionCurse01_${mark}_Red_600x600.webm`)
+        .atLocation(targetToken)
+        .scaleToObject(1.6)
+        .delay(500)
+        .fadeIn(200)
+        .fadeOut(500)
+        .play();
+}
+
 /** Prompt the witch's user to curse a creature, extending the chosen condition */
 async function promptOngoingMisery(actor) {
     const witch = actor?.isOfType?.("familiar") ? actor.master : actor;
@@ -167,12 +199,16 @@ async function promptOngoingMisery(actor) {
     const announcement = `${esc(familiar.name)} curses ${esc(token.name)}, prolonging ${conditionNames} by 1 round.`;
     const extension = { familiarTokenUuid: familiarToken.uuid, announcement };
 
-    if (effect.canUserModify(game.user, "update")) {
+    const canExtend = effect.canUserModify(game.user, "update");
+    if (!canExtend && !game.users.activeGM) {
+        return ui.notifications.warn("Familiar of Ongoing Misery: a GM must be logged in to curse that creature.");
+    }
+    // Played here, where the tokens are on screen; Sequencer shows it to everyone
+    playCurseAnimation(familiarToken, token);
+    if (canExtend) {
         await extendEffect(effect, extension);
-    } else if (game.users.activeGM) {
-        game.socket.emit(SOCKET, { action: "ongoingMisery", effectUuid: effect.uuid, ...extension });
     } else {
-        ui.notifications.warn("Familiar of Ongoing Misery: a GM must be logged in to curse that creature.");
+        game.socket.emit(SOCKET, { action: "ongoingMisery", effectUuid: effect.uuid, ...extension });
     }
 }
 
