@@ -29,8 +29,12 @@ function isAffected(tradition, actor, { caster, center }) {
         case "arcane":
         case "primal":
             return actor !== center;
-        case "divine":
-            return ["living", "undead"].includes(actor.modeOfBeing);
+        case "divine": {
+            // "A living or undead creature": enemies included, unless the table limits it to the caster's side
+            if (!["living", "undead"].includes(actor.modeOfBeing)) return false;
+            const alliesOnly = game.settings.get(MODULE_ID, "manifestWillDivineAlliesOnly");
+            return !alliesOnly || actor === caster || actor === center || actor.isAllyOf(caster);
+        }
         case "occult":
             return actor.isAllyOf(caster);
         default:
@@ -222,7 +226,74 @@ async function offerRecenter(caster, { spell, effect }) {
     }
 }
 
+/* Concealment: "You are concealed from creatures beyond the edge of the emanation". The creature at its center is
+ * concealed, so an attack on it, or a targeted spell it saves against, from farther than 10 feet away needs a DC 5
+ * flat check. The flat check is rolled automatically after the attack or save. */
+
+const CONCEALMENT_RANGE = 10;
+const FLAT_CHECK_DC = 5;
+
+/** Roll the DC 5 flat check for concealment, as privately as the roll that prompted it */
+async function rollFlatCheck(message, { speaker, consequence }) {
+    const roll = await new Roll("1d20").evaluate();
+    const success = roll.total >= FLAT_CHECK_DC;
+    const result = success ? "Success" : `Failure: ${consequence}`;
+    const rollMode = message.blind ? "blindroll" : message.whisper?.length ? "gmroll" : "publicroll";
+    await roll.toMessage(
+        { speaker, flavor: `<strong>Manifest Will: Flat Check DC ${FLAT_CHECK_DC} (concealed)</strong><br>${result}` },
+        { rollMode },
+    );
+}
+
+/** The center of a Manifest Will emanation, and the other creature's distance from it */
+function getConcealment(centerToken, otherToken) {
+    const center = centerToken?.actor;
+    if (!center?.auras?.has(AURA_SLUG) || !centerToken.object || !otherToken?.object) return null;
+    if (!center.itemTypes.effect.some((e) => e.slug === "aura-manifest-will")) return null;
+    return otherToken.object.distanceTo(centerToken.object) > CONCEALMENT_RANGE ? center : null;
+}
+
+async function checkConcealment(message) {
+    const context = message.flags.pf2e?.context;
+    if (!context) return;
+
+    if (context.type === "attack-roll" && context.target?.token) {
+        const centerToken = fromUuidSync(context.target.token);
+        const attackerToken = (context.origin?.token && fromUuidSync(context.origin.token)) ?? message.token;
+        const center = getConcealment(centerToken, attackerToken);
+        if (!center) return;
+        const consequence = `the attack against ${center.name} fails`;
+        return rollFlatCheck(message, { speaker: ChatMessage.getSpeaker({ token: attackerToken }), consequence });
+    }
+
+    // Area effects aren't subject to the flat check
+    const spell = message.item;
+    if (context.type === "saving-throw" && spell?.type === "spell" && !spell.system.area && context.origin?.token) {
+        const casterToken = fromUuidSync(context.origin.token);
+        const center = getConcealment(message.token, casterToken);
+        if (!center) return;
+        const consequence = `${spell.name} doesn't affect ${center.name}`;
+        return rollFlatCheck(message, { speaker: ChatMessage.getSpeaker({ token: casterToken }), consequence });
+    }
+}
+
+Hooks.on("createChatMessage", (message, _options, userId) => {
+    if (userId !== game.user.id) return;
+    checkConcealment(message).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
+});
+
 Hooks.once("init", () => {
+    game.settings.register(MODULE_ID, "manifestWillDivineAlliesOnly", {
+        name: "Manifest Will (Divine): allies only",
+        hint:
+            "As written, any living or undead creature that begins its turn in the emanation gains the temporary " +
+            "Hit Points, enemies included. Turn this on to limit it to the caster and their allies.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: false,
+    });
+
     // Run when the caster Sustains a spell through scripts/sustain.js, before other Sustain follow-ups
     const module = game.modules.get(MODULE_ID);
     module.sustainHandlers = [...(module.sustainHandlers ?? []), offerRecenter];
