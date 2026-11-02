@@ -1,0 +1,74 @@
+{
+  "_id": "Ydg4REm5EQX3eua6",
+  "img": "icons/magic/symbols/star-rising-purple.webp",
+  "name": "Effect: Manifest Will (Divine)",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.UBwodLsLo9kNHtBJ]{Manifest Will}</p><p>You gain temporary Hit Points equal to twice the spell's rank.</p><p>Lasts until the start of your next turn.</p>"
+    },
+    "rules": [
+      {
+        "key": "TempHP",
+        "value": "2*@item.level"
+      }
+    ],
+    "slug": "effect-manifest-will-divine",
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null,
+      "previous": null
+    },
+    "traits": {
+      "otherTags": [],
+      "value": [
+        "spirit"
+      ]
+    },
+    "publication": {
+      "title": "Pathfinder War of Immortals",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": -1,
+      "unit": "unlimited",
+      "expiry": null,
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1793244544161,
+    "modifiedTime": 1793244544161,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "effects": [],
+  "folder": "xDgO7JjjiPCycU1D",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!Ydg4REm5EQX3eua6"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "evan-character-homebrew",
+  "private": true,
+  "type": "module",
+  "description": "Build tools for the Evan's Character Homebrew Foundry VTT module",
+  "scripts": {
+    "build": "node tools/packs.mjs build",
+    "unpack": "node tools/packs.mjs unpack",
+    "test": "node tools/check.mjs"
+  },
+  "devDependencies": {
+    "@foundryvtt/foundryvtt-cli": "^3.0.5"
+  }
+}

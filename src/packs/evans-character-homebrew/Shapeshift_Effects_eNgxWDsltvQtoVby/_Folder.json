@@ -1,0 +1,22 @@
+{
+  "name": "Shapeshift Effects",
+  "sorting": "a",
+  "folder": null,
+  "type": "Item",
+  "_id": "eNgxWDsltvQtoVby",
+  "description": "",
+  "sort": 0,
+  "color": null,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.5",
+    "createdTime": 1738532981022,
+    "modifiedTime": 1738532981022,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "_key": "!folders!eNgxWDsltvQtoVby"
+}

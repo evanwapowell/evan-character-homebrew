@@ -1,0 +1,184 @@
+{
+  "_id": "pTHgvPpA9r18ZHO2",
+  "img": "icons/magic/symbols/star-rising-purple.webp",
+  "name": "Aura: Manifest Will",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.UBwodLsLo9kNHtBJ]{Manifest Will}</p><p>You emanate a 10-foot aura based on your patron's tradition, chosen when this effect is applied. During an encounter, each creature that begins its turn in the emanation gains the effect below until the start of its next turn.</p><p><strong>Seneschal</strong> To center the emanation on your charge, drag this effect from the spell's chat card onto your charge instead of yourself. When you Sustain it (the Sustain button beside the spell's Cast button on your sheet, or the Sustain action), you can choose to re-center it on yourself or a charge within 30 feet (one with Effect: Witch's Charge). You remain the caster: you choose the tradition, the spell's rank is yours, and allies are your allies.</p><p>You are concealed from creatures beyond the edge of the emanation but can't use that concealment to Hide. When a creature more than 10 feet away attacks you while targeting you, or you save against its non-area spell, the DC 5 flat check is rolled automatically.</p><p>During an encounter, the aura ends at the end of your turn unless you cast or Sustained Manifest Will that turn.</p><ul><li><strong>Arcane</strong> Other creatures gain @UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.9xjkgwwxe5NIKr4t]{weakness to spell damage}.</li><li><strong>Divine</strong> Living and undead creatures (including you) gain @UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.Ydg4REm5EQX3eua6]{temporary Hit Points}.</li><li><strong>Occult</strong> Your allies gain @UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.zs66wcnBpWxSmvys]{lesser cover}.</li><li><strong>Primal</strong> Other creatures take a @UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.DJJvRoc5yfNaraKe]{–10-foot status penalty to all Speeds}.</li></ul>"
+    },
+    "rules": [
+      {
+        "key": "ChoiceSet",
+        "flag": "manifestWill",
+        "prompt": "PF2E.SpecificRule.Prompt.Tradition",
+        "rollOption": "manifest-will",
+        "choices": [
+          {
+            "label": "PF2E.TraitArcane",
+            "value": "arcane"
+          },
+          {
+            "label": "PF2E.TraitDivine",
+            "value": "divine"
+          },
+          {
+            "label": "PF2E.TraitOccult",
+            "value": "occult"
+          },
+          {
+            "label": "PF2E.TraitPrimal",
+            "value": "primal"
+          }
+        ]
+      },
+      {
+        "key": "Aura",
+        "slug": "manifest-will",
+        "predicate": [
+          "manifest-will:arcane"
+        ],
+        "radius": 10,
+        "effects": [],
+        "appearance": {
+          "border": {
+            "color": "#3f7fe0",
+            "alpha": 0.75
+          },
+          "highlight": {
+            "color": "#3f7fe0",
+            "alpha": 0.1
+          },
+          "texture": {
+            "src": "modules/JB2A_DnD5e/Library/Generic/Magic_Signs/AbjurationCircleLoop_02_Regular_Blue_800x800.webm",
+            "alpha": 0.8
+          }
+        }
+      },
+      {
+        "key": "Aura",
+        "slug": "manifest-will",
+        "predicate": [
+          "manifest-will:divine"
+        ],
+        "radius": 10,
+        "effects": [],
+        "appearance": {
+          "border": {
+            "color": "#e8c547",
+            "alpha": 0.75
+          },
+          "highlight": {
+            "color": "#e8c547",
+            "alpha": 0.1
+          },
+          "texture": {
+            "src": "modules/JB2A_DnD5e/Library/3rd_Level/Spirit_Guardians/SpiritGuardians_01_Light_BlueYellow_600x600.webm",
+            "alpha": 0.8
+          }
+        }
+      },
+      {
+        "key": "Aura",
+        "slug": "manifest-will",
+        "predicate": [
+          "manifest-will:occult"
+        ],
+        "radius": 10,
+        "effects": [],
+        "appearance": {
+          "border": {
+            "color": "#a0457e",
+            "alpha": 0.75
+          },
+          "highlight": {
+            "color": "#a0457e",
+            "alpha": 0.1
+          },
+          "texture": {
+            "src": "modules/JB2A_DnD5e/Library/Generic/Magic_Signs/EnchantmentCircleLoop_02_Dark_Pink_800x800.webm",
+            "alpha": 0.8
+          }
+        }
+      },
+      {
+        "key": "Aura",
+        "slug": "manifest-will",
+        "predicate": [
+          "manifest-will:primal"
+        ],
+        "radius": 10,
+        "effects": [],
+        "appearance": {
+          "border": {
+            "color": "#4f9e3a",
+            "alpha": 0.75
+          },
+          "highlight": {
+            "color": "#4f9e3a",
+            "alpha": 0.1
+          },
+          "texture": {
+            "src": "modules/JB2A_DnD5e/Library/1st_Level/Entangle/EntangleLoop02_02_Regular_Green_500x500.webm",
+            "alpha": 0.8
+          }
+        }
+      }
+    ],
+    "slug": "aura-manifest-will",
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null,
+      "previous": null
+    },
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "Pathfinder War of Immortals",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": 1,
+      "unit": "minutes",
+      "expiry": "turn-start",
+      "sustained": true
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1737595278713,
+    "modifiedTime": 1793591258997,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "effects": [],
+  "folder": "xDgO7JjjiPCycU1D",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!pTHgvPpA9r18ZHO2"
+}

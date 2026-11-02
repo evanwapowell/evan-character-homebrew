@@ -1,0 +1,86 @@
+{
+  "img": "icons/magic/symbols/star-rising-purple.webp",
+  "name": "Manifest Will",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>You unleash energy from the broken connection to your patron. You are @UUID[Compendium.pf2e.conditionitems.Item.DmAIPqOBomZ7H95W]{Concealed} from creatures beyond the edge of the emanation but can't use that concealment to @UUID[Compendium.pf2e.actionspf2e.Item.XMcnh4cSI32tljXa]{Hide}. Any creature that begins its turn in the emanation is affected based on your patron's tradition.</p><ul><li><strong>Arcane</strong> Raw energy and magical formulae circulate around you. A creature that begins its turn in the emanation gains weakness 1 to spell damage for 1 round.</li><li><strong>Divine</strong> Divine power crashes in a cycle of life and death. A living or undead creature that begins its turn in the emanation gains 2 temporary Hit Points for 1 round. This effect has the spirit trait.</li><li><strong>Occult</strong> Esoteric symbology etches the air. An allied creature that begins its turn in the emanation has @UUID[Compendium.pf2e.other-effects.Item.I9lfZUiCwMiGogVi]{Lesser Cover} while inside the emanation, and for 1 round after it leaves.</li><li><strong>Primal</strong> Plants and fungus symbolic of your patron constantly grow and wither in the emanation. A creature that begins its turn in the emanation has a –10-foot status penalty to all its Speeds for 1 round or until it @UUID[Compendium.pf2e.actionspf2e.Item.SkZAQRkLLkmBQNB9]{Escapes}. This effect has the fungus, plant, and wood traits.</li></ul><p>@UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.pTHgvPpA9r18ZHO2]{Aura: Manifest Will}</p><hr /><p><strong>Heightened (+1)</strong> An arcane manifestation increases its weakness by 1 and a divine manifestation increases its temporary Hit Points by 2.</p>"
+    },
+    "rules": [],
+    "slug": "manifest-will",
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null,
+      "previous": null
+    },
+    "traits": {
+      "otherTags": [],
+      "value": [
+        "aura",
+        "cantrip",
+        "concentrate",
+        "hex",
+        "witch"
+      ],
+      "rarity": "rare",
+      "traditions": []
+    },
+    "publication": {
+      "title": "Pathfinder War of Immortals",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "level": {
+      "value": 1
+    },
+    "requirements": "",
+    "target": {
+      "value": ""
+    },
+    "range": {
+      "value": ""
+    },
+    "area": {
+      "type": "emanation",
+      "value": 10
+    },
+    "time": {
+      "value": "1"
+    },
+    "duration": {
+      "value": "1 minute",
+      "sustained": true
+    },
+    "damage": {},
+    "defense": null,
+    "cost": {
+      "value": ""
+    },
+    "location": {
+      "value": null
+    },
+    "counteraction": false
+  },
+  "type": "spell",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.3",
+    "createdTime": 1737595278713,
+    "modifiedTime": 1793244544161,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "effects": [],
+  "folder": "xDgO7JjjiPCycU1D",
+  "flags": {},
+  "_id": "UBwodLsLo9kNHtBJ",
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!UBwodLsLo9kNHtBJ"
+}

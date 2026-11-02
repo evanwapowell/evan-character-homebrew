@@ -1,0 +1,77 @@
+{
+  "name": "Shapeshift: Dwarf",
+  "type": "effect",
+  "effects": [],
+  "system": {
+    "description": {
+      "gm": "",
+      "value": ""
+    },
+    "rules": [
+      {
+        "key": "TokenImage",
+        "value": "modules/evan-character-homebrew/token-subjects/pc-dwarf-bard.webp",
+        "ring": {
+          "subject": {
+            "texture": "modules/evan-character-homebrew/token-subjects/pc-dwarf-bard.webp"
+          }
+        },
+        "scale": 1
+      }
+    ],
+    "slug": null,
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null
+    },
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": -1,
+      "unit": "unlimited",
+      "expiry": null,
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "img": "modules/evan-character-homebrew/token-subjects/pc-dwarf-bard.webp",
+  "folder": "eNgxWDsltvQtoVby",
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.5",
+    "createdTime": 1738534240300,
+    "modifiedTime": 1738635686417,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "_id": "1ngWq3bQc0RYLpKO",
+  "sort": 100000,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!1ngWq3bQc0RYLpKO"
+}

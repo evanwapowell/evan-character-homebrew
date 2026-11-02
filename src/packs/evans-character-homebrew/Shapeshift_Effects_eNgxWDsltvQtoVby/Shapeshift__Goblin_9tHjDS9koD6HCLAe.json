@@ -1,0 +1,77 @@
+{
+  "name": "Shapeshift: Goblin",
+  "type": "effect",
+  "effects": [],
+  "system": {
+    "description": {
+      "gm": "",
+      "value": ""
+    },
+    "rules": [
+      {
+        "key": "TokenImage",
+        "value": "modules/evan-character-homebrew/token-subjects/pc-goblin-witch.webp",
+        "ring": {
+          "subject": {
+            "texture": "modules/evan-character-homebrew/token-subjects/pc-goblin-witch.webp"
+          }
+        },
+        "scale": 0.8
+      }
+    ],
+    "slug": null,
+    "_migration": {
+      "version": 0.935,
+      "lastMigration": null
+    },
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": -1,
+      "unit": "unlimited",
+      "expiry": null,
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "img": "modules/evan-character-homebrew/token-subjects/pc-goblin-witch.webp",
+  "folder": "eNgxWDsltvQtoVby",
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "12.331",
+    "systemId": "pf2e",
+    "systemVersion": "6.8.5",
+    "createdTime": 1738534183075,
+    "modifiedTime": 1738635673172,
+    "lastModifiedBy": "RVI6uVoq9FmsAjlG"
+  },
+  "_id": "9tHjDS9koD6HCLAe",
+  "sort": 200000,
+  "ownership": {
+    "default": 0,
+    "RVI6uVoq9FmsAjlG": 3
+  },
+  "_key": "!items!9tHjDS9koD6HCLAe"
+}

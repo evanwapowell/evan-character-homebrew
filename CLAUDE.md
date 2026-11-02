@@ -7,7 +7,8 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 
 - `module.json`: the manifest. Scripts are listed under `esmodules`; `"socket": true` is needed for the GM hand-offs
   below.
-- `packs/evans-character-homebrew/`: the compendium, a LevelDB database (see "Editing the compendium").
+- `src/packs/evans-character-homebrew/`: the compendium's source, one JSON file per item, in folders matching the
+  compendium's folders (see "Editing the compendium"). `packs/` is built from it and isn't committed.
 - `scripts/*.js`: plain ES modules loaded by Foundry, with no build step.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
       re-centering on a seneschal's charge.
@@ -18,16 +19,20 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
-- `.github/workflows/main.yaml`: builds the release (see below).
+- `tools/packs.mjs` and `tools/check.mjs`, run with npm (`package.json`): build or unpack the compendium, and check the
+  module before a release.
+- `.github/workflows/release.yml`: builds and publishes releases (see below).
 
 ## Releases and workflow
 
-- Every push to any branch runs the workflow, which zips `module.json`, `packs/`, `scripts/` and `token-subjects/` and
-  creates (or overwrites) the GitHub release named for `module.json`'s version. Foundry's manifest URL points at the
-  latest release, so whatever is pushed is what tables get.
-- So bump the version on every push that changes the module, in both `version` and the `download` URL: the middle number
-  for a new feature (1.12.0 → 1.13.0), the last for a fix or small tweak (1.13.0 → 1.13.1). Changes outside the zipped
-  files (like this file) don't need a bump; the release is rebuilt with the same contents.
+- A push to `main` publishes a release when `module.json`'s version hasn't been released yet: the workflow runs
+  `npm test`, builds the compendium, points the manifest's `download` at this version's release, zips `module.json`,
+  `packs/`, `scripts/` and `token-subjects/`, and publishes them as the latest release, tagged with the version.
+  Foundry's manifest URL points at the latest release. Other branches, and pushes that don't bump the version, publish
+  nothing, and an existing release is never overwritten.
+- So bump `version` in `module.json` with every change to the module (the workflow fills in `download`): the middle
+  number for a new feature (1.12.0 → 1.13.0), the last for a fix or small tweak (1.13.0 → 1.13.1). Changes outside the
+  zipped files (like this file) don't need a bump.
 - When a change is done and tested, open a PR to `main` and merge it, so the release goes out. Then check that the
   release's `module.json` and zip are live.
 - Anything a new script needs must be inside one of the zipped folders. Add new entry scripts to `esmodules`; files they
@@ -35,15 +40,16 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 
 ## Editing the compendium
 
-Foundry reads compendiums only as LevelDB folders, so the pack in the repo is binary. To change it:
+Foundry reads compendiums only as LevelDB folders, built from `src/packs/` by `npm run build` (run `npm install` first).
+Edit the JSON in `src/packs/` directly; `npm run build` then writes `packs/`, which can be loaded in Foundry for
+testing. `npm test` checks the source.
 
-1. Copy `packs/evans-character-homebrew/` to a scratch folder: opening a LevelDB database rewrites its log files, so
-   don't open the repo's copy directly.
-2. In a scratch folder, `npm install @foundryvtt/foundryvtt-cli classic-level`, then use the CLI's `extractPack` to
-   write the items out as JSON.
-3. Edit the JSON, then use `compilePack` to build a new LevelDB folder.
-4. Compare the old and new databases entry by entry (with `classic-level`) to confirm only the intended items changed,
-   then replace the repo's pack folder with the new one.
+When items are edited in Foundry instead:
+
+- With access to the built pack folder (a local Foundry install), `npm run unpack -- <path to the pack folder>` updates
+  the JSON source from it.
+- Otherwise (for example on The Forge), use the item's "Export Data" and replace its file in `src/packs/` with the
+  export. Exports have no `_key`, which `npm run build` adds from the item's `_id`; keep the `_id` the item had.
 
 Scripts refer to compendium items by ID, so never change existing IDs. The UUID prefix is
 `Compendium.evan-character-homebrew.evans-character-homebrew.Item.`. IDs in use:
@@ -87,6 +93,7 @@ Misery's default (prolong on every hex) reflects how the table plays now, pendin
 
 ## Testing
 
-There's no Foundry instance in this environment. Test against pf2e's real data (cloned from `foundryvtt/pf2e`) in Node,
-with stand-ins for Foundry objects and jsdom for HTML, exercising the actual scripts end to end. Run the parser over
-every spell with a save when changing it. Say clearly in summaries and PRs that changes weren't run in Foundry.
+Run `npm test` and `npm run build` before pushing. There's no Foundry instance in this environment. Test against pf2e's
+real data (cloned from `foundryvtt/pf2e`) in Node, with stand-ins for Foundry objects and jsdom for HTML, exercising the
+actual scripts end to end. Run the parser over every spell with a save when changing it. Say clearly in summaries and
+PRs that changes weren't run in Foundry.
