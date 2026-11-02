@@ -282,6 +282,20 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
     checkConcealment(message).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
 });
 
+// PF2e Toolbelt's Target Helper, when that module is active, rolls saves without save messages and calls this hook
+// for each one instead, with the spell's card and the target's token
+Hooks.on("pf2e-toolbelt.rollSave", ({ message, rollMessage, target }) => {
+    const spell = message?.item;
+    if (spell?.type !== "spell" || spell.system.area) return;
+    const center = getConcealment(target, message.token);
+    if (!center) return;
+    const consequence = `${spell.name} doesn't affect ${center.name}`;
+    rollFlatCheck(rollMessage ?? message, {
+        speaker: ChatMessage.getSpeaker({ token: message.token }),
+        consequence,
+    }).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
+});
+
 Hooks.once("init", () => {
     game.settings.register(MODULE_ID, "manifestWillDivineAlliesOnly", {
         name: "Manifest Will (Divine): allies only",

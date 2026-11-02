@@ -117,10 +117,12 @@ function summarize({ effects, conditions }) {
     ].join(", ");
 }
 
-/** Let the user check and adjust the proposal before applying it */
-async function confirmProposal(save, proposal) {
+/**
+ * Let the user check and adjust proposals before applying them: one section per creature, each with the spell
+ * effects and conditions it would get. Returns the confirmed proposals, or null if cancelled.
+ */
+async function confirmProposals(entries) {
     const esc = Handlebars.escapeExpression;
-    const names = new Map(proposal.conditions.map((c) => [c.slug, c.name]));
     const row = (content) =>
         `<div style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">${content}</div>`;
     const unitOptions = (selected) =>
@@ -130,41 +132,48 @@ async function confirmProposal(save, proposal) {
             )
             .join("");
 
-    const effectRows = proposal.effects.map((effect, index) =>
-        row(`<label><input type="checkbox" name="effect-${index}" checked> ${esc(effect.name)}</label>`),
-    );
-    const conditionRows = proposal.conditions.map((condition, index) => {
-        const value = condition.value
-            ? `<input type="number" name="value-${index}" value="${condition.value}" min="1" style="width: 3.5em">`
-            : "";
-        let timing;
-        if (condition.linkedTo) {
-            timing = `<em>while ${esc(names.get(condition.linkedTo) ?? condition.linkedTo)}</em>`;
-        } else if (condition.duration?.expiry === "turn-end" && condition.duration.value === 1) {
-            timing = `<em>${esc(describeDuration(condition.duration))}</em>`;
-        } else {
-            const note = condition.duration?.rolled ?? (condition.fromSpellDuration ? "spell's duration" : "");
-            timing = [
-                `for <input type="number" name="duration-${index}" value="${condition.duration?.value ?? ""}"`,
-                ` min="1" placeholder="no timer" style="width: 5.5em">`,
-                `<select name="unit-${index}">${unitOptions(condition.duration?.unit ?? "rounds")}</select>`,
-                note ? ` <em>(${esc(note)})</em>` : "",
-            ].join("");
-        }
-        const checkbox = `<input type="checkbox" name="condition-${index}" checked>`;
-        return row(`<label>${checkbox} ${esc(condition.name)}</label>${value} ${timing}`);
+    const sections = entries.map(({ save, proposal }, t) => {
+        const names = new Map(proposal.conditions.map((c) => [c.slug, c.name]));
+        const effectRows = proposal.effects.map((effect, index) =>
+            row(`<label><input type="checkbox" name="t${t}-effect-${index}" checked> ${esc(effect.name)}</label>`),
+        );
+        const conditionRows = proposal.conditions.map((condition, index) => {
+            const field = `t${t}-${index}`;
+            const value = condition.value
+                ? `<input type="number" name="value-${field}" value="${condition.value}" min="1" style="width: 3.5em">`
+                : "";
+            let timing;
+            if (condition.linkedTo) {
+                timing = `<em>while ${esc(names.get(condition.linkedTo) ?? condition.linkedTo)}</em>`;
+            } else if (condition.duration?.expiry === "turn-end" && condition.duration.value === 1) {
+                timing = `<em>${esc(describeDuration(condition.duration))}</em>`;
+            } else {
+                const note = condition.duration?.rolled ?? (condition.fromSpellDuration ? "spell's duration" : "");
+                timing = [
+                    `for <input type="number" name="duration-${field}" value="${condition.duration?.value ?? ""}"`,
+                    ` min="1" placeholder="no timer" style="width: 5.5em">`,
+                    `<select name="unit-${field}">${unitOptions(condition.duration?.unit ?? "rounds")}</select>`,
+                    note ? ` <em>(${esc(note)})</em>` : "",
+                ].join("");
+            }
+            const checkbox = `<input type="checkbox" name="condition-${field}" checked>`;
+            return row(`<label>${checkbox} ${esc(condition.name)}</label>${value} ${timing}`);
+        });
+        const heading = `${esc(save.target.name)}</strong>'s save against ${esc(save.spell.name)}`;
+        return [
+            `<p><strong>${heading}: ${esc(getOutcomeLabel(save.outcome))}.</p>`,
+            ...effectRows,
+            ...conditionRows,
+        ].join("");
     });
 
-    const outcomeLabel = getOutcomeLabel(save.outcome);
     const content = [
-        `<p>${esc(save.target.name)}'s save against ${esc(save.spell.name)}: ${esc(outcomeLabel)}.</p>`,
-        ...effectRows,
-        ...conditionRows,
+        ...sections,
         `<p style="font-size: var(--font-size-12)">Leave the timer empty for no timer.</p>`,
-    ].join("");
+    ].join("<hr>");
 
     return foundry.applications.api.DialogV2.wait({
-        window: { title: `${save.spell.name}: Apply Conditions` },
+        window: { title: `${entries[0].save.spell.name}: Apply Conditions` },
         content,
         buttons: [
             {
@@ -173,29 +182,62 @@ async function confirmProposal(save, proposal) {
                 default: true,
                 callback: (_event, button) => {
                     const form = button.form.elements;
-                    const effects = proposal.effects.filter((_e, i) => form[`effect-${i}`]?.checked);
-                    const conditions = proposal.conditions.flatMap((condition, i) => {
-                        if (!form[`condition-${i}`]?.checked) return [];
-                        const value = form[`value-${i}`] ? Number(form[`value-${i}`].value) || condition.value : null;
-                        const durationInput = form[`duration-${i}`];
-                        if (!durationInput) return [{ ...condition, value }];
-                        const amount = Number(durationInput.value);
-                        const duration = amount
-                            ? {
-                                  ...(condition.duration ?? { expiry: "turn-start", relativeTo: "caster" }),
-                                  value: amount,
-                              }
-                            : null;
-                        if (duration) duration.unit = form[`unit-${i}`].value;
-                        return [{ ...condition, value, duration }];
+                    return entries.map(({ save, proposal }, t) => {
+                        const effects = proposal.effects.filter((_e, i) => form[`t${t}-effect-${i}`]?.checked);
+                        const conditions = proposal.conditions.flatMap((condition, i) => {
+                            const field = `t${t}-${i}`;
+                            if (!form[`condition-${field}`]?.checked) return [];
+                            const valueInput = form[`value-${field}`];
+                            const value = valueInput ? Number(valueInput.value) || condition.value : null;
+                            const durationInput = form[`duration-${field}`];
+                            if (!durationInput) return [{ ...condition, value }];
+                            const amount = Number(durationInput.value);
+                            const duration = amount
+                                ? {
+                                      ...(condition.duration ?? { expiry: "turn-start", relativeTo: "caster" }),
+                                      value: amount,
+                                      unit: form[`unit-${field}`].value,
+                                  }
+                                : null;
+                            return [{ ...condition, value, duration }];
+                        });
+                        return { save, effects, conditions };
                     });
-                    return { effects, conditions };
                 },
             },
             { action: "cancel", label: "Cancel" },
         ],
         rejectClose: false,
     });
+}
+
+/** Roll timers, let the user check the proposals, then apply them */
+async function confirmAndApply(entries) {
+    const rolled = [];
+    for (const { save, proposal } of entries) rolled.push({ save, proposal: await rollDurations(proposal) });
+    const confirmed = await confirmProposals(rolled);
+    if (!Array.isArray(confirmed)) return;
+    for (const { save, effects, conditions } of confirmed) {
+        if (effects.length || conditions.length) await applyProposal(save, { effects, conditions });
+    }
+}
+
+function createApplyButton(label, entries) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.style.marginTop = "0.25em";
+    button.textContent = label;
+    button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+            await confirmAndApply(entries);
+        } catch (error) {
+            console.error(`${MODULE_ID} | Spell conditions`, error);
+            ui.notifications.error(`Applying ${entries[0].save.spell.name}'s conditions failed: ${error.message}`);
+        }
+    });
+    return button;
 }
 
 /** Apply spell effects, timed conditions (as effects with that duration), plain conditions, and linked conditions */
@@ -308,30 +350,57 @@ async function applyProposal(save, { effects, conditions }) {
 
 /** Add an "Apply" button to a save rolled against a spell, for users who can edit the creature that rolled it */
 async function addApplyButton(message, html) {
-    if (!game.settings.get(MODULE_ID, "spellConditions")) return;
     const save = getSave(message);
     const content = html?.querySelector(".message-content");
     if (!save || !save.target.isOwner || !content) return;
 
     const proposal = await buildProposal(save);
     if (proposal.effects.length === 0 && proposal.conditions.length === 0) return;
+    content.append(createApplyButton(`Apply: ${summarize(proposal)}`, [{ save, proposal }]));
+}
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.style.marginTop = "0.25em";
-    button.textContent = `Apply: ${summarize(proposal)}`;
-    button.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        try {
-            const confirmed = await confirmProposal(save, await rollDurations(proposal));
-            if (confirmed?.effects) await applyProposal(save, confirmed);
-        } catch (error) {
-            console.error(`${MODULE_ID} | Spell conditions`, error);
-            ui.notifications.error(`Applying ${save.spell.name}'s conditions failed: ${error.message}`);
-        }
-    });
-    content.append(button);
+/*
+ * PF2e Toolbelt's Target Helper, when that module is active, rolls saves without creating save messages and keeps
+ * each target's result on the spell's card instead. Its card gets one button covering every target the user can edit.
+ */
+
+const TOOLBELT_ID = "pf2e-toolbelt";
+
+/** Saves recorded by Target Helper on a spell's card, read when needed so rerolls are included */
+function getToolbeltSaves(message) {
+    const data = message.flags[TOOLBELT_ID]?.targetHelper;
+    const spell = message.item;
+    if (!data?.saveVariants || spell?.type !== "spell") return [];
+
+    const tokens = [...(data.targets ?? []), ...(data.splashTargets ?? [])]
+        .map((uuid) => (typeof uuid === "string" ? fromUuidSync(uuid) : null))
+        .filter((token, index, all) => token?.actor && all.indexOf(token) === index);
+    const saves = [];
+    for (const token of tokens) {
+        const result = Object.values(data.saveVariants)
+            .map((variant) => variant?.saves?.[token.id])
+            .findLast((s) => OUTCOMES.includes(s?.success));
+        if (!result || !token.actor.isOwner) continue;
+        saves.push({ spell, target: token.actor, outcome: result.success, casterUuid: message.actor?.uuid });
+    }
+    return saves;
+}
+
+async function addToolbeltApplyButton(message, html) {
+    if (!game.modules.get(TOOLBELT_ID)?.active) return;
+    const content = html?.querySelector(".message-content");
+    const saves = getToolbeltSaves(message);
+    if (!content || saves.length === 0) return;
+
+    const entries = [];
+    for (const save of saves) {
+        const proposal = await buildProposal(save);
+        if (proposal.effects.length || proposal.conditions.length) entries.push({ save, proposal });
+    }
+    if (entries.length === 0) return;
+    const label =
+        entries.length === 1 ? `Apply to ${entries[0].save.target.name}` : `Apply to ${entries.length} targets`;
+    content.append(createApplyButton(`${label}: conditions from saves`, entries));
 }
 
 Hooks.once("init", () => {
@@ -347,7 +416,10 @@ Hooks.once("init", () => {
     });
 
     const render = (message, html) => {
-        addApplyButton(message, html).catch((error) => console.error(`${MODULE_ID} | Spell conditions`, error));
+        if (!game.settings.get(MODULE_ID, "spellConditions")) return;
+        const log = (error) => console.error(`${MODULE_ID} | Spell conditions`, error);
+        addApplyButton(message, html).catch(log);
+        addToolbeltApplyButton(message, html).catch(log);
     };
     if (game.release.generation >= 13) {
         Hooks.on("renderChatMessageHTML", render);

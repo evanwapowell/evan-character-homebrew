@@ -229,6 +229,35 @@ function addSheetSustainButtons(sheet, html) {
     }
 }
 
+/**
+ * PF2e HUD's spell sidebar, when that module is active, lists spells with a play icon to cast them: add an hourglass
+ * icon beside it for sustained spells. Its rows carry the same spell, entry, and cast rank data as the sheet's.
+ */
+function addHudSustainButtons(app, element) {
+    if (!game.modules.get("pf2e-hud")?.active || !(element instanceof HTMLElement)) return;
+    const actor = app.actor;
+    if (!actor?.isOwner || !actor.spellcasting) return;
+
+    for (const row of element.querySelectorAll(".item[data-item-id][data-entry-id]")) {
+        const cast = row.querySelector('a.cast[data-action="cast-spell"]');
+        const { itemId, entryId, castRank } = row.dataset;
+        const spell = actor.spellcasting.collections.get(entryId)?.get(itemId);
+        if (!cast || !spell?.system.duration?.sustained || row.querySelector("a.ehb-sustain")) continue;
+
+        const button = document.createElement("a");
+        button.className = "ehb-sustain";
+        button.dataset.tooltip = sustainTitle();
+        button.innerHTML = `<i class="fa-solid fa-hourglass-half"></i>`;
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const rank = Number(castRank) || spell.rank;
+            sustain(actor, { spell, castRank: rank }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+        });
+        cast.before(button);
+    }
+}
+
 /** Whether a chat message is pf2e's own Sustain action, which doesn't say what was sustained */
 function isSystemSustain(message) {
     if (message.flags[MODULE_ID]) return false;
@@ -251,6 +280,7 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
 
 // pf2e's actor sheets use Foundry's original sheet framework in every version from v12 to v14
 Hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html));
+Hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, element));
 
 // A sustained effect cast during an encounter counts as cast that round
 Hooks.on("createItem", (item) => {
