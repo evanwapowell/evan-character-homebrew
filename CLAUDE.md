@@ -16,6 +16,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       effects that weren't Sustained.
     - `ongoing-misery.js`: Familiar of Ongoing Misery.
     - `witch-charge.js`: the Designate Witch's Charge action.
+    - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result
+      (damage, and Effect: Extract Element with the impulse bypasses), plays each element's animation, and ends the
+      effects when the kinetic aura ends.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
@@ -58,9 +61,10 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
 - `9xjkgwwxe5NIKr4t` Arcane, `Ydg4REm5EQX3eua6` Divine, `zs66wcnBpWxSmvys` Occult, `DJJvRoc5yfNaraKe` Primal: the
   tradition effects the turn-start script hands out
 - `f0BUHuiZLiODSsg3` Designate Witch's Charge
+- `otpFtLUFZlVa0nhn` Effect: Extract Element
 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
-Charge (`ugeStF0Rj8phBPWL`) and the Sustain action (`3f5DMFu8fPiqHpRg`). Each script declares the ones it uses as
+Charge (`ugeStF0Rj8phBPWL`) the Sustain action (`3f5DMFu8fPiqHpRg`), and Extract Element (`low5ORd87QeA9Oug`). Each script declares the ones it uses as
 constants at the top.
 
 ## Code conventions

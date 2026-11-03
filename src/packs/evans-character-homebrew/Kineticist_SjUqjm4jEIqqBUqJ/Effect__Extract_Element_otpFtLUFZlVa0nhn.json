@@ -1,0 +1,81 @@
+{
+  "_id": "otpFtLUFZlVa0nhn",
+  "img": "systems/pf2e/icons/spells/disapperance.webp",
+  "name": "Effect: Extract Element",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.pf2e.actionspf2e.Item.low5ORd87QeA9Oug]{Extract Element}</p><p>A kineticist has added some of your elemental matter to their kinetic aura. Their impulses bypass any immunity you have to their elemental trait or traits, and you take a –1 circumstance penalty to your saves and AC against their impulses. If you normally have a resistance that would apply to damage from one of their impulses, ignore that resistance; if you would normally be immune to that damage type, you instead have resistance equal to your level to damage from the impulse.</p><p>Lasts 5 minutes, or until the kineticist's kinetic aura ends.</p>"
+    },
+    "rules": [
+      {
+        "key": "FlatModifier",
+        "label": "Extract Element",
+        "predicate": [
+          "origin:signature:{item|origin.signature}",
+          {
+            "or": [
+              "item:trait:impulse",
+              "origin:action:trait:impulse"
+            ]
+          }
+        ],
+        "selector": [
+          "saving-throw",
+          "ac"
+        ],
+        "type": "circumstance",
+        "value": -1
+      }
+    ],
+    "slug": "effect-extract-element",
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "Pathfinder Rage of Elements",
+      "authors": "",
+      "license": "OGL",
+      "remaster": true
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": 5,
+      "unit": "minutes",
+      "expiry": "turn-start",
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793664000000,
+    "modifiedTime": 1793664000000,
+    "lastModifiedBy": null
+  },
+  "effects": [],
+  "folder": "SjUqjm4jEIqqBUqJ",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "_key": "!items!otpFtLUFZlVa0nhn"
+}
