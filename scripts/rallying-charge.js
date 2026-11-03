@@ -12,7 +12,11 @@
  * miss, or the end of the marshal's turn spends the charge with no effect.
  */
 
+import { canAnimate, featureHooks, guardApi } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("rallyingCharge");
 const SOCKET = `module.${MODULE_ID}`;
 /** IDs of pf2e's Rallying Charge (Marshal) and Effect: Rallying Charge (Marshal), the same in every pf2e version */
 const FEAT_ID = "df4cBV3qZn3qNUmP";
@@ -156,7 +160,7 @@ function getRecipients(marshalToken) {
 const JB2A_RALLY = "modules/JB2A_DnD5e/Library/1st_Level/Bless/Bless_01_Regular_Yellow_Intro_400x400.webm";
 
 function playRallyAnimation(tokens) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!canAnimate()) return;
     const sequence = new Sequence();
     for (const token of tokens.filter((t) => t?.object)) {
         sequence.effect().file(JB2A_RALLY).atLocation(token).scaleToObject(1.6).fadeIn(200).fadeOut(400);
@@ -266,13 +270,13 @@ async function onStrikeDamage(message) {
     await rally({ marshalToken, feat: card.item, target, card });
 }
 
-Hooks.on("preCreateChatMessage", (message) => {
+hooks.on("preCreateChatMessage", (message) => {
     // Remember the combat turn the charge was used in: it's spent at the end of the marshal's turn
     if (!isChargeCard(message)) return;
     message.updateSource({ [`flags.${MODULE_ID}.rallyingCharge`]: { turn: getTurn(), spent: false } });
 });
 
-Hooks.on("createChatMessage", (message) => {
+hooks.on("createChatMessage", (message) => {
     // Every client sees the damage roll, so only the user who rolled it acts
     if (message.author !== game.user || !isMeleeStrikeDamage(message.flags.pf2e?.context)) return;
     onStrikeDamage(message).catch(log);
@@ -283,12 +287,15 @@ Hooks.once("init", () => {
     module.api = {
         ...module.api,
         /** For a macro: rally the allies of the controlled marshal (or the given token), as if their charge hit */
-        rallyingCharge: async ({ token = canvas.tokens.controlled[0]?.document ?? null } = {}) => {
-            const marshalToken = token?.document ?? token;
-            if (!marshalToken?.actor) return ui.notifications.warn(`${TITLE}: select the marshal's token.`);
-            const feat = marshalToken.actor.items.find(isChargeFeat) ?? null;
-            await rally({ marshalToken, feat }).catch(log);
-        },
+        rallyingCharge: guardApi(
+            "rallyingCharge",
+            async ({ token = canvas.tokens.controlled[0]?.document ?? null } = {}) => {
+                const marshalToken = token?.document ?? token;
+                if (!marshalToken?.actor) return ui.notifications.warn(`${TITLE}: select the marshal's token.`);
+                const feat = marshalToken.actor.items.find(isChargeFeat) ?? null;
+                await rally({ marshalToken, feat }).catch(log);
+            },
+        ),
     };
 });
 

@@ -10,7 +10,11 @@
  * from the card for every creature in the area, as usual.
  */
 
+import { canAnimate, featureHooks } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("sepulchralMask");
 const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Aura: Sepulchral Mask, for the caster, and Effect: Sepulchral Mask, the penalty on a failed save */
@@ -118,10 +122,6 @@ async function removeOtherMasks(aura) {
 const JB2A_LIBRARY = "modules/JB2A_DnD5e/Library";
 const CAST_ANIMATION = "Generic/Magic_Signs/NecromancyCircleComplete_02_Dark_Green_800x800.webm";
 const TURN_ANIMATION = "Cantrip/Toll_The_Dead/TollTheDeadSkullSmoke_01_Regular_Green_400x400.webm";
-
-function canAnimate() {
-    return !!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active);
-}
 
 /** Play the cast animation at the caster, sized to the emanation */
 function playCastAnimation(aura) {
@@ -520,7 +520,7 @@ function getSave(message) {
     return cardId ? { ...save, card, fromTurnCard: true } : save;
 }
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id) return;
 
     // pf2e 8.x marks a spell that was cast, rather than posted to chat: put the mask on the caster
@@ -537,7 +537,7 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
 
 // PF2e Toolbelt's Target Helper, when that module is active, rolls saves without save messages and calls this hook
 // for each one instead, with the spell's card and the target's token
-Hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
+hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
     if (!message || !isMaskCard(message) || !target) return;
     const save = { card: message, caster: message.actor, spell: message.item, targetToken: target };
     onSave({ ...save, outcome: data?.success, total: data?.value }).catch(log);
@@ -615,9 +615,9 @@ function renderTurnCard(message, html) {
     controls.replaceChildren(...items);
 }
 
-Hooks.on("renderChatMessageHTML", (message, html) => renderTurnCard(message, html));
+hooks.on("renderChatMessageHTML", (message, html) => renderTurnCard(message, html));
 
-Hooks.on("createItem", (item, _options, userId) => {
+hooks.on("createItem", (item, _options, userId) => {
     if (userId !== game.user.id || !item.actor) return;
     // pf2e's spell effect, dragged from the spell's card: make it the aura, at the rank and with the origin it has
     if (isSystemEffect(item)) {
@@ -631,7 +631,7 @@ Hooks.on("createItem", (item, _options, userId) => {
     }
 });
 
-Hooks.on("updateCombat", (combat, changed) => {
+hooks.on("updateCombat", (combat, changed) => {
     if (game.user !== game.users.activeGM) return;
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
     // Going back through the turn order doesn't start a turn

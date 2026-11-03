@@ -9,7 +9,11 @@
  * it was last cast or Sustained, and at the end of the caster's turn, those not cast or Sustained that round end.
  */
 
+import { featureHooks, guardApi } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("sustain");
 /** ID of the pf2e Sustain action item, the same in every pf2e version */
 const SUSTAIN_ID = "3f5DMFu8fPiqHpRg";
 const SOCKET = `module.${MODULE_ID}`;
@@ -271,7 +275,7 @@ function isSystemSustain(message) {
 }
 
 // When pf2e's Sustain action is posted, ask what was sustained
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id || !isSystemSustain(message)) return;
     const actor = message.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user.character;
     if (!actor) return;
@@ -279,11 +283,11 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
 });
 
 // pf2e's actor sheets use Foundry's original sheet framework in v13 and v14, whose render hooks pass jQuery
-Hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html));
-Hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, element));
+hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html));
+hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, element));
 
 // A sustained effect cast during an encounter counts as cast that round
-Hooks.on("createItem", (item) => {
+hooks.on("createItem", (item) => {
     const combat = game.combat;
     if (game.user !== game.users.activeGM || !combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) {
         return;
@@ -292,7 +296,7 @@ Hooks.on("createItem", (item) => {
     item.update({ [`flags.${MODULE_ID}.sustained`]: { combat: combat.id, round: combat.round } });
 });
 
-Hooks.on("updateCombat", (combat, changed) => {
+hooks.on("updateCombat", (combat, changed) => {
     if (game.user !== game.users.activeGM || !combat.started || !("turn" in changed || "round" in changed)) return;
     if (!game.settings.get(MODULE_ID, "sustainedDurations")) return;
     endUnsustained(combat).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
@@ -312,7 +316,7 @@ Hooks.once("init", () => {
             "During an encounter, a sustained spell's effects end at the end of the caster's turn unless the spell " +
             "was cast or Sustained that turn (with the module's Sustain button or the Sustain action).",
         scope: "world",
-        config: true,
+        config: false,
         type: Boolean,
         default: true,
     });
@@ -321,7 +325,8 @@ Hooks.once("init", () => {
     const module = game.modules.get(MODULE_ID);
     module.api = {
         ...module.api,
-        sustain: (actor = canvas.tokens?.controlled[0]?.actor ?? game.user.character) =>
+        sustain: guardApi("sustain", (actor = canvas.tokens?.controlled[0]?.actor ?? game.user.character) =>
             actor ? promptSustain(actor) : ui.notifications.warn("Select a token to Sustain for."),
+        ),
     };
 });

@@ -10,6 +10,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 - `src/packs/evans-character-homebrew/`: the compendium's source, one JSON file per item, in folders matching the
   compendium's folders (see "Editing the compendium"). `packs/` is built from it and isn't committed.
 - `scripts/*.js`: plain ES modules loaded by Foundry, with no build step.
+    - `settings.js`: the Features settings menu (Configure Settings → this module → Configure Features), with an
+      on/off switch for each feature and the features' own settings, and the helpers the other scripts import:
+      `featureHooks`, `isEnabled`, `guardApi` and `canAnimate`.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
       re-centering on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
@@ -41,8 +44,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       each later attempt), reviews what's learned (success: name and answer; critical success: the lore entry too;
       critical failure: a false name and a lie; Dubious Knowledge: the answer and a lie) and sends it as a whisper.
       What's learned is recorded per creature, for the party or (world setting) only the character, and revealed in PF2E
-      Bestiary Tracking. Exploit Vulnerability's check is read too: its weaknesses by degree of success, and with
-      Diverse Lore, Recall Knowledge's information. The facts library has no Foundry dependencies.
+      Bestiary Tracking. Exploit Vulnerability's check is read too: its weaknesses by degree of success, off-guard on a
+      critical failure (Effect: Exploit Vulnerability (Critical Failure)), and with Diverse Lore, Recall Knowledge's
+      information. The facts library has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
@@ -88,6 +92,7 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
 - `otpFtLUFZlVa0nhn` Effect: Extract Element
 - `JZzkqIbry9lR8y0P` Aura: Sepulchral Mask; `GOsDZYg9DXFPhzwg` Effect: Sepulchral Mask (the enemies' penalty)
 - `AxUfnmwrn1XTPTNU` Effect: Scrounger's Glee
+- `1rKbOmjn488MljOU` Effect: Exploit Vulnerability (Critical Failure)
 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
 Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), and
@@ -106,7 +111,13 @@ ones it uses as constants at the top.
 - Scripts react to Sustains through `game.modules.get(MODULE_ID).sustainHandlers`, which run one after another so their
   prompts don't overlap. They add spell effects to the spell conditions' Apply button through `spellEffects`
   (`(spell, outcome) => [effect UUIDs]`). Macro entry points go on `game.modules.get(MODULE_ID).api`.
-- World settings live next to the feature they control, registered in that script's `init` hook.
+- Every feature can be turned off in the Features menu. A new feature gets an entry in `FEATURES` in
+  `scripts/settings.js` (its switch is registered there), registers its hooks with `featureHooks("<id>")` (cleanup
+  hooks, like ending effects, can stay on `Hooks.on`), and checks `isEnabled` in its Sustain handlers and
+  `spellEffects`; macro entry points are wrapped in `guardApi`. Animations check `canAnimate()`.
+- World settings live next to the feature they control, registered in that script's `init` hook with `config: false`,
+  and are listed in the feature's `settings` in `FEATURES` so the menu shows them. Keep existing setting keys, so saved
+  values carry over.
 
 ## Other modules
 
@@ -127,7 +138,8 @@ nothing when they're absent. Never add them as dependencies (`relationships.requ
 ## Rules
 
 Follow the rules as written by default. Where a table plays differently, add a world setting for it rather than changing
-the default: see "Manifest Will (Divine): allies only" and "Familiar of Ongoing Misery: once per condition". Ongoing
+the default: see "Manifest Will (Divine): allies only" and "Familiar of Ongoing Misery: once per condition" in the
+Features menu. Ongoing
 Misery's default (prolong on every hex) reflects how the table plays now, pending the GM's decision.
 
 ## Testing

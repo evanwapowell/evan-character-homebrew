@@ -7,7 +7,11 @@
  * sickened 1. A Fortitude save rolled from the box pf2e adds to the hex's card is handled too.
  */
 
+import { canAnimate, featureHooks, guardApi, isEnabled } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("parasiticMight");
 const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the pf2e compendium items, the same in every pf2e version */
 const ABILITY_ID = "J5Wyh1EPmk848ivR";
@@ -117,7 +121,7 @@ const DRAIN_IN = "Generic/Energy/EnergyStrandIN01_01_Regular_Green_600x600.webm"
 
 /** The familiar draws a strand of the creature's strength into itself */
 function playDrainAnimation(familiarToken, targetToken) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!canAnimate()) return;
     if (!familiarToken.object || !targetToken.object) return;
 
     const distance = familiarToken.object.distanceTo(targetToken.object);
@@ -303,7 +307,7 @@ function isInlineSave(message, context) {
     return hasParasiticMight(witch);
 }
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id) return;
     if (isHexCast(message)) {
         return void promptParasiticMight(message.actor, { spell: message.item }).catch(log);
@@ -363,17 +367,21 @@ function renderCard(message, html) {
     controls.replaceChildren(button);
 }
 
-Hooks.on("renderChatMessageHTML", (message, html) => renderCard(message, html));
+hooks.on("renderChatMessageHTML", (message, html) => renderCard(message, html));
 
 Hooks.once("init", () => {
     const module = game.modules.get(MODULE_ID);
     // Sustaining through scripts/sustain.js, which knows whether the sustained spell is a hex
     module.sustainHandlers = [
         ...(module.sustainHandlers ?? []),
-        (actor, { hex, spell }) => (hex ? promptParasiticMight(actor, { spell }) : undefined),
+        (actor, { hex, spell }) =>
+            hex && isEnabled("parasiticMight") ? promptParasiticMight(actor, { spell }) : undefined,
     ];
     // For a macro: pass the witch or their familiar
-    module.api = { ...module.api, parasiticMight: (actor) => promptParasiticMight(actor) };
+    module.api = {
+        ...module.api,
+        parasiticMight: guardApi("parasiticMight", (actor) => promptParasiticMight(actor)),
+    };
 });
 
 Hooks.once("ready", () => {

@@ -4,7 +4,11 @@
  * tradition effect at the start of each turn instead, and removes it at the start of the next.
  */
 
+import { canAnimate, featureHooks, isEnabled } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("manifestWill");
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 const AURA_SLUG = "manifest-will";
 const EFFECTS = {
@@ -99,7 +103,7 @@ const CAST_ANIMATIONS = {
 
 /** Play the cast animation at the emanation's center, sized to the 10-foot emanation */
 function playCastAnimation(auraEffect) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!canAnimate()) return;
 
     const file = CAST_ANIMATIONS[getTradition(auraEffect)];
     const token = auraEffect.actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene);
@@ -117,7 +121,7 @@ function playCastAnimation(auraEffect) {
 }
 
 // Cast or Sustain: the aura effect is applied to the caster or, for a seneschal, their charge
-Hooks.on("createItem", (item, _options, userId) => {
+hooks.on("createItem", (item, _options, userId) => {
     if (userId !== game.user.id || item.type !== "effect" || item.slug !== "aura-manifest-will") return;
     playCastAnimation(item);
 });
@@ -277,14 +281,14 @@ async function checkConcealment(message) {
     }
 }
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id) return;
     checkConcealment(message).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
 });
 
 // PF2e Toolbelt's Target Helper, when that module is active, rolls saves without save messages and calls this hook
 // for each one instead, with the spell's card and the target's token
-Hooks.on("pf2e-toolbelt.rollSave", ({ message, rollMessage, target }) => {
+hooks.on("pf2e-toolbelt.rollSave", ({ message, rollMessage, target }) => {
     const spell = message?.item;
     if (spell?.type !== "spell" || spell.system.area) return;
     const center = getConcealment(target, message.token);
@@ -303,14 +307,17 @@ Hooks.once("init", () => {
             "As written, any living or undead creature that begins its turn in the emanation gains the temporary " +
             "Hit Points, enemies included. Turn this on to limit it to the caster and their allies.",
         scope: "world",
-        config: true,
+        config: false,
         type: Boolean,
         default: false,
     });
 
     // Run when the caster Sustains a spell through scripts/sustain.js, before other Sustain follow-ups
     const module = game.modules.get(MODULE_ID);
-    module.sustainHandlers = [...(module.sustainHandlers ?? []), offerRecenter];
+    module.sustainHandlers = [
+        ...(module.sustainHandlers ?? []),
+        (...args) => (isEnabled("manifestWill") ? offerRecenter(...args) : undefined),
+    ];
 });
 
 Hooks.once("ready", () => {
@@ -321,7 +328,7 @@ Hooks.once("ready", () => {
     });
 });
 
-Hooks.on("updateCombat", (combat, changed) => {
+hooks.on("updateCombat", (combat, changed) => {
     if (game.user !== game.users.activeGM) return;
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
     onTurnStart(combat.combatant).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));

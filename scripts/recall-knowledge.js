@@ -30,6 +30,7 @@ import {
     exploitResult,
     ordinal,
 } from "./lib/recall-knowledge-facts.js";
+import { isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -37,9 +38,14 @@ const TITLE = "Recall Knowledge";
 const EXPLOIT_TITLE = "Exploit Vulnerability";
 /** ID of pf2e's Exploit Vulnerability action, the same in every pf2e version */
 const EXPLOIT_ID = "fodJ3zuwQsYnBbtk";
+/** This module's Effect: Exploit Vulnerability (Critical Failure): off-guard until the start of the thaumaturge's turn */
+const OFF_GUARD_ID = "1rKbOmjn488MljOU";
+const OFF_GUARD_UUID = `Compendium.${MODULE_ID}.evans-character-homebrew.Item.${OFF_GUARD_ID}`;
 const RK_OPTION = "action:recall-knowledge";
 const SHARED_SETTING = "recallKnowledgeShared";
 const RECORDS_SETTING = "recallKnowledgeRecords";
+const FALSE_NAMES_SETTING = "recallKnowledgeFalseNames";
+const BESTIARY_SETTING = "recallKnowledgeBestiary";
 const BESTIARY_ID = "pf2e-bestiary-tracking";
 const ESOTERIC_LORE = "esoteric-lore";
 /** pf2e's DC adjustments, by step */
@@ -529,6 +535,7 @@ async function createCard({ messageId, tokenUuid, kind }) {
         message: messageId,
         token: tokenUuid,
         actor: actor.uuid,
+        actorName: actor.name,
         key,
         attempt,
         die,
@@ -635,6 +642,8 @@ function reviewContent(record, { target, recall }) {
                 degree,
             )}</select></div>`,
             `<div class="form-group stacked"><textarea name="exploitText" rows="3"></textarea></div>`,
+            `<div class="form-group" data-ehb-off-guard><label><input type="checkbox" name="offGuard"> `,
+            `Apply off-guard until the start of ${esc(record.actorName ?? "their")}'s next turn</label></div>`,
         );
     }
     if (recall) {
@@ -681,7 +690,8 @@ async function review(card) {
     if (!target || !actor) return ui.notifications.warn(`${TITLE}: the creature or character is gone.`);
 
     const profile = buildProfile(target);
-    const names = await getNameCandidates().catch(() => []);
+    // False names for critical failures come from pf2e's bestiaries, unless they're turned off
+    const names = game.settings.get(MODULE_ID, FALSE_NAMES_SETTING) ? await getNameCandidates().catch(() => []) : [];
     const dubious = hasFeat(actor, "dubious-knowledge");
     const recall = record.kind === "recall" || !!record.checks;
     const drafts = new Map();
@@ -700,6 +710,9 @@ async function review(card) {
         const fillExploit = () => {
             const degree = Number(field("exploitDegree").value);
             field("exploitText").value = exploitResult(profile, degree).text;
+            // A critical failure: off-guard until the start of their next turn
+            field("offGuard").checked = degree === 0;
+            form.querySelector("[data-ehb-off-guard]").style.display = degree === 0 ? "" : "none";
         };
         const fillRecall = () => {
             const degree = Number(field("degree").value);
@@ -785,7 +798,8 @@ function readForm(form, { record, recall, profile, current }) {
     const checked = (name) => !!form.elements[name]?.checked;
     const result = { exploit: null, recall: null };
     if (record.kind === "exploit") {
-        result.exploit = { degree: Number(value("exploitDegree")), text: value("exploitText").trim() };
+        const degree = Number(value("exploitDegree"));
+        result.exploit = { degree, text: value("exploitText").trim(), offGuard: degree === 0 && checked("offGuard") };
     }
     const drafted = current();
     if (recall && drafted) {
@@ -888,6 +902,7 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
     }
     if (lines.length === 0) return ui.notifications.info(`${TITLE}: there's nothing to send.`);
 
+    if (result.exploit?.offGuard) await applyOffGuard(actor).catch(log);
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor }),
         whisper: getRecipients(actor),
@@ -912,6 +927,27 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
         [`flags.${MODULE_ID}.recallKnowledge.status`]: "sent",
         [`flags.${MODULE_ID}.recallKnowledge.sent`]: summary || "Nothing learned",
     });
+}
+
+/**
+ * Exploit Vulnerability's critical failure: "You become off-guard until the start of your next turn." The effect
+ * grants pf2e's Off-Guard and, with the thaumaturge as its origin, ends at the start of their next turn. A new one
+ * replaces one they already have.
+ */
+async function applyOffGuard(actor) {
+    const effect = await fromUuid(OFF_GUARD_UUID);
+    if (!effect) return ui.notifications.error(`${EXPLOIT_TITLE}: the module's off-guard effect was not found.`);
+    const source = effect.toObject();
+    source._stats = { ...source._stats, compendiumSource: OFF_GUARD_UUID };
+    const token = actor.getActiveTokens?.(true, true)?.[0] ?? null;
+    source.system.context = {
+        origin: { actor: actor.uuid, token: token?.uuid ?? null, item: null, spellcasting: null, rollOptions: [] },
+        target: null,
+        roll: null,
+    };
+    const existing = actor.itemTypes.effect.filter((e) => e.slug === source.system.slug).map((e) => e.id);
+    if (existing.length > 0) await actor.deleteEmbeddedDocuments("Item", existing);
+    await actor.createEmbeddedDocuments("Item", [source]);
 }
 
 /* PF2E Bestiary Tracking, when it's active */
@@ -1000,6 +1036,7 @@ function revealUpdate(page, reveal = {}, fake = {}, { values = false } = {}) {
 }
 
 async function updateBestiary({ tokenDoc, actor, profile, result, attempt }) {
+    if (!game.settings.get(MODULE_ID, BESTIARY_SETTING)) return;
     const bestiary = getBestiary();
     if (!bestiary) return;
     const baseActor = tokenDoc.baseActor ?? tokenDoc.actor;
@@ -1041,7 +1078,7 @@ async function updateBestiary({ tokenDoc, actor, profile, result, attempt }) {
 function renderCard(message, html) {
     const record = message.flags[MODULE_ID]?.recallKnowledge;
     const content = html?.querySelector?.(".message-content") ?? html;
-    if (!record || !content?.querySelector) return;
+    if (!record || !content?.querySelector || !isEnabled(featureOf(record.kind))) return;
     let controls = content.querySelector("[data-ehb-recall-knowledge]");
     if (!controls) {
         controls = document.createElement("div");
@@ -1122,23 +1159,46 @@ async function showKnown(tokenDoc = game.user.targets.first()?.document) {
 
 /* Hooks */
 
+/** The settings menu's feature for a check: Recall Knowledge and Exploit Vulnerability are turned off separately */
+const featureOf = (kind) => (kind === "exploit" ? "exploitVulnerability" : "recallKnowledge");
+
 Hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id) return;
     const check = getCheck(message);
-    if (check) onRolled(message, check).catch(log);
+    if (check && isEnabled(featureOf(check.kind))) onRolled(message, check).catch(log);
 });
 
 Hooks.on("renderChatMessageHTML", (message, html) => renderCard(message, html));
 
 Hooks.once("init", () => {
     game.settings.register(MODULE_ID, SHARED_SETTING, {
-        name: "Recall Knowledge: share with the party",
+        name: "Share with the party",
         hint:
             "What one character learns about a creature, the whole party learns: it's whispered to every player in " +
             "the party, counts toward later attempts' DCs, and is revealed in PF2E Bestiary Tracking. When off, only " +
             "the character who rolled learns it, and the Bestiary isn't updated.",
         scope: "world",
-        config: true,
+        config: false,
+        type: Boolean,
+        default: true,
+    });
+    game.settings.register(MODULE_ID, FALSE_NAMES_SETTING, {
+        name: "False names on critical failures",
+        hint:
+            "A critical failure names another creature of the same type and about the same level, from pf2e's " +
+            "bestiaries. When off, a critical failure gives only the lie in answer to the question.",
+        scope: "world",
+        config: false,
+        type: Boolean,
+        default: true,
+    });
+    game.settings.register(MODULE_ID, BESTIARY_SETTING, {
+        name: "Update PF2E Bestiary Tracking",
+        hint:
+            "When that module is active, add the creature to the Bestiary and reveal what's learned (lies as fake " +
+            "entries). When off, the Bestiary is left for the GM to update.",
+        scope: "world",
+        config: false,
         type: Boolean,
         default: true,
     });
@@ -1154,7 +1214,10 @@ Hooks.once("init", () => {
         ...module.api,
         recallKnowledge: {
             /** Show what's known about the targeted creature */
-            known: (tokenDoc) => showKnown(tokenDoc),
+            known: (tokenDoc) =>
+                isEnabled("recallKnowledge")
+                    ? showKnown(tokenDoc)
+                    : ui.notifications.warn(`${TITLE} is turned off in the module's settings.`),
             /** Forget everything learned about the targeted creature (GM only) */
             forget: async (tokenDoc = game.user.targets.first()?.document) => {
                 if (!game.user.isGM || !tokenDoc) return;

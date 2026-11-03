@@ -7,7 +7,11 @@
  * lasts 5 minutes or until the kineticist's kinetic aura ends. Each element has its own animation.
  */
 
+import { canAnimate, featureHooks } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("extractElement");
 const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** IDs of pf2e's Extract Element action and Effect: Kinetic Aura, the same in every pf2e version */
@@ -205,7 +209,7 @@ const ANIMATIONS = {
 };
 
 function playExtractAnimation(element, targetToken, kineticistToken) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!canAnimate()) return;
     const animation = ANIMATIONS[element];
     if (!animation || !targetToken?.object || !kineticistToken?.object) return;
     if (targetToken.parent !== kineticistToken.parent) return;
@@ -427,7 +431,7 @@ function getSave(message) {
 
 const log = (error) => console.error(`${MODULE_ID} | Extract Element`, error);
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id) return;
     if (isCard(message)) return void onUse(message).catch(log);
     const save = getSave(message);
@@ -436,7 +440,7 @@ Hooks.on("createChatMessage", (message, _options, userId) => {
 
 // PF2e Toolbelt's Target Helper, when that module is active, rolls saves without save messages and calls this hook
 // for each one instead, with the action's card and the target's token
-Hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
+hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
     if (!message || !isCard(message) || !target) return;
     const save = { card: message, kineticist: message.actor, item: message.item, targetToken: target };
     onSave({ ...save, outcome: data?.success, total: data?.value }).catch(log);

@@ -1,0 +1,22 @@
+{
+  "name": "Thaumaturge",
+  "sorting": "a",
+  "folder": null,
+  "type": "Item",
+  "_id": "F18Qwu6QJnjEqH8L",
+  "description": "",
+  "sort": 0,
+  "color": null,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793836800000,
+    "modifiedTime": 1793836800000,
+    "lastModifiedBy": null
+  },
+  "_key": "!folders!F18Qwu6QJnjEqH8L"
+}

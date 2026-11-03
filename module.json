@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "authors": [
     {
       "name": "Evan Powell",
@@ -46,6 +46,7 @@
     ]
   },
   "esmodules": [
+    "scripts/settings.js",
     "scripts/manifest-will.js",
     "scripts/sustain.js",
     "scripts/ongoing-misery.js",
