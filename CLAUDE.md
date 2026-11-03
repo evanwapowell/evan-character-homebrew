@@ -35,6 +35,14 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       who can see the marshal (not blinded or unconscious, no sight-blocking wall between them) gets pf2e's Effect:
       Rallying Charge (Marshal) with the marshal as its origin, so it grants their Charisma modifier as temporary Hit
       Points until the start of their next turn. A miss, a ranged Strike or the end of the marshal's turn spends it.
+    - `recall-knowledge.js` with `lib/recall-knowledge-facts.js`: Recall Knowledge about creatures, from pf2e's action
+      or Basic Action Macros' (which rolls one d20 for every skill and Lore). The roller's player picks a question (or
+      writes one); the GM gets a card with the degree of success against the creature's identification DCs (harder for
+      each later attempt), reviews what's learned (success: name and answer; critical success: the lore entry too;
+      critical failure: a false name and a lie; Dubious Knowledge: the answer and a lie) and sends it as a whisper.
+      What's learned is recorded per creature, for the party or (world setting) only the character, and revealed in PF2E
+      Bestiary Tracking. Exploit Vulnerability's check is read too: its weaknesses by degree of success, and with
+      Diverse Lore, Recall Knowledge's information. The facts library has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
@@ -84,8 +92,8 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
 Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), and
 Sepulchral Mask (`3mINzPzup2m9qzFU`) with its Spell Effect (`TER4qOsYPTszhhDG`), Devourer of Decay (`T9wA833bzZVlB3Lo`),
-Familiar of Parasitic Might (`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), and Rallying Charge (Marshal)
-(`df4cBV3qZn3qNUmP`) with its Effect (`wjNNHgX6ceKLbn8Q`). Each script declares the
+Familiar of Parasitic Might (`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), Rallying Charge (Marshal)
+(`df4cBV3qZn3qNUmP`) with its Effect (`wjNNHgX6ceKLbn8Q`), and Exploit Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the
 ones it uses as constants at the top.
 
 ## Code conventions
@@ -110,6 +118,11 @@ nothing when they're absent. Never add them as dependencies (`relationships.requ
   also read its card flags and its `pf2e-toolbelt.rollSave` hook.
 - PF2e HUD's spell sidebar gets the Sustain icon.
 - PF2e Flat Check rolls only for conditions; Manifest Will's distance-based concealment is handled here instead.
+- PF2e Workbench's Basic Action Macros rolls Recall Knowledge with its own macro: a whispered table and a bare d20, with
+  no statistic or degree of success, so Recall Knowledge works each skill's modifier out with a roll that isn't posted.
+- PF2E Bestiary Tracking has no API for adding a creature: its Add Monster macro adds the GM's first target, which it
+  reads before its first `await`, so Recall Knowledge runs it with the creature standing in as the GM's only target.
+  Reveals are updates to the creature's journal page, followed by the module's `UpdateBestiary` socket event.
 
 ## Rules
 

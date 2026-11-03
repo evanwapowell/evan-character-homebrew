@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "authors": [
     {
       "name": "Evan Powell",
@@ -32,6 +32,16 @@
         "id": "sequencer",
         "type": "module",
         "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery, Parasitic Might, Scrounger's Glee, Rallying Charge and Extract Element animations"
+      },
+      {
+        "id": "xdy-pf2e-workbench",
+        "type": "module",
+        "reason": "Basic Action Macros' Recall Knowledge, which Recall Knowledge reads like pf2e's action"
+      },
+      {
+        "id": "pf2e-bestiary-tracking",
+        "type": "module",
+        "reason": "Recall Knowledge and Exploit Vulnerability reveal what's learned in the Bestiary"
       }
     ]
   },
@@ -45,7 +55,8 @@
     "scripts/sepulchral-mask.js",
     "scripts/parasitic-might.js",
     "scripts/scroungers-glee.js",
-    "scripts/rallying-charge.js"
+    "scripts/rallying-charge.js",
+    "scripts/recall-knowledge.js"
   ],
   "socket": true,
   "packs": [
