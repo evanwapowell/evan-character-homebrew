@@ -1,0 +1,81 @@
+{
+  "_id": "GOsDZYg9DXFPhzwg",
+  "img": "icons/commodities/treasure/mask-wood-tan.webp",
+  "name": "Effect: Sepulchral Mask",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.3mINzPzup2m9qzFU]{Sepulchral Mask}</p><p>You take a –1 status penalty to Will saving throws against emotion effects.</p><p>Lasts 1 round on a failed save, or 1 minute on a critical failure.</p>"
+    },
+    "rules": [
+      {
+        "key": "FlatModifier",
+        "selector": "will",
+        "type": "status",
+        "value": -1,
+        "predicate": [
+          {
+            "or": [
+              "emotion",
+              "item:trait:emotion"
+            ]
+          }
+        ],
+        "label": "Sepulchral Mask"
+      }
+    ],
+    "slug": "effect-sepulchral-mask",
+    "traits": {
+      "otherTags": [],
+      "value": [
+        "emotion",
+        "mental",
+        "visual"
+      ]
+    },
+    "publication": {
+      "title": "Pathfinder Advanced Player's Guide",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": 1,
+      "unit": "rounds",
+      "expiry": "turn-start",
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793750400000,
+    "modifiedTime": 1793750400000,
+    "lastModifiedBy": null
+  },
+  "effects": [],
+  "folder": "KkCEjipTPy1yXdY7",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "_key": "!items!GOsDZYg9DXFPhzwg"
+}
