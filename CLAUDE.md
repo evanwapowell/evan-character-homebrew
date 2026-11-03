@@ -30,6 +30,11 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `scroungers-glee.js`: Scrounger's Glee: adds Effect: Scrounger's Glee to the spell conditions' Apply button on a
       failed save (it keeps the target at frightened 1 or more while it isn't deafened), and when an ally critically
       succeeds at a Strike against the target, asks the caster's user whether to Dismiss the spell to heal that ally.
+    - `rallying-charge.js`: Rallying Charge (marshal): after the marshal uses the feat, their next Strike is the
+      charge's; when it's a melee Strike that hits and its damage is rolled against an enemy, each ally within 60 feet
+      who can see the marshal (not blinded or unconscious, no sight-blocking wall between them) gets pf2e's Effect:
+      Rallying Charge (Marshal) with the marshal as its origin, so it grants their Charisma modifier as temporary Hit
+      Points until the start of their next turn. A miss, a ranged Strike or the end of the marshal's turn spends it.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
@@ -79,7 +84,8 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
 Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), and
 Sepulchral Mask (`3mINzPzup2m9qzFU`) with its Spell Effect (`TER4qOsYPTszhhDG`), Devourer of Decay (`T9wA833bzZVlB3Lo`),
-Familiar of Parasitic Might (`J5Wyh1EPmk848ivR`), and Scrounger's Glee (`VNv96dJPi0WXKSFN`). Each script declares the
+Familiar of Parasitic Might (`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), and Rallying Charge (Marshal)
+(`df4cBV3qZn3qNUmP`) with its Effect (`wjNNHgX6ceKLbn8Q`). Each script declares the
 ones it uses as constants at the top.
 
 ## Code conventions
