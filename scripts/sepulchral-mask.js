@@ -3,10 +3,11 @@
  * Will saving throws against emotion effects for 1 minute. [...] Each enemy in the area when you Cast the Spell or that
  * starts its turn in the area takes 1d4 mental damage and must attempt a Will save." pf2e's spell effect only gives
  * the bonus. This module's Aura: Sepulchral Mask adds the emanation, applied on casting (pf2e 8.x) or when the spell's
- * effect is dragged from its card. At the start of each enemy's turn in the emanation, a card is posted for its Will
- * save, and the save's result is applied: the damage, and on a failure the –1 status penalty to Will saves against
- * emotion effects (Effect: Sepulchral Mask). Failed saves against the spell's own card get the penalty too; their
- * damage is rolled once from the card for every creature in the area, as usual.
+ * effect is dragged from its card. At the start of each enemy's turn in the emanation, a card is posted with buttons for
+ * the caster to roll the damage and for the creature to roll its Will save. Once both are rolled, the result is applied:
+ * the damage for the degree of success, and on a failure the –1 status penalty to Will saves against emotion effects
+ * (Effect: Sepulchral Mask). Failed saves against the spell's own card get the penalty too; their damage is rolled once
+ * from the card for every creature in the area, as usual.
  */
 
 const MODULE_ID = "evan-character-homebrew";
@@ -210,8 +211,7 @@ async function postTurnCard({ caster, centerToken, auraEffect, target, targetTok
         speaker,
         content: [
             `<p>${start}: it takes ${damage} (rank ${spell.rank}) and must attempt a Will save.</p>`,
-            `<button type="button" data-ehb-sepulchral-mask-save>`,
-            `<i class="fa-solid fa-dice-d20"></i> Will Save DC ${dc}: ${esc(target.name)}</button>`,
+            `<div data-ehb-sepulchral-mask></div>`,
         ].join(""),
         flags: {
             [MODULE_ID]: {
@@ -224,6 +224,8 @@ async function postTurnCard({ caster, centerToken, auraEffect, target, targetTok
                     dc,
                     target: targetToken.uuid,
                     outcome: null,
+                    damage: null,
+                    damageApplied: null,
                 },
             },
         },
@@ -251,24 +253,105 @@ async function rollTurnSave(card) {
     });
 }
 
-/* Save results, from the turn-start card or the spell's own card */
+/** Whether a player who owns the caster is logged in, to roll its damage rather than the GM */
+function hasActivePlayerOwner(actor) {
+    return game.users.contents.some((u) => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"));
+}
 
-/** Roll the spell's damage, post it, and apply it to the creature for its degree of success */
-async function applyDamage({ caster, speaker, spell, target, targetToken, outcome }) {
-    const { multiplier, text } = RESULTS[outcome];
-    const spellDamage = await spell.getDamage({ skipDialog: true });
-    if (!spellDamage) return false;
+/**
+ * Roll the spell's damage from the turn-start card: the caster's roll, with pf2e's damage dialog when the user's
+ * settings show it (Shift flips that, as on pf2e's own buttons). It's applied once the creature's save is rolled.
+ */
+async function rollTurnDamage(card, event) {
+    const record = card.flags[MODULE_ID]?.sepulchralMask;
+    const caster = record?.caster ? fromUuidSync(record.caster) : null;
+    const target = record?.target ? fromUuidSync(record.target)?.actor : null;
+    if (!caster || !target) return ui.notifications.warn("Sepulchral Mask: the creature or caster is gone.");
+    if (!caster.isOwner) return ui.notifications.warn(`Sepulchral Mask: you can't roll ${caster.name}'s damage.`);
+    if (record.damage) return ui.notifications.info("Sepulchral Mask: the damage was already rolled.");
+    if (!game.user.isGM && !game.users.activeGM) {
+        return ui.notifications.warn("Sepulchral Mask: a GM must be logged in to apply the damage.");
+    }
+    const spell = getSpell(caster, { spellUuid: record.spell, rank: record.rank });
+    if (!spell) return ui.notifications.warn(`Sepulchral Mask: ${caster.name} no longer has the spell.`);
+
+    const showDialog = !!game.user.settings?.showDamageDialogs;
+    const spellDamage = await spell.getDamage({ skipDialog: event?.shiftKey ? showDialog : !showDialog });
+    if (!spellDamage) return;
     const { template, context } = spellDamage;
     const roll = await template.damage.roll.evaluate();
-    await roll.toMessage({
-        speaker,
-        flavor: `<strong>Sepulchral Mask</strong> damage to ${esc(target.name)} (${esc(outcomeLabel(outcome))}: ${text.replace(/^takes /, "")}, applied)`,
-        // Applied below, so the card has no buttons to apply it again
-        flags: { pf2e: { suppressDamageButtons: true, origin: spell.getOriginData() } },
+    const casterToken = record.casterToken ? fromUuidSync(record.casterToken) : null;
+    const message = await roll.toMessage({
+        speaker: ChatMessage.getSpeaker({ actor: caster, token: casterToken }),
+        flavor: `<strong>Sepulchral Mask</strong> damage to ${esc(target.name)}, applied for its Will save`,
+        flags: {
+            // Applied with the save's result, so the card has no buttons to apply it again
+            pf2e: { suppressDamageButtons: true, origin: spell.getOriginData() },
+            [MODULE_ID]: { sepulchralMaskDamage: { card: card.id, options: [...(context.options ?? [])] } },
+        },
     });
+    if (!message) return;
 
-    // As pf2e's damage buttons do: the caster's roll options, and a copy of the creature that has them
-    const messageOptions = [...(context.options ?? [])];
+    const data = { cardId: card.id, damageMessageId: message.id };
+    if (game.user.isGM) return resolveDamage(data);
+    // Players can't edit the card or the creature, so the active GM records the roll and applies it
+    game.socket.emit(SOCKET, { action: "sepulchralMaskDamage", ...data });
+}
+
+/** Record the damage rolled for a turn-start card, and apply it if the save is in. Run by a GM. */
+async function resolveDamage({ cardId, damageMessageId }) {
+    const card = game.messages.get(cardId);
+    const record = card?.flags[MODULE_ID]?.sepulchralMask;
+    if (!record || record.damage || !game.messages.get(damageMessageId)) return;
+    await card.update({ [`flags.${MODULE_ID}.sepulchralMask.damage`]: damageMessageId });
+    await applyTurnDamage(card);
+}
+
+/** Cards whose damage is being applied, so a save and a damage roll arriving together don't both apply it */
+const applying = new Set();
+
+/** Once a turn-start card has both its damage and its save, apply the damage for the save's result. Run by a GM. */
+async function applyTurnDamage(card) {
+    const record = card.flags[MODULE_ID]?.sepulchralMask;
+    if (!record?.outcome || !record.damage || record.damageApplied || applying.has(card.id)) return;
+    applying.add(card.id);
+    try {
+        await card.update({ [`flags.${MODULE_ID}.sepulchralMask.damageApplied`]: record.outcome });
+        if (record.outcome === "criticalSuccess") return;
+
+        const caster = fromUuidSync(record.caster);
+        const targetToken = fromUuidSync(record.target);
+        const damageMessage = game.messages.get(record.damage);
+        const roll = damageMessage?.rolls[0];
+        if (!caster || !targetToken?.actor || !roll) {
+            return ChatMessage.create({
+                whisper: ChatMessage.getWhisperRecipients("GM"),
+                content: `<p><strong>Sepulchral Mask</strong> The damage roll or creature is gone: apply the damage by hand.</p>`,
+            });
+        }
+        const spell = getSpell(caster, { spellUuid: record.spell, rank: record.rank });
+        const options = damageMessage.flags[MODULE_ID]?.sepulchralMaskDamage?.options ?? [];
+        await applyRoll({
+            caster,
+            spell,
+            target: targetToken.actor,
+            targetToken,
+            outcome: record.outcome,
+            roll,
+            options,
+        });
+    } finally {
+        applying.delete(card.id);
+    }
+}
+
+/* Save results, from the turn-start card or the spell's own card */
+
+/** Apply a rolled damage to the creature for its degree of success, as pf2e's damage buttons do */
+async function applyRoll({ caster, spell, target, targetToken, outcome, roll, options }) {
+    const { multiplier } = RESULTS[outcome];
+    // The caster's roll options, and a copy of the creature that has them
+    const messageOptions = [...options];
     const originOptions = messageOptions
         .filter((o) => o.startsWith("self:"))
         .map((o) => o.replace(/^self\b/, "origin"));
@@ -287,7 +370,6 @@ async function applyDamage({ caster, speaker, spell, target, targetToken, outcom
         item: spell,
         rollOptions,
     });
-    return true;
 }
 
 /**
@@ -357,10 +439,17 @@ async function resolveSave(data) {
     const name = esc(target.name);
     const label = esc(outcomeLabel(outcome));
 
-    // The turn-start card's damage is applied once; a reroll only changes the penalty
+    // The turn-start card's damage is applied once; a reroll after that only changes the penalty
     const previous = fromTurnCard ? (record?.outcome ?? null) : null;
     if (previous === outcome) return;
-    if (fromTurnCard && card) await card.update({ [`flags.${MODULE_ID}.sepulchralMask.outcome`]: outcome });
+    // A critical success dealt no damage, so a reroll from it can still have the caster's roll applied
+    const damagedFor = fromTurnCard && record?.damageApplied !== "criticalSuccess" ? record?.damageApplied : null;
+    if (fromTurnCard && card) {
+        await card.update({
+            [`flags.${MODULE_ID}.sepulchralMask.outcome`]: outcome,
+            ...(damagedFor ? {} : { [`flags.${MODULE_ID}.sepulchralMask.damageApplied`]: null }),
+        });
+    }
 
     const anchor = fromTurnCard ? target : caster;
     const key = cardId ?? `cast.${caster.uuid}`;
@@ -368,9 +457,9 @@ async function resolveSave(data) {
     const post = (text, options = {}) =>
         ChatMessage.create({ speaker, content: `<p><strong>Sepulchral Mask</strong> ${text}</p>`, ...options });
 
-    if (previous) {
+    if (damagedFor) {
         const whisper = ChatMessage.getWhisperRecipients("GM");
-        const was = esc(outcomeLabel(previous));
+        const was = esc(outcomeLabel(damagedFor));
         return post(
             `${name}'s save was rerolled (${label}), so its penalty was updated, but the damage was applied for ` +
                 `${was}. Adjust the damage by hand.`,
@@ -378,10 +467,10 @@ async function resolveSave(data) {
         );
     }
 
-    // From the turn-start card, the damage is applied here. Against the spell's own card, it's rolled from the card
-    // for every creature in the area, as usual.
+    // From the turn-start card, the caster's damage is applied once it's rolled too. Against the spell's own card,
+    // it's rolled from the card for every creature in the area, as usual.
     if (fromTurnCard && outcome === "criticalSuccess") return post(`${name} critically succeeds and is unaffected.`);
-    if (fromTurnCard) await applyDamage({ caster, speaker, spell, target, targetToken, outcome });
+    if (fromTurnCard && card) await applyTurnDamage(card);
 
     if (applied) {
         const { text } = RESULTS[outcome].penalty;
@@ -451,29 +540,79 @@ Hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
     onSave({ ...save, outcome: data?.success, total: data?.value }).catch(log);
 });
 
-// The turn-start card's save button, for users who can roll the creature's save; others see who it's waiting on
-Hooks.on("renderChatMessageHTML", (message, html) => {
-    const record = message.flags[MODULE_ID]?.sepulchralMask;
-    const button = html?.querySelector?.("button[data-ehb-sepulchral-mask-save]");
-    if (!record?.target || !button) return;
-
-    const target = fromUuidSync(record.target)?.actor;
-    if (record.outcome) {
-        const result = document.createElement("p");
-        result.innerHTML = `<em>Will save: ${esc(outcomeLabel(record.outcome))} (applied)</em>`;
-        return void button.replaceWith(result);
+/** A button for the turn-start card, or a note of where it stands */
+function cardControl(html, { label, icon, onClick } = {}) {
+    if (!onClick) {
+        const note = document.createElement("p");
+        note.innerHTML = `<em>${html}</em>`;
+        return note;
     }
-    if (!target?.isOwner) {
-        const waiting = document.createElement("p");
-        waiting.innerHTML = `<em>Waiting for ${esc(target?.name ?? "the creature")}'s Will save.</em>`;
-        return void button.replaceWith(waiting);
-    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.innerHTML = `<i class="fa-solid ${icon}"></i> ${label}`;
     button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        rollTurnSave(message).catch(log);
+        button.disabled = true;
+        onClick(event)
+            .catch(log)
+            .finally(() => (button.disabled = false));
     });
-});
+    return button;
+}
+
+/**
+ * The turn-start card's controls, from where it stands: a Roll Damage button for the caster's player (or the GM, when
+ * no player who owns the caster is logged in) and a Will Save button for whoever can roll the creature's save. Others
+ * see what it's waiting on.
+ */
+function renderTurnCard(message, html) {
+    const record = message.flags[MODULE_ID]?.sepulchralMask;
+    const content = html?.querySelector?.(".message-content") ?? html;
+    if (!record?.target || !content?.querySelector) return;
+    // Cards from 1.16.0 have their save button in their content
+    content.querySelector("button[data-ehb-sepulchral-mask-save]")?.remove();
+    let controls = content.querySelector("[data-ehb-sepulchral-mask]");
+    if (!controls) {
+        controls = document.createElement("div");
+        controls.dataset.ehbSepulchralMask = "";
+        content.append(controls);
+    }
+
+    const caster = fromUuidSync(record.caster);
+    const target = fromUuidSync(record.target)?.actor;
+    const casterName = esc(caster?.name ?? "the caster");
+    const targetName = esc(target?.name ?? "the creature");
+    const outcome = record.outcome ? esc(outcomeLabel(record.outcome)) : null;
+    const items = [];
+
+    if (record.damageApplied && record.damageApplied !== "criticalSuccess") {
+        const { multiplier } = RESULTS[record.damageApplied];
+        const amount = { 0.5: "Half", 1: "Full", 2: "Double" }[multiplier];
+        items.push(cardControl(`${amount} damage applied (${esc(outcomeLabel(record.damageApplied))}).`));
+    } else if (record.outcome === "criticalSuccess") {
+        // Unaffected: no damage to roll
+    } else if (record.damage) {
+        items.push(cardControl(`Damage rolled: it's applied once ${targetName}'s Will save is rolled.`));
+    } else if (caster?.isOwner && (!game.user.isGM || !hasActivePlayerOwner(caster))) {
+        const label = `Roll Damage: ${targetName}`;
+        items.push(cardControl(null, { label, icon: "fa-dice", onClick: (event) => rollTurnDamage(message, event) }));
+    } else {
+        items.push(cardControl(`Waiting for ${casterName}'s damage roll.`));
+    }
+
+    if (outcome) {
+        items.push(cardControl(`Will save: ${outcome}.`));
+    } else if (target?.isOwner) {
+        const label = `Will Save DC ${record.dc}: ${targetName}`;
+        items.push(cardControl(null, { label, icon: "fa-dice-d20", onClick: () => rollTurnSave(message) }));
+    } else {
+        items.push(cardControl(`Waiting for ${targetName}'s Will save.`));
+    }
+    controls.replaceChildren(...items);
+}
+
+Hooks.on("renderChatMessageHTML", (message, html) => renderTurnCard(message, html));
 
 Hooks.on("createItem", (item, _options, userId) => {
     if (userId !== game.user.id || !item.actor) return;
@@ -502,7 +641,8 @@ Hooks.on("updateCombat", (combat, changed) => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "sepulchralMask" || game.user !== game.users.activeGM) return;
-        await resolveSave(data).catch(log);
+        if (game.user !== game.users.activeGM) return;
+        if (data?.action === "sepulchralMask") await resolveSave(data).catch(log);
+        if (data?.action === "sepulchralMaskDamage") await resolveDamage(data).catch(log);
     });
 });
