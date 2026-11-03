@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "authors": [
     {
       "name": "Evan Powell",
@@ -26,12 +26,12 @@
       {
         "id": "JB2A_DnD5e",
         "type": "module",
-        "reason": "Manifest Will, Witch's Charge, Ongoing Misery and Extract Element animations"
+        "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery and Extract Element animations"
       },
       {
         "id": "sequencer",
         "type": "module",
-        "reason": "Manifest Will, Witch's Charge, Ongoing Misery and Extract Element animations"
+        "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery and Extract Element animations"
       }
     ]
   },
@@ -41,7 +41,8 @@
     "scripts/ongoing-misery.js",
     "scripts/witch-charge.js",
     "scripts/spell-conditions.js",
-    "scripts/extract-element.js"
+    "scripts/extract-element.js",
+    "scripts/sepulchral-mask.js"
   ],
   "socket": true,
   "packs": [

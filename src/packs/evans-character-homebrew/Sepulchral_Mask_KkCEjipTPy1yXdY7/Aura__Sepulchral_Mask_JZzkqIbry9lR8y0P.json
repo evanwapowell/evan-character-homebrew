@@ -1,0 +1,102 @@
+{
+  "_id": "JZzkqIbry9lR8y0P",
+  "img": "icons/commodities/treasure/mask-wood-tan.webp",
+  "name": "Aura: Sepulchral Mask",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.3mINzPzup2m9qzFU]{Sepulchral Mask}</p><p>You gain a +1 status bonus to Will saving throws against emotion effects.</p><p>Your funerary mask emanates a 5-foot aura (10 feet at 3rd rank, 15 feet at 5th, and so on). During an encounter, at the start of each enemy's turn in the emanation, a card is posted for it to roll its Will save against your spell DC. When it's rolled, the save's result is applied: the mental damage, and on a failure the –1 status penalty to Will saves against emotion effects (@UUID[Compendium.evan-character-homebrew.evans-character-homebrew.Item.GOsDZYg9DXFPhzwg]{Effect: Sepulchral Mask}) for 1 round, or 1 minute on a critical failure. Creatures immune to mental or visual effects, including blinded ones, are unaffected.</p><p>Enemies in the area when you Cast the Spell roll from the spell's card as usual, and failed saves get the penalty too.</p><p>Casting the spell applies this aura automatically on pf2e 8.x. On earlier versions, drag the spell effect from the spell's card onto yourself: the system's Spell Effect: Sepulchral Mask becomes this aura.</p>"
+    },
+    "rules": [
+      {
+        "key": "FlatModifier",
+        "selector": "will",
+        "type": "status",
+        "value": 1,
+        "predicate": [
+          {
+            "or": [
+              "emotion",
+              "item:trait:emotion"
+            ]
+          }
+        ],
+        "label": "Sepulchral Mask"
+      },
+      {
+        "key": "Aura",
+        "slug": "sepulchral-mask",
+        "radius": "ceil(@item.level/2)*5",
+        "traits": [
+          "emotion",
+          "mental",
+          "visual"
+        ],
+        "effects": [],
+        "appearance": {
+          "border": {
+            "color": "#4a7a5c",
+            "alpha": 0.75
+          },
+          "highlight": {
+            "color": "#4a7a5c",
+            "alpha": 0.1
+          },
+          "texture": {
+            "src": "modules/JB2A_DnD5e/Library/Generic/Magic_Signs/NecromancyCircleLoop_02_Dark_Green_800x800.webm",
+            "alpha": 0.8
+          }
+        }
+      }
+    ],
+    "slug": "aura-sepulchral-mask",
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "Pathfinder Advanced Player's Guide",
+      "authors": "",
+      "license": "OGL",
+      "remaster": false
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": 1,
+      "unit": "minutes",
+      "expiry": "turn-start",
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793750400000,
+    "modifiedTime": 1793750400000,
+    "lastModifiedBy": null
+  },
+  "effects": [],
+  "folder": "KkCEjipTPy1yXdY7",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "_key": "!items!JZzkqIbry9lR8y0P"
+}

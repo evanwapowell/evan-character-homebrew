@@ -19,6 +19,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result
       (damage, and Effect: Extract Element with the impulse bypasses), plays each element's animation, and ends the
       effects when the kinetic aura ends.
+    - `sepulchral-mask.js`: Sepulchral Mask (psychopomp sorcerer): puts Aura: Sepulchral Mask on the caster when the
+      spell is cast (pf2e 8.x marks real casts) or when pf2e's spell effect is dragged from the card, posts a Will save
+      card for each enemy that starts its turn in the emanation, and applies the save's damage and Will penalty.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
@@ -62,10 +65,12 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
   tradition effects the turn-start script hands out
 - `f0BUHuiZLiODSsg3` Designate Witch's Charge
 - `otpFtLUFZlVa0nhn` Effect: Extract Element
+- `JZzkqIbry9lR8y0P` Aura: Sepulchral Mask; `GOsDZYg9DXFPhzwg` Effect: Sepulchral Mask (the enemies' penalty)
 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
-Charge (`ugeStF0Rj8phBPWL`) the Sustain action (`3f5DMFu8fPiqHpRg`), and Extract Element (`low5ORd87QeA9Oug`). Each script declares the ones it uses as
-constants at the top.
+Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), and
+Sepulchral Mask (`3mINzPzup2m9qzFU`) with its Spell Effect (`TER4qOsYPTszhhDG`). Each script declares the ones it uses
+as constants at the top.
 
 ## Code conventions
 
