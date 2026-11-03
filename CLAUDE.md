@@ -20,8 +20,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       (damage, and Effect: Extract Element with the impulse bypasses), plays each element's animation, and ends the
       effects when the kinetic aura ends.
     - `sepulchral-mask.js`: Sepulchral Mask (psychopomp sorcerer): puts Aura: Sepulchral Mask on the caster when the
-      spell is cast (pf2e 8.x marks real casts) or when pf2e's spell effect is dragged from the card, posts a Will save
-      card for each enemy that starts its turn in the emanation, and applies the save's damage and Will penalty.
+      spell is cast (pf2e 8.x marks real casts) or when pf2e's spell effect is dragged from the card, posts a card for
+      each enemy that starts its turn in the emanation (the caster rolls the damage, the creature its Will save), and
+      applies the damage and Will penalty for the save's result.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
