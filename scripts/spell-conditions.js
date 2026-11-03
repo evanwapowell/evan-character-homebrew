@@ -61,7 +61,23 @@ function getSave(message) {
     const spell = message.item;
     const target = message.actor;
     if (spell?.type !== "spell" || !target) return null;
+    // Another save rolled from the spell's card, like the Fortitude save a witch's patron adds to hexes, isn't this one
+    const statistic = spell.system.defense?.save?.statistic;
+    const domains = context.domains ?? [];
+    if (statistic && domains.length > 0 && !domains.includes(statistic)) return null;
     return { spell, target, outcome: context.outcome, casterUuid: context.origin?.actor ?? spell.actor?.uuid };
+}
+
+/** Effect UUIDs that the module's other scripts register for a spell's degree of success, on `spellEffects` */
+function getExtraEffects(spell, outcome) {
+    return (game.modules.get(MODULE_ID).spellEffects ?? []).flatMap((getEffects) => {
+        try {
+            return getEffects(spell, outcome) ?? [];
+        } catch (error) {
+            console.error(`${MODULE_ID} | Spell conditions`, error);
+            return [];
+        }
+    });
 }
 
 /** What the spell's text says happens to the creature, without conditions its linked spell effects already grant */
@@ -80,6 +96,11 @@ async function buildProposal({ spell, outcome }) {
         if (!effect) continue;
         effects.push({ uuid: effect.uuid, name: effect.name });
         for (const slug of getGrantedConditions(effect.toObject(), conditions)) granted.add(slug);
+    }
+    // Effects the module's other scripts add for the spell, which go with the conditions its text describes
+    for (const uuid of getExtraEffects(spell, outcome)) {
+        const effect = effects.some((e) => e.uuid === uuid) ? null : await fromUuid(uuid);
+        if (effect) effects.push({ uuid: effect.uuid, name: effect.name });
     }
 
     const names = new Map(conditions.map((c) => [c.slug, c.name]));

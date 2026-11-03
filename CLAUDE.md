@@ -23,6 +23,13 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       spell is cast (pf2e 8.x marks real casts) or when pf2e's spell effect is dragged from the card, posts a card for
       each enemy that starts its turn in the emanation (the caster rolls the damage, the creature its Will save), and
       applies the damage and Will penalty for the save's result.
+    - `parasitic-might.js`: Familiar of Parasitic Might (Devourer of Decay witch): on a hex's Cast or Sustain, the witch
+      picks a creature within 15 feet of the familiar below half its Hit Points, and a card from the familiar has it
+      roll a Fortitude save against the witch's spell DC; a failure makes it sickened 1. Saves rolled from the box pf2e
+      adds to hex cards are handled too.
+    - `scroungers-glee.js`: Scrounger's Glee: adds Effect: Scrounger's Glee to the spell conditions' Apply button on a
+      failed save (it keeps the target at frightened 1 or more while it isn't deafened), and when an ally critically
+      succeeds at a Strike against the target, asks the caster's user whether to Dismiss the spell to heal that ally.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `token-subjects/`: token art.
@@ -67,11 +74,13 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
 - `f0BUHuiZLiODSsg3` Designate Witch's Charge
 - `otpFtLUFZlVa0nhn` Effect: Extract Element
 - `JZzkqIbry9lR8y0P` Aura: Sepulchral Mask; `GOsDZYg9DXFPhzwg` Effect: Sepulchral Mask (the enemies' penalty)
+- `AxUfnmwrn1XTPTNU` Effect: Scrounger's Glee
 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
 Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), and
-Sepulchral Mask (`3mINzPzup2m9qzFU`) with its Spell Effect (`TER4qOsYPTszhhDG`). Each script declares the ones it uses
-as constants at the top.
+Sepulchral Mask (`3mINzPzup2m9qzFU`) with its Spell Effect (`TER4qOsYPTszhhDG`), Devourer of Decay (`T9wA833bzZVlB3Lo`),
+Familiar of Parasitic Might (`J5Wyh1EPmk848ivR`), and Scrounger's Glee (`VNv96dJPi0WXKSFN`). Each script declares the
+ones it uses as constants at the top.
 
 ## Code conventions
 
@@ -81,7 +90,8 @@ as constants at the top.
 - Players can't edit creatures they don't own. When a change has to reach another creature, the user's client asks the
   active GM over the module socket (`module.evan-character-homebrew`), as the existing socket actions do.
 - Scripts react to Sustains through `game.modules.get(MODULE_ID).sustainHandlers`, which run one after another so their
-  prompts don't overlap. Macro entry points go on `game.modules.get(MODULE_ID).api`.
+  prompts don't overlap. They add spell effects to the spell conditions' Apply button through `spellEffects`
+  (`(spell, outcome) => [effect UUIDs]`). Macro entry points go on `game.modules.get(MODULE_ID).api`.
 - World settings live next to the feature they control, registered in that script's `init` hook.
 
 ## Other modules

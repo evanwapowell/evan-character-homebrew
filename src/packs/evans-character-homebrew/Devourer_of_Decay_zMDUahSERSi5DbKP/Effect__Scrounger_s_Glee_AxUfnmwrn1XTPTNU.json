@@ -1,0 +1,76 @@
+{
+  "_id": "AxUfnmwrn1XTPTNU",
+  "img": "icons/creatures/abilities/mouth-teeth-misshapen-pink.webp",
+  "name": "Effect: Scrounger's Glee",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.VNv96dJPi0WXKSFN]{Scrounger's Glee}</p><p>Your frightened condition can't be reduced below 1 while the spell is active and you can hear its caster.</p><p>The caster can Dismiss the spell as a reaction when an ally critically succeeds at a Strike against you, restoring Hit Points to that ally: (rank ÷ 2, rounded up)d4. During play, the caster is asked when that happens.</p><p>Applied with the Apply button on a failed Will save against the spell, along with the frightened condition, which goes down as usual until it reaches 1. The effect ends when the spell isn't Sustained.</p>"
+    },
+    "rules": [
+      {
+        "key": "GrantItem",
+        "uuid": "Compendium.pf2e.conditionitems.Item.Frightened",
+        "inMemoryOnly": true,
+        "predicate": [
+          {
+            "not": "self:condition:deafened"
+          }
+        ]
+      }
+    ],
+    "slug": "effect-scroungers-glee",
+    "traits": {
+      "otherTags": [],
+      "value": [
+        "auditory",
+        "fear",
+        "mental"
+      ]
+    },
+    "publication": {
+      "title": "Pathfinder Howl of the Wild",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": 1,
+      "unit": "minutes",
+      "expiry": "turn-start",
+      "sustained": true
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793750400000,
+    "modifiedTime": 1793750400000,
+    "lastModifiedBy": null
+  },
+  "effects": [],
+  "folder": "zMDUahSERSi5DbKP",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "_key": "!items!AxUfnmwrn1XTPTNU"
+}
