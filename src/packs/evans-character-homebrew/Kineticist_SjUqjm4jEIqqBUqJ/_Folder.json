@@ -1,0 +1,22 @@
+{
+  "name": "Kineticist",
+  "sorting": "a",
+  "folder": null,
+  "type": "Item",
+  "_id": "SjUqjm4jEIqqBUqJ",
+  "description": "",
+  "sort": 0,
+  "color": null,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793664000000,
+    "modifiedTime": 1793664000000,
+    "lastModifiedBy": null
+  },
+  "_key": "!folders!SjUqjm4jEIqqBUqJ"
+}
