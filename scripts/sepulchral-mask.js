@@ -233,7 +233,7 @@ async function postTurnCard({ caster, centerToken, auraEffect, target, targetTok
     playTurnAnimation(targetToken);
 }
 
-/** Roll the creature's Will save from the turn-start card, against the caster's spell */
+/** Roll the creature's Will save from the turn-start card, against the caster's spell, for everyone to see */
 async function rollTurnSave(card) {
     const record = card.flags[MODULE_ID]?.sepulchralMask;
     const targetToken = record?.target ? fromUuidSync(record.target) : null;
@@ -250,6 +250,9 @@ async function rollTurnSave(card) {
         origin: caster,
         token: targetToken,
         identifier: `${SAVE_IDENTIFIER}${card.id}`,
+        // Shown to everyone, whatever the roller's default roll mode: pf2e 7.x reads rollMode, 8.x messageMode
+        rollMode: "publicroll",
+        messageMode: "public",
     });
 }
 
