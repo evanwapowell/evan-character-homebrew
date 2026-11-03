@@ -5,7 +5,11 @@
  * extended. The errata's "only once to a given case of a condition" is a world setting, off by default.
  */
 
+import { canAnimate, featureHooks, guardApi, isEnabled } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("ongoingMisery");
 const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the pf2e compendium items, the same in every pf2e version */
 const ABILITY_ID = "mu9OL8v4rmr9311e";
@@ -128,7 +132,7 @@ const CURSE_MARKS = 24;
 
 /** The familiar hurls a curse at the creature, which lands as a curse sigil on it */
 function playCurseAnimation(familiarToken, targetToken) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!canAnimate()) return;
     if (!familiarToken.object || !targetToken.object) return;
 
     const distance = familiarToken.object.distanceTo(targetToken.object);
@@ -212,7 +216,7 @@ async function promptOngoingMisery(actor) {
     }
 }
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id || !isHexCast(message)) return;
     promptOngoingMisery(message.actor).catch((error) => console.error(`${MODULE_ID} | Ongoing Misery`, error));
 });
@@ -224,7 +228,7 @@ Hooks.once("init", () => {
             "Errata: each case of a condition can be prolonged only once. " +
             "When off, it can be prolonged again on every Cast or Sustain of a hex.",
         scope: "world",
-        config: true,
+        config: false,
         type: Boolean,
         default: false,
     });
@@ -233,10 +237,10 @@ Hooks.once("init", () => {
     // Sustaining through scripts/sustain.js, which knows whether the sustained spell is a hex
     module.sustainHandlers = [
         ...(module.sustainHandlers ?? []),
-        (actor, { hex }) => (hex ? promptOngoingMisery(actor) : undefined),
+        (actor, { hex }) => (hex && isEnabled("ongoingMisery") ? promptOngoingMisery(actor) : undefined),
     ];
     // For a macro: pass the witch or their familiar
-    module.api = { ...module.api, ongoingMisery: (actor) => promptOngoingMisery(actor) };
+    module.api = { ...module.api, ongoingMisery: guardApi("ongoingMisery", (actor) => promptOngoingMisery(actor)) };
 });
 
 Hooks.once("ready", () => {

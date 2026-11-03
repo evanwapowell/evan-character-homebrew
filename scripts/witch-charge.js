@@ -5,7 +5,11 @@
  * Intelligence modifier, which then become their charges.
  */
 
+import { canAnimate, featureHooks, guardApi } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("witchCharge");
 const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the action in this module's compendium, pf2e's feats, and pf2e's Effect: Witch's Charge */
 const ACTION_ID = "f0BUHuiZLiODSsg3";
@@ -62,7 +66,7 @@ const CHARGE_MARKER = "Generic/Marker/EnergyStrands02_01_Regular_BluePurple_400x
 
 /** A tether from the witch to each new charge, then a mark on the charge */
 function playChargeAnimation(witch, targetTokens) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active)) return;
+    if (!canAnimate()) return;
 
     const sequence = new Sequence();
     let hasEffects = false;
@@ -153,7 +157,7 @@ function requestCharge(witch) {
     game.socket.emit(SOCKET, { action: "designateCharge", witchUuid: witch.uuid, targetTokenUuids });
 }
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id || !isDesignateAction(message)) return;
     const witch = message.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user.character;
     if (witch) requestCharge(witch);
@@ -164,8 +168,11 @@ Hooks.once("init", () => {
     const module = game.modules.get(MODULE_ID);
     module.api = {
         ...module.api,
-        designateCharge: (witch = canvas.tokens?.controlled[0]?.actor ?? game.user.character) =>
-            witch ? requestCharge(witch) : ui.notifications.warn("Select your witch's token."),
+        designateCharge: guardApi(
+            "witchCharge",
+            (witch = canvas.tokens?.controlled[0]?.actor ?? game.user.character) =>
+                witch ? requestCharge(witch) : ui.notifications.warn("Select your witch's token."),
+        ),
     };
 });
 

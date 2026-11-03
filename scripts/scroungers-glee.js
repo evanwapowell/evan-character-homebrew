@@ -10,7 +10,11 @@
  * at a Strike against a creature with the effect, the caster's user is asked whether to Dismiss the spell to heal them.
  */
 
+import { canAnimate, featureHooks, isEnabled } from "./settings.js";
+
 const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while it's turned off in the module's settings */
+const hooks = featureHooks("scroungersGlee");
 const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Effect: Scrounger's Glee */
@@ -57,7 +61,7 @@ function getResponder(caster) {
 const JB2A_HEAL = "modules/JB2A_DnD5e/Library/Generic/Healing/HealingAbility_01_Green_400x400.webm";
 
 function playHealAnimation(token) {
-    if (!(game.modules.get("sequencer")?.active && game.modules.get("JB2A_DnD5e")?.active) || !token?.object) return;
+    if (!canAnimate() || !token?.object) return;
     new Sequence().effect().file(JB2A_HEAL).atLocation(token).scaleToObject(1.5).fadeIn(200).fadeOut(400).play();
 }
 
@@ -133,7 +137,7 @@ async function dismissSpell({ effectUuid, allyTokenUuid, healing }) {
     await allyToken.actor.applyDamage({ damage: -healing, token: allyToken, item: spell?.actor ? spell : null });
 }
 
-Hooks.on("createChatMessage", (message) => {
+hooks.on("createChatMessage", (message) => {
     // Every client sees the Strike, so only the caster's user is asked
     const context = message.flags.pf2e?.context;
     if (isStrikeCrit(context)) onStrikeCrit(message, context).catch(log);
@@ -145,7 +149,9 @@ Hooks.once("init", () => {
     module.spellEffects = [
         ...(module.spellEffects ?? []),
         (spell, outcome) =>
-            isGleeSpell(spell) && ["failure", "criticalFailure"].includes(outcome) ? [EFFECT_UUID] : [],
+            isEnabled("scroungersGlee") && isGleeSpell(spell) && ["failure", "criticalFailure"].includes(outcome)
+                ? [EFFECT_UUID]
+                : [],
     ];
 });
 

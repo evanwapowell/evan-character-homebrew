@@ -431,7 +431,7 @@ Hooks.once("init", () => {
             "Add a button to saves rolled against a spell that applies the conditions and spell effects its text " +
             "describes for that result, with their timers, after you check them.",
         scope: "world",
-        config: true,
+        config: false,
         type: Boolean,
         default: true,
     });
