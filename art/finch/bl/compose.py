@@ -27,15 +27,26 @@ def bloom(path, strength=1.0):
     return Image.fromarray((np.dstack([np.clip(straight, 0, 1), a]) * 255).astype(np.uint8), "RGBA")
 
 
-def frame(loop_png=None, cast_png=None, loop_alpha=0.85):
+def ring_layers(rgb):
+    """pf2e's aura highlight fill and border in a tradition's colour"""
+    from PIL import ImageDraw
+    fill = Image.new("RGBA", BG.size, (0, 0, 0, 0))
+    ImageDraw.Draw(fill).ellipse((X - R, Y - R, X + R, Y + R), fill=(*rgb, 20))
+    border = Image.new("RGBA", (BG.width * 2, BG.height * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(border).ellipse((2 * (X - R), 2 * (Y - R), 2 * (X + R), 2 * (Y + R)), outline=(*rgb, 191), width=6)
+    return fill, border.resize(BG.size, Image.LANCZOS)
+
+
+def frame(loop_png=None, cast_png=None, loop_alpha=0.85, colour=None):
     out = BG.copy()
+    fill, border = ring_layers(colour) if colour else (FILL, BORDER)
     if loop_png:
-        out.alpha_composite(FILL)
+        out.alpha_composite(fill)
         tex = bloom(loop_png).resize((2 * R, 2 * R), Image.LANCZOS)
         if loop_alpha < 1:
             tex.putalpha(tex.getchannel("A").point(lambda v: int(v * loop_alpha)))
         out.alpha_composite(tex, (X - R, Y - R))
-        out.alpha_composite(BORDER)
+        out.alpha_composite(border)
     if cast_png:
         out.alpha_composite(bloom(cast_png, 1.2).resize((2 * R, 2 * R), Image.LANCZOS), (X - R, Y - R))
     out.alpha_composite(TOKENS)
