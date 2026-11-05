@@ -1,7 +1,7 @@
 // 2D assets for the Blender pilot: the fey-rune band (looping sequence and a static copy), the map, and overlays
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
@@ -12,16 +12,29 @@ const html = `<!doctype html><html><body>${files.map((f) => `<script>${readFileS
 <script>
 // The fey band alone, white on transparent, 1024 px across the emanation's diameter; each word fades in its own time
 function band(ph, fades) {
+  // Words of Evan's fey glyphs (sprites/fey) around the ring, each word fading in its own time
   const c = document.createElement("canvas"); c.width = c.height = 1024;
   const s = c.getContext("2d");
-  const R = 512, r = rng(707);
-  s.strokeStyle = s.fillStyle = "#ffffff"; s.lineWidth = R * 0.009; s.lineCap = "round"; s.lineJoin = "round";
+  const R = 512, r = rng(707), rad = R * 0.835, h = R * 0.085;
   for (let w = 0; w < 12; w++) {
-    const n = 3 + Math.floor(r() * 4);
-    const letters = Array.from({ length: n }, () => feyLetter(r));
+    const n = 3 + Math.floor(r() * 3);
+    const word = Array.from({ length: n }, () => GLYPH_IMGS[Math.floor(r() * GLYPH_IMGS.length)]);
     const off = r();
     s.globalAlpha = fades ? 0.25 + 0.75 * win(cyc(ph, off), 0.3, 0.6) : 1;
-    textArc(s, R, R, R * 0.84, (w / 12) * TAU, letters, R * 0.085, drawFeyLetter, { spacing: 0.48, swash: true });
+    const widths = word.map((g) => (g.width / g.height) * h * 0.9);
+    const gap = h * 0.08;
+    const total = widths.reduce((a, b) => a + b + gap, -gap) / rad;
+    let a = (w / 12) * TAU - total / 2;
+    word.forEach((g, i) => {
+      const wa = widths[i] / rad;
+      const ac = a + wa / 2;
+      s.save();
+      s.translate(R + Math.sin(ac) * rad, R - Math.cos(ac) * rad);
+      s.rotate(ac);
+      s.drawImage(g, -widths[i] / 2, -h, widths[i], h);
+      s.restore();
+      a += wa + gap / rad;
+    });
   }
   return c.toDataURL("image/png");
 }
@@ -44,6 +57,11 @@ const page = await browser.newPage();
 page.on("pageerror", (e) => console.error("page error:", e.message));
 await page.setContent(html);
 await page.evaluate(() => document.fonts.ready);
+const glyphDir = join(here, "..", "sprites", "fey");
+const glyphs = readdirSync(glyphDir).filter((f) => f.endsWith(".png")).sort().map((f) => "data:image/png;base64," + readFileSync(join(glyphDir, f)).toString("base64"));
+await page.evaluate(async (urls) => {
+  window.GLYPH_IMGS = await Promise.all(urls.map((u) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.src = u; })));
+}, glyphs);
 const save = (p, d) => writeFileSync(p, Buffer.from(d.split(",")[1], "base64"));
 for (const k of ["bg", "ring", "border", "tokens"]) save(join(out, `${k}.png`), await page.evaluate((k) => assets[k](), k));
 save(join(out, "band-static.png"), await page.evaluate(() => assets.band(0, false)));

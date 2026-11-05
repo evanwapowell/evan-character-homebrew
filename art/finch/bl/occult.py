@@ -443,6 +443,7 @@ torus("ring-b", 0.925, 0.0028, silver, 0.02)
 tick_ob = ticks("ticks", silver, 0.021)
 dash_mat = emit_material("dash", (0.8, 0.84, 0.95), 1.4, dash=60, reveal=True)
 inner = torus("inner", 0.66, 0.0025, dash_mat, 0.02)
+inner.hide_render = True  # the dotted inner ring is gone
 band_mat = sprite_material("band", os.path.join(ASSETS, "band", "0001.png"), 1.8, seq=LOOP_FRAMES, reveal=True)
 band = plane("band", band_mat, 2.0, 2.0)
 band.location.z = 0.03
