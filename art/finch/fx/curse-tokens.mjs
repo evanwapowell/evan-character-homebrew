@@ -1,0 +1,15 @@
+import { createRequire } from "node:module";
+const { chromium } = createRequire(import.meta.url)("playwright");
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+const here = dirname(fileURLToPath(import.meta.url));
+const files = ["effects.js", "traditions.js", "gl-occult.js", "preview.js", "gl-preview.js", "kit.js", "lost.js", "boards.js", "anim.js"];
+const html = `<!doctype html><html><body>${files.map((f) => `<script>${readFileSync(join(here, f), "utf8")}</script>`).join("\n")}</body></html>`;
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.setContent(html);
+await page.evaluate(() => document.fonts.ready);
+const d = await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 1280; c.height = 720; const ctx = c.getContext("2d"); token(ctx, ...MV, VALET); token(ctx, ...ME, ENEMY); return c.toDataURL("image/png"); });
+writeFileSync(join(here, "..", "bl", "assets", "curse-tokens.png"), Buffer.from(d.split(",")[1], "base64"));
+await browser.close();
