@@ -26,6 +26,7 @@ ap.add_argument("--out", default=os.path.join(HERE, "divine-out"))
 ap.add_argument("--frames", default=None)
 ap.add_argument("--res", type=int, default=600)
 ap.add_argument("--samples", type=int, default=20)
+ap.add_argument("--step", type=int, default=1)
 args = ap.parse_args()
 
 src = open(os.path.join(HERE, "occult.py")).read()
@@ -196,23 +197,33 @@ def front_material(name, tint):
 
 
 # Two rings of fronts turning in opposite directions, so they keep driving into each other
+# Nine fronts spread across the whole emanation, gold and violet alternating, each wandering slowly and unevenly about
+# its own home, so neighbours drift into one another rather than wheeling round in rings
 fronts = []
-for i in range(6):
-    ring = i % 2
-    mat = front_material(f"front-{i}", (GOLDS if ring == 0 else VIOLETS)[i // 2])
+NF = 9
+homes = []
+while len(homes) < NF:
+    a, rad = R.random() * TAU, math.sqrt(R.random()) * 0.78
+    x, y = math.cos(a) * rad, math.sin(a) * rad
+    if all(math.hypot(x - hx, y - hy) > 0.38 for hx, hy in homes):
+        homes.append((x, y))
+for i, (hx, hy) in enumerate(homes):
+    family = i % 2
+    mat = front_material(f"front-{i}", (GOLDS if family == 0 else VIOLETS)[(i // 2) % 3])
     bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=24, ring_count=12)
     ob = bpy.context.active_object
     ob.name = f"front-{i}"
     ob.data.materials.append(mat)
-    size = (0.36 + R.random() * 0.14, 0.26 + R.random() * 0.1, 0.16)
-    fronts.append((ob, mat, size, i / 6 * TAU + R.random() * 0.4, 0.42 if ring == 0 else 0.62, 1 if ring == 0 else -1, R.random() * TAU, R.random()))
+    size = (0.42 + R.random() * 0.16, 0.32 + R.random() * 0.12, 0.16)
+    fronts.append((ob, mat, size, hx, hy, family, R.random() * TAU, R.random(), [R.random() for _ in range(5)]))
 
 
 def front_pos(f, ph):
-    ob, mat, size, a0, rad, direction, wob, off = f
-    a = a0 + direction * TAU * ph * 2
-    rr = rad + 0.14 * math.sin(TAU * (ph * 3 + off))
-    return math.cos(a) * rr, math.sin(a) * rr, a
+    """Where a front is: an uneven wander about its home (whole-number frequencies, so the loop stays seamless)"""
+    ob, mat, size, hx, hy, family, rot0, off, o = f
+    x = hx + 0.17 * math.sin(TAU * (ph + o[0])) + 0.06 * math.sin(TAU * (2 * ph + o[1]))
+    y = hy + 0.17 * math.sin(TAU * (ph + o[2])) + 0.06 * math.sin(TAU * (2 * ph + o[3]))
+    return x, y, rot0 + 0.5 * math.sin(TAU * (ph + o[4]))
 
 # Dim, cool light from above so the cloud has form between the flashes
 sun = bpy.data.lights.new("sky", "SUN")
@@ -305,7 +316,7 @@ motes = [(R.random() * TAU, 0.15 + R.random() * 0.8, R.choice([-4, -3, -2, 2, 3,
 burst = point_light("burst", 0.0, HOLY, 0.1)
 burst.location = (0, 0, -0.1)
 cracks = []
-for i in range(9):
+for i in range(0):  # no cracks: the intro is the storm billowing out with a flash
     mat = emit_material(f"crack-{i}", HOLY, 0.0)
     cu = bpy.data.curves.new(f"crack-{i}", "CURVE")
     cu.dimensions = "3D"
@@ -340,18 +351,18 @@ def update(scene, *_):
             set_val(cloud_mat, f"{k}{axis}", x)
     set_val(cloud_mat, "billow", billow)
     for f in fronts:
-        ob, mat, size, a0, rad, direction, wob, off = f
+        ob, mat, size, hx, hy, family, rot0, off, o = f
         x, y, a = front_pos(f, ph)
         ob.location = (x, y, -0.12)
-        ob.rotation_euler.z = a + math.pi / 2 + 0.3 * math.sin(TAU * ph * 2 + wob)
-        b = 1 + 0.12 * math.sin(TAU * (ph * 3 + off))
+        ob.rotation_euler.z = a
+        b = 1 + 0.1 * math.sin(TAU * (ph * 2 + off))
         ob.scale = (size[0] * b, size[1] / b, size[2])
-        for axis, v in zip("xyz", (math.cos(TAU * ph * 4 + wob) * 0.9, math.sin(TAU * ph * 4 + wob) * 0.9, 0.7 * math.sin(TAU * ph * 2))):
+        for axis, v in zip("xyz", (math.cos(TAU * ph * 2 + rot0) * 0.7, math.sin(TAU * ph * 2 + rot0) * 0.7, 0.5 * math.sin(TAU * ph))):
             set_val(mat, f"o{axis}", v)
         set_val(mat, "billow", billow)
     for j, (li, events, gaps) in enumerate(flashes):
-        # between a front of the inner ring and its nearest front of the outer ring
-        fa = fronts[(2 * j) % 6]
+        # between a front and its nearest neighbour of the other colour
+        fa = fronts[j % NF]
         ax, ay, _ = front_pos(fa, ph)
         fb = min((f for f in fronts if f[5] != fa[5]), key=lambda f: (front_pos(f, ph)[0] - ax) ** 2 + (front_pos(f, ph)[1] - ay) ** 2)
         bx, by, _ = front_pos(fb, ph)
@@ -440,7 +451,9 @@ bpy.app.handlers.frame_change_pre.append(update)
 if args.frames:
     a, b = (int(x) for x in args.frames.split("-"))
     sc.frame_start, sc.frame_end = a, b
+sc.frame_step = args.step
 os.makedirs(args.out, exist_ok=True)
 sc.render.filepath = os.path.join(args.out, "")
+sc.render.use_overwrite = False  # resume: skip frames already rendered
 bpy.ops.render.render(animation=True)
 print("rendered", sc.frame_start, "to", sc.frame_end)
