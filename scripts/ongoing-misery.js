@@ -5,7 +5,8 @@
  * extended. The errata's "only once to a given case of a condition" is a world setting, off by default.
  */
 
-import { canAnimate, featureHooks, guardApi, isEnabled } from "./settings.js";
+import { playCurse } from "./lib/finch.js";
+import { canAnimate, canAnimateFinch, featureHooks, guardApi, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -132,10 +133,15 @@ const CURSE_MARKS = 24;
 
 /** The familiar hurls a curse at the creature, which lands as a curse sigil on it */
 function playCurseAnimation(familiarToken, targetToken) {
-    if (!canAnimate()) return;
     if (!familiarToken.object || !targetToken.object) return;
-
     const distance = familiarToken.object.distanceTo(targetToken.object);
+    // The Finch version: a wisp drifts from the familiar, and a marionette's bar draws a sigil up out of the creature
+    if (canAnimateFinch()) {
+        playCurse(new Sequence(), { familiarToken: familiarToken.object, targetToken: targetToken.object, distance });
+        return;
+    }
+    if (!canAnimate()) return;
+
     const bolt = (CURSE_BOLTS.find(([feet]) => distance <= feet) ?? CURSE_BOLTS.at(-1))[1];
     const mark = String(Math.floor(Math.random() * CURSE_MARKS) + 1).padStart(3, "0");
     new Sequence()

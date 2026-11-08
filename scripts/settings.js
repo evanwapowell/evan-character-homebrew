@@ -109,7 +109,7 @@ const FEATURES = [
 ];
 
 /** Settings for the whole module, shown above the features */
-const GENERAL_SETTINGS = ["animations"];
+const GENERAL_SETTINGS = ["animations", "finchVersion"];
 
 const switchKey = (feature) => feature.key ?? `enabled${feature.id[0].toUpperCase()}${feature.id.slice(1)}`;
 const byId = new Map(FEATURES.map((f) => [f.id, f]));
@@ -148,6 +148,28 @@ function canAnimate() {
         return game.settings.get(MODULE_ID, "animations") !== false;
     } catch {
         return true;
+    }
+}
+
+/**
+ * Whether to play the Finch version's animations: Sequencer is active (JB2A isn't needed), animations are on, and the
+ * Finch version is on
+ */
+function canAnimateFinch() {
+    if (!game.modules.get("sequencer")?.active) return false;
+    try {
+        return game.settings.get(MODULE_ID, "animations") !== false && isFinchVersion();
+    } catch {
+        return false;
+    }
+}
+
+/** Whether the Finch version is on, whether or not animations can play */
+function isFinchVersion() {
+    try {
+        return game.settings.get(MODULE_ID, "finchVersion") !== false;
+    } catch {
+        return false;
     }
 }
 
@@ -317,6 +339,17 @@ Hooks.once("init", () => {
         type: Boolean,
         default: true,
     });
+    game.settings.register(MODULE_ID, "finchVersion", {
+        name: "Finch version",
+        hint:
+            "Custom animations made for Finch for Manifest Will (divine, occult and primal: its aura and the intro " +
+            "that builds it) and Familiar of Ongoing Misery, in place of JB2A's. They need Sequencer, but not " +
+            "JB2A. Without Sequencer, Manifest Will's aura still shows Finch's look, without the intro.",
+        scope: "world",
+        config: false,
+        type: Boolean,
+        default: true,
+    });
     game.settings.registerMenu(MODULE_ID, "features", {
         name: "Features",
         label: "Configure Features",
@@ -327,4 +360,16 @@ Hooks.once("init", () => {
     });
 });
 
-export { FEATURES, canAnimate, featureHooks, guardApi, isEnabled, menuContent, saveMenu, switchKey, wireMenu };
+export {
+    FEATURES,
+    canAnimate,
+    canAnimateFinch,
+    featureHooks,
+    guardApi,
+    isEnabled,
+    isFinchVersion,
+    menuContent,
+    saveMenu,
+    switchKey,
+    wireMenu,
+};
