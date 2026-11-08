@@ -12,7 +12,8 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 - `scripts/*.js`: plain ES modules loaded by Foundry, with no build step.
     - `settings.js`: the Features settings menu (Configure Settings → this module → Configure Features), with an
       on/off switch for each feature and the features' own settings, and the helpers the other scripts import:
-      `featureHooks`, `isEnabled`, `guardApi` and `canAnimate`.
+      `featureHooks`, `isEnabled`, `guardApi`, `canAnimate`, and for the Finch version, `canAnimateFinch` and
+      `isFinchVersion`.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
       re-centering on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
@@ -49,6 +50,15 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       information. The facts library has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
+- `scripts/lib/finch.js` and `animations/finch/`: the "Finch version" (a world setting in the menu's Module section, on
+  by default): custom animations made for one character, a changeling witch whose theme is lost things, in place of
+  JB2A's. Manifest Will (divine, occult and primal; arcane keeps JB2A's): an intro that builds the aura, then a
+  seamless loop, played by Sequencer attached to the token and tied to the aura effect, whose own texture is removed
+  (without Sequencer, the loop becomes the aura's texture). Familiar of Ongoing Misery: a wisp that drifts from the
+  familiar, then a marionette's control bar drawing a fey sigil up out of the creature. They need Sequencer but not
+  JB2A. `tools/check.mjs` checks every file the scripts play from the module exists.
+- `art/finch/`: the Finch animations' source (Gemini-painted sprites, the Blender scenes that render them, and the
+  export to WebM with alpha); not part of the release.
 - `token-subjects/`: token art.
 - `tools/packs.mjs` and `tools/check.mjs`, run with npm (`package.json`): build or unpack the compendium, and check the
   module before a release.
@@ -58,7 +68,7 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 
 - A push to `main` publishes a release when `module.json`'s version hasn't been released yet: the workflow runs
   `npm test`, builds the compendium, points the manifest's `download` at this version's release, zips `module.json`,
-  `packs/`, `scripts/` and `token-subjects/`, and publishes them as the latest release, tagged with the version.
+  `packs/`, `scripts/`, `token-subjects/` and `animations/`, and publishes them as the latest release, tagged with the version.
   Foundry's manifest URL points at the latest release. Other branches, and pushes that don't bump the version, publish
   nothing, and an existing release is never overwritten.
 - So bump `version` in `module.json` with every change to the module (the workflow fills in `download`): the middle

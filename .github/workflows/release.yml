@@ -71,7 +71,7 @@ jobs:
 
       - name: Package the module
         if: steps.released.outputs.exists == 'false'
-        run: zip -r evan-character-homebrew.zip module.json packs/ scripts/ token-subjects/
+        run: zip -r evan-character-homebrew.zip module.json packs/ scripts/ token-subjects/ animations/
 
       - name: Publish the release
         if: steps.released.outputs.exists == 'false'

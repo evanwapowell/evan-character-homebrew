@@ -4,7 +4,8 @@
  * tradition effect at the start of each turn instead, and removes it at the start of the next.
  */
 
-import { canAnimate, featureHooks, isEnabled } from "./settings.js";
+import { auraFiles, finchAuraRules, playAura } from "./lib/finch.js";
+import { canAnimate, canAnimateFinch, featureHooks, isEnabled, isFinchVersion } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -120,9 +121,28 @@ function playCastAnimation(auraEffect) {
         .play();
 }
 
+/** The Finch version: its intro builds the aura, and its loop then plays until the aura effect is deleted */
+function playFinchAura(auraEffect) {
+    const tradition = getTradition(auraEffect);
+    const token = getSceneToken(auraEffect.actor)?.object;
+    if (!(auraFiles(tradition) && token)) return false;
+    playAura(new Sequence(), { token, tradition, auraEffect });
+    return true;
+}
+
+// The Finch version swaps the aura's texture for its own loop, or, when Sequencer plays the loop after the intro,
+// removes it. Every tradition's rule is changed (the tradition may not be chosen yet), so re-centering, which copies
+// the effect, keeps it.
+hooks.on("preCreateItem", (item) => {
+    if (item.type !== "effect" || item.slug !== "aura-manifest-will" || !isFinchVersion()) return;
+    const rules = finchAuraRules(item._source.system.rules ?? [], { sequencer: canAnimateFinch() });
+    if (rules) item.updateSource({ "system.rules": rules });
+});
+
 // Cast or Sustain: the aura effect is applied to the caster or, for a seneschal, their charge
 hooks.on("createItem", (item, _options, userId) => {
     if (userId !== game.user.id || item.type !== "effect" || item.slug !== "aura-manifest-will") return;
+    if (canAnimateFinch() && playFinchAura(item)) return;
     playCastAnimation(item);
 });
 

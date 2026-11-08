@@ -38,6 +38,19 @@ for (const file of files(path.join(ROOT, "scripts"), ".js")) {
     if (result.status !== 0) problems.push(`${path.relative(ROOT, file)} has a syntax error:\n${result.stderr.trim()}`);
 }
 
+// Files the scripts play from this module (the Finch version's animations) must be in it
+for (const file of files(path.join(ROOT, "scripts"), ".js")) {
+    const text = fs.readFileSync(file, "utf8");
+    const dirs = [...text.matchAll(/const DIR = "modules\/evan-character-homebrew\/([^"]+)"/g)].map((m) => m[1]);
+    for (const dir of dirs) {
+        for (const [, name] of text.matchAll(/\$\{DIR\}\/([\w.-]+)/g)) {
+            if (!fs.existsSync(path.join(ROOT, dir, name))) {
+                problems.push(`${path.relative(ROOT, file)} plays ${dir}/${name}, which doesn't exist`);
+            }
+        }
+    }
+}
+
 // The compendium source
 for (const pack of manifest.packs ?? []) {
     const source = path.join(ROOT, "src/packs", pack.name);
