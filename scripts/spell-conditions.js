@@ -65,7 +65,8 @@ function getSave(message) {
     const statistic = spell.system.defense?.save?.statistic;
     const domains = context.domains ?? [];
     if (statistic && domains.length > 0 && !domains.includes(statistic)) return null;
-    return { spell, target, outcome: context.outcome, casterUuid: context.origin?.actor ?? spell.actor?.uuid };
+    const dc = Number(context.dc?.value) || null;
+    return { spell, target, outcome: context.outcome, casterUuid: context.origin?.actor ?? spell.actor?.uuid, dc };
 }
 
 /** Effect UUIDs that the module's other scripts register for a spell's degree of success, on `spellEffects` */
@@ -277,6 +278,16 @@ async function applyProposal(save, { effects, conditions }) {
         roll: null,
     });
     const applicable = conditions.filter((c) => !target.isImmuneTo?.(c.slug));
+    // The spell, its caster, rank and DC, for Counteract, which ends what a spell did at its rank and against its DC
+    const statistic = spell.spellcasting?.statistic;
+    const spellDC = statistic?.withRollOptions?.({ item: spell })?.dc.value ?? statistic?.dc?.value ?? null;
+    const spellSource = {
+        caster: caster?.uuid ?? null,
+        spell: spell.uuid,
+        name: spell.name,
+        rank: spell.rank,
+        dc: save.dc ?? spellDC,
+    };
 
     const toCreate = [];
     for (const { uuid } of effects) {
@@ -286,6 +297,7 @@ async function applyProposal(save, { effects, conditions }) {
         source._stats = { ...source._stats, compendiumSource: uuid };
         source.system.level = { value: spell.rank };
         source.system.context = context("caster");
+        source.flags = { ...source.flags, [MODULE_ID]: { ...source.flags?.[MODULE_ID], spellSource } };
         preselectDegree(source, outcome);
         toCreate.push(source);
     }
@@ -324,7 +336,7 @@ async function applyProposal(save, { effects, conditions }) {
                 })),
                 context: context(duration.relativeTo),
             },
-            flags: { [MODULE_ID]: { spellConditions: true } },
+            flags: { [MODULE_ID]: { spellConditions: true, spellSource } },
         });
     }
     if (toCreate.length > 0) await target.createEmbeddedDocuments("Item", toCreate);
@@ -332,11 +344,14 @@ async function applyProposal(save, { effects, conditions }) {
     // Conditions with no timer: raise an existing one to the new value rather than adding a second
     for (const condition of applicable.filter((c) => !c.duration?.value && !c.linkedTo)) {
         const existing = target.itemTypes.condition.find((c) => c.slug === condition.slug && !c.isLocked);
+        let applied = null;
         if (!existing) {
-            await target.increaseCondition(condition.slug, condition.value ? { value: condition.value } : {});
+            applied = await target.increaseCondition(condition.slug, condition.value ? { value: condition.value } : {});
         } else if (condition.value && (existing.value ?? 0) < condition.value) {
             await game.pf2e.ConditionManager.updateConditionValue(existing.id, target, condition.value);
+            applied = target.items.get(existing.id) ?? null;
         }
+        if (applied?.update) await applied.update({ [`flags.${MODULE_ID}.spellSource`]: spellSource });
     }
 
     // Linked conditions are granted by the condition they depend on, like dying grants unconscious

@@ -44,6 +44,17 @@ const FEATURES = [
             "the caster as their origin so sustained ones end when they aren't Sustained.",
     },
     {
+        id: "counteract",
+        group: "General",
+        label: "Counteract",
+        hint:
+            "The Counteract button on spells like Dispel Magic asks what to counteract on your targets (spell " +
+            "effects, auras, afflictions, conditions), works out each one's counteract rank and DC, rolls against " +
+            "it and ends what's counteracted. Counteract rolls made otherwise, like an item's, get a button to do " +
+            "the same, and a macro counteracts with a skill or set modifier: " +
+            'game.modules.get("evan-character-homebrew").api.counteract().',
+    },
+    {
         id: "recallKnowledge",
         group: "General",
         label: "Recall Knowledge",
