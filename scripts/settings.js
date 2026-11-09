@@ -19,10 +19,11 @@ const FEATURES = [
         group: "General",
         label: "Sustain",
         hint:
-            "Sustain buttons on actor sheets and PF2e HUD's spell sidebar, and a prompt when pf2e's Sustain action " +
-            "is used, listing the caster's sustained spells on any creature: the spell's card is posted again. Familiar of Ongoing Misery, Familiar of Parasitic Might and " +
-            "Manifest Will's re-centering react to Sustains made this way.",
-        settings: ["sustainedDurations"],
+            "Sustain buttons on actor sheets, PF2e HUD's spell sidebar and a reminder in chat at the start of a " +
+            "player's turn, and a prompt when pf2e's Sustain action is used, listing the caster's sustained spells " +
+            "on any creature: the spell's card is posted again. Familiar of Ongoing Misery, Familiar of Parasitic " +
+            "Might and Manifest Will's re-centering react to Sustains made this way.",
+        settings: ["sustainedDurations", "sustainReminder"],
     },
     {
         id: "spellConditions",

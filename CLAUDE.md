@@ -18,7 +18,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       re-centering on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
       effects that weren't Sustained. pf2e's Sustain action prompts with the caster's sustained spells on any creature
-      in the scene (buffs on allies included), one entry per spell.
+      in the scene (buffs on allies included), one entry per spell. At the start of a player's creature's turn in an
+      encounter, the active GM posts a chat reminder whispered to its owners listing its sustained spells, each with a
+      Sustain button (it shows Sustained or Ended as that changes).
     - `ongoing-misery.js`: Familiar of Ongoing Misery.
     - `witch-charge.js`: the Designate Witch's Charge action.
     - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result

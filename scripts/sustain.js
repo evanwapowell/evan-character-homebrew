@@ -7,6 +7,8 @@
  * Sustained durations: a sustained spell lasts until the end of the caster's next turn unless they Sustain it, which
  * extends it to the end of their following turn, up to its maximum duration. Each sustained effect records the round
  * it was last cast or Sustained, and at the end of the caster's turn, those not cast or Sustained that round end.
+ *
+ * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
 import { featureHooks, guardApi } from "./settings.js";
@@ -141,9 +143,9 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
  * A caster's sustained spells: their sustained effects on any creature in the scene, one entry per spell (Sustaining
  * one of a spell's effects Sustains them all), each with the creatures it's on
  */
-function getSustainedSpells(caster) {
+function getSustainedSpells(caster, scene = canvas.scene) {
     const spells = new Map();
-    for (const effect of getSustainedEffects(caster, canvas.scene)) {
+    for (const effect of getSustainedEffects(caster, scene)) {
         if (effect.remainingDuration.expired) continue;
         const key = effect.system.context?.origin?.item ?? effect.uuid;
         if (!spells.has(key)) spells.set(key, { effect, name: getOriginSpell(effect)?.name ?? effect.name, on: [] });
@@ -297,6 +299,140 @@ function isSystemSustain(message) {
     return content.querySelector("h4.action strong")?.textContent.trim() === sustainTitle();
 }
 
+/*
+ * Turn-start reminder: when a player's creature starts its turn in an encounter with sustained spells going, a chat
+ * message whispered to its owners lists them, each with a Sustain button.
+ */
+
+const REMINDER_ROWS = "ehb-sustain-reminder";
+
+/** Whether the turn order moved forward, rather than back */
+function movedForward(combat) {
+    const previous = combat.previous;
+    if (previous?.round === null || previous?.round === undefined) return true;
+    return combat.round > previous.round || (combat.round === previous.round && combat.turn > previous.turn);
+}
+
+async function postReminder(combat) {
+    const actor = combat.combatant?.actor;
+    if (!actor?.hasPlayerOwner || !movedForward(combat)) return;
+    const spells = getSustainedSpells(actor, combat.scene ?? canvas.scene);
+    if (spells.length === 0) return;
+    // Once per turn, even if the turn is set again
+    const posted = game.messages.contents.slice(-50).some((m) => {
+        const r = m.flags[MODULE_ID]?.sustainReminder;
+        return r?.combat === combat.id && r.round === combat.round && r.actorUuid === actor.uuid;
+    });
+    if (posted) return;
+
+    const esc = Handlebars.escapeExpression;
+    const ends = game.settings.get(MODULE_ID, "sustainedDurations")
+        ? `<p style="font-size: var(--font-size-12)"><em>Spells not Sustained this turn end at its end.</em></p>`
+        : "";
+    await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor, token: combat.combatant.token }),
+        content: `<p><strong>${esc(actor.name)}</strong> can Sustain:</p><div class="${REMINDER_ROWS}"></div>${ends}`,
+        whisper: game.users.filter((u) => actor.testUserPermission(u, "OWNER")).map((u) => u.id),
+        flags: {
+            [MODULE_ID]: {
+                sustainReminder: {
+                    actorUuid: actor.uuid,
+                    combat: combat.id,
+                    round: combat.round,
+                    spells: spells.map(({ effect, name }) => ({ effectUuid: effect.uuid, name })),
+                },
+            },
+        },
+    });
+}
+
+/** Whether a sustained effect was Sustained (or cast) in the reminder's round or later */
+function wasSustained(effect, reminder) {
+    const record = effect.flags[MODULE_ID]?.sustained;
+    return record?.combat === reminder.combat && record.round >= reminder.round;
+}
+
+/** The reminder's rows: each spell with where it is, what's left of it, and a Sustain button for its owners */
+function renderReminder(message, html) {
+    const reminder = message.flags[MODULE_ID]?.sustainReminder;
+    const container = reminder ? html?.querySelector(`.${REMINDER_ROWS}`) : null;
+    if (!container) return;
+    const actor = fromUuidSync(reminder.actorUuid);
+    const esc = Handlebars.escapeExpression;
+
+    const rows = reminder.spells.map(({ effectUuid, name }) => {
+        const effect = fromUuidSync(effectUuid);
+        const row = document.createElement("div");
+        row.style.cssText = "display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0";
+        const label = document.createElement("span");
+        label.style.flex = "1";
+        let detail = "";
+        if (effect && actor) {
+            const on = getSustainedSpells(actor).find((s) => s.effect === effect || s.name === name)?.on ?? [];
+            const others = on.filter((a) => a !== actor).map((a) => a.name);
+            const where = others.length > 0 ? [...(on.includes(actor) ? ["you"] : []), ...others].join(", ") : "";
+            const remaining = effect.remainingDuration?.remaining;
+            const rounds = Number.isFinite(remaining) ? Math.max(1, Math.ceil(remaining / 6)) : null;
+            const left = rounds ? `${rounds} ${rounds === 1 ? "round" : "rounds"} left` : "";
+            detail = [where && `on ${esc(where)}`, left].filter((d) => d).join("; ");
+        }
+        label.innerHTML = `<strong>${esc(name)}</strong>${detail ? ` <em>(${detail})</em>` : ""}`;
+        row.append(label);
+
+        const status = (text) => {
+            const note = document.createElement("em");
+            note.textContent = text;
+            return note;
+        };
+        if (!effect || effect.remainingDuration?.expired) {
+            row.append(status("Ended"));
+        } else if (wasSustained(effect, reminder)) {
+            row.append(status("Sustained"));
+        } else if (actor?.isOwner) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.style.cssText = "flex: 0 0 auto; width: auto; line-height: 1.5";
+            button.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> ${esc(sustainTitle())}`;
+            button.addEventListener("click", async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                button.disabled = true;
+                try {
+                    await sustain(actor, { effect });
+                    button.replaceWith(status("Sustained"));
+                } catch (error) {
+                    button.disabled = false;
+                    console.error(`${MODULE_ID} | Sustain`, error);
+                }
+            });
+            row.append(button);
+        }
+        return row;
+    });
+    container.replaceChildren(...rows);
+}
+
+hooks.on("renderChatMessageHTML", (message, html) => {
+    try {
+        renderReminder(message, html);
+    } catch (error) {
+        console.error(`${MODULE_ID} | Sustain`, error);
+    }
+});
+
+// When an effect is Sustained or ends, show it on the turn's reminder for everyone who sees it
+function refreshReminders(item) {
+    if (item.type !== "effect") return;
+    for (const message of game.messages.contents.slice(-50)) {
+        const spells = message.flags[MODULE_ID]?.sustainReminder?.spells;
+        if (spells?.some((s) => s.effectUuid === item.uuid)) ui.chat?.updateMessage?.(message);
+    }
+}
+hooks.on("updateItem", (item, changed) => {
+    if (foundry.utils.hasProperty(changed, `flags.${MODULE_ID}.sustained`)) refreshReminders(item);
+});
+hooks.on("deleteItem", (item) => refreshReminders(item));
+
 // When pf2e's Sustain action is posted, ask what was sustained
 hooks.on("createChatMessage", (message, _options, userId) => {
     if (userId !== game.user.id || !isSystemSustain(message)) return;
@@ -319,10 +455,12 @@ hooks.on("createItem", (item) => {
     item.update({ [`flags.${MODULE_ID}.sustained`]: { combat: combat.id, round: combat.round } });
 });
 
-hooks.on("updateCombat", (combat, changed) => {
+// The end of a turn ends what wasn't Sustained, then the next creature's turn starts with its reminder
+hooks.on("updateCombat", async (combat, changed) => {
     if (game.user !== game.users.activeGM || !combat.started || !("turn" in changed || "round" in changed)) return;
-    if (!game.settings.get(MODULE_ID, "sustainedDurations")) return;
-    endUnsustained(combat).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+    const log = (error) => console.error(`${MODULE_ID} | Sustain`, error);
+    if (game.settings.get(MODULE_ID, "sustainedDurations")) await endUnsustained(combat).catch(log);
+    if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat).catch(log);
 });
 
 Hooks.once("ready", () => {
@@ -338,6 +476,17 @@ Hooks.once("init", () => {
         hint:
             "During an encounter, a sustained spell's effects end at the end of the caster's turn unless the spell " +
             "was cast or Sustained that turn (with the module's Sustain button or the Sustain action).",
+        scope: "world",
+        config: false,
+        type: Boolean,
+        default: true,
+    });
+
+    game.settings.register(MODULE_ID, "sustainReminder", {
+        name: "Sustain reminder at the start of a turn",
+        hint:
+            "During an encounter, when a player's creature starts its turn with sustained spells going, a chat " +
+            "message whispered to its owners lists them, with a Sustain button for each.",
         scope: "world",
         config: false,
         type: Boolean,
