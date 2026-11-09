@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "authors": [
     {
       "name": "Evan Powell",
@@ -26,12 +26,12 @@
       {
         "id": "JB2A_DnD5e",
         "type": "module",
-        "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery, Parasitic Might, Scrounger's Glee, Rallying Charge and Extract Element animations"
+        "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery, Parasitic Might, Shed Spirit, Stitching Strike, Scrounger's Glee, Rallying Charge and Extract Element animations"
       },
       {
         "id": "sequencer",
         "type": "module",
-        "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery, Parasitic Might, Scrounger's Glee, Rallying Charge and Extract Element animations"
+        "reason": "Manifest Will, Sepulchral Mask, Witch's Charge, Ongoing Misery, Parasitic Might, Shed Spirit, Stitching Strike, Scrounger's Glee, Rallying Charge and Extract Element animations"
       },
       {
         "id": "xdy-pf2e-workbench",
@@ -58,6 +58,7 @@
     "scripts/sepulchral-mask.js",
     "scripts/parasitic-might.js",
     "scripts/scroungers-glee.js",
+    "scripts/spirit-stitched-familiar.js",
     "scripts/rallying-charge.js",
     "scripts/recall-knowledge.js"
   ],
