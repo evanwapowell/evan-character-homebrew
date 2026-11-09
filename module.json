@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "authors": [
     {
       "name": "Evan Powell",
@@ -54,6 +54,7 @@
     "scripts/spell-conditions.js",
     "scripts/spell-target-effects.js",
     "scripts/extract-element.js",
+    "scripts/protector-tree.js",
     "scripts/sepulchral-mask.js",
     "scripts/parasitic-might.js",
     "scripts/scroungers-glee.js",

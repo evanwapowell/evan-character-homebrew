@@ -111,6 +111,15 @@ const FEATURES = [
         hint: "The save's result: damage, and Effect: Extract Element with the impulse bypasses.",
     },
     {
+        id: "protectorTree",
+        group: "Kineticist",
+        label: "Timber Sentinel (Protector Tree)",
+        hint:
+            "After Timber Sentinel is used (or Protector Tree is cast), its user places the tree on the map. While " +
+            "it stands, it takes the damage from Strikes that hit the caster's allies next to it, and the ally only " +
+            "what's left once it's destroyed.",
+    },
+    {
         id: "rallyingCharge",
         group: "Marshal",
         label: "Rallying Charge",
