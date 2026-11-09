@@ -1,0 +1,67 @@
+{
+  "_id": "4vnb6uF59O5c4qNh",
+  "img": "icons/magic/control/debuff-chains-shackles-movement-purple.webp",
+  "name": "Effect: Stitching Strike",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.pf2e.actionspf2e.Item.PTEiTXsObvtke43x]{Stitching Strike}</p><p>The witch's familiar unraveled into magical fibers that bind you: you're @UUID[Compendium.pf2e.conditionitems.Item.Immobilized] for 1 round or until you @UUID[Compendium.pf2e.actionspf2e.Item.Escape]{Escape} against the witch's spell DC.</p><p>When it's applied, the DC is added below, with an Escape link. A successful Escape against it ends the effect.</p>"
+    },
+    "rules": [
+      {
+        "key": "GrantItem",
+        "uuid": "Compendium.pf2e.conditionitems.Item.Immobilized",
+        "inMemoryOnly": true
+      }
+    ],
+    "slug": "effect-stitching-strike",
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "Pathfinder Player Core",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "level": {
+      "value": 8
+    },
+    "duration": {
+      "value": 1,
+      "unit": "rounds",
+      "expiry": "turn-start",
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1794182400000,
+    "modifiedTime": 1794182400000,
+    "lastModifiedBy": null
+  },
+  "effects": [],
+  "folder": "3r43sQraN0sUOHUW",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "_key": "!items!4vnb6uF59O5c4qNh"
+}

@@ -98,6 +98,24 @@ const FEATURES = [
         hint: "Make your targets your charges, with pf2e's Effect: Witch's Charge.",
     },
     {
+        id: "shedSpirit",
+        group: "Witch",
+        label: "Spirit Familiar (Shed Spirit)",
+        hint:
+            "Using Shed Spirit picks the enemy, rolls the damage and posts a card for its Will save against the " +
+            "witch's spell DC; the damage is applied for the result, and the familiar's user chooses an ally within " +
+            "30 feet of the enemy to restore half the damage dealt.",
+    },
+    {
+        id: "stitchingStrike",
+        group: "Witch",
+        label: "Stitched Familiar (Stitching Strike)",
+        hint:
+            "Using Stitching Strike picks the enemy, rolls the damage and posts a card for its Reflex save against " +
+            "the witch's spell DC; the damage is applied for the result, and on a failure the enemy is immobilized " +
+            "for 1 round, until it Escapes against the DC.",
+    },
+    {
         id: "scroungersGlee",
         group: "Witch",
         label: "Scrounger's Glee",

@@ -1,0 +1,22 @@
+{
+  "name": "Witch",
+  "sorting": "a",
+  "folder": null,
+  "type": "Item",
+  "_id": "3r43sQraN0sUOHUW",
+  "description": "",
+  "sort": 0,
+  "color": null,
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1794182400000,
+    "modifiedTime": 1794182400000,
+    "lastModifiedBy": null
+  },
+  "_key": "!folders!3r43sQraN0sUOHUW"
+}

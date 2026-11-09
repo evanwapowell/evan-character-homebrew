@@ -46,6 +46,16 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `scroungers-glee.js`: Scrounger's Glee: adds Effect: Scrounger's Glee to the spell conditions' Apply button on a
       failed save (it keeps the target at frightened 1 or more while it isn't deafened), and when an ally critically
       succeeds at a Strike against the target, asks the caster's user whether to Dismiss the spell to heal that ally.
+    - `spirit-stitched-familiar.js`: Spirit Familiar's Shed Spirit and Stitched Familiar's Stitching Strike (witch
+      feats; the familiar's activities). pf2e's card has a save link with no DC, so using the action (from the
+      familiar, or the witch) has its user pick an enemy in range (their target, when it's in range), rolls the damage
+      ((6 + 2 per 2 levels past 8)d6) and posts a card with a button for the enemy's save against the witch's spell
+      DC. The active GM applies the damage for the result (once: a reroll is left to adjust by hand). Stitching Strike,
+      on a failure or critical failure: Effect: Stitching Strike (immobilized, 1 round from the witch's turn), with an
+      Escape link at the DC; a successful Escape against it (or with no DC, compared with it) ends the effect. Shed
+      Spirit, once damage was dealt (HP and temporary HP lost): a button for the familiar's user to choose an ally
+      within 30 feet of the enemy, and the GM restores half that. JB2A animations for each step, and fibers on the
+      immobilized creature tied to the effect.
     - `rallying-charge.js`: Rallying Charge (marshal): after the marshal uses the feat, their next Strike is the
       charge's; when it's a melee Strike that hits and its damage is rolled against an enemy, each ally within 60 feet
       who can see the marshal (not blinded or unconscious, no sight-blocking wall between them) gets pf2e's Effect:
@@ -134,15 +144,16 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
 - `yHoBoom9axaemxWS` Effect: Protector Tree
 - `JZzkqIbry9lR8y0P` Aura: Sepulchral Mask; `GOsDZYg9DXFPhzwg` Effect: Sepulchral Mask (the enemies' penalty)
 - `AxUfnmwrn1XTPTNU` Effect: Scrounger's Glee
+- `4vnb6uF59O5c4qNh` Effect: Stitching Strike
 - `1rKbOmjn488MljOU` Effect: Exploit Vulnerability (Critical Failure)
 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
 Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), Timber
 Sentinel (`aHlcMMNQ85VLK7QT`) and Protector Tree (`K9gI08enGtmih5X1`), and Sepulchral Mask (`3mINzPzup2m9qzFU`) with its
 Spell Effect (`TER4qOsYPTszhhDG`), Devourer of Decay (`T9wA833bzZVlB3Lo`), Familiar of Parasitic Might
-(`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), Rallying Charge (Marshal) (`df4cBV3qZn3qNUmP`) with its
-Effect (`wjNNHgX6ceKLbn8Q`), and Exploit Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as
-constants at the top.
+(`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), Shed Spirit (`uruoG0PuuA0CqEG7`), Stitching Strike
+(`PTEiTXsObvtke43x`), Rallying Charge (Marshal) (`df4cBV3qZn3qNUmP`) with its Effect (`wjNNHgX6ceKLbn8Q`), and Exploit
+Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as constants at the top.
 
 ## Code conventions
 
