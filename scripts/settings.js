@@ -20,7 +20,7 @@ const FEATURES = [
         label: "Sustain",
         hint:
             "Sustain buttons on actor sheets and PF2e HUD's spell sidebar, and a prompt when pf2e's Sustain action " +
-            "is used: the spell's card is posted again. Familiar of Ongoing Misery, Familiar of Parasitic Might and " +
+            "is used, listing the caster's sustained spells on any creature: the spell's card is posted again. Familiar of Ongoing Misery, Familiar of Parasitic Might and " +
             "Manifest Will's re-centering react to Sustains made this way.",
         settings: ["sustainedDurations"],
     },
@@ -32,6 +32,15 @@ const FEATURES = [
         hint:
             "An Apply button on saves rolled against a spell, which applies the conditions and spell effects its " +
             "text describes for that result, with their timers, after you check them.",
+    },
+    {
+        id: "spellTargetEffects",
+        group: "General",
+        label: "Spell effects for targets",
+        hint:
+            "An Apply button on the card of a spell without a save, like Heroism, that applies the spell effects it " +
+            "links to your targets (or to you, for an aura or a spell on yourself), at the rank it was cast, with " +
+            "the caster as their origin so sustained ones end when they aren't Sustained.",
     },
     {
         id: "recallKnowledge",

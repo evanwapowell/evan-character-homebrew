@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "authors": [
     {
       "name": "Evan Powell",
@@ -52,6 +52,7 @@
     "scripts/ongoing-misery.js",
     "scripts/witch-charge.js",
     "scripts/spell-conditions.js",
+    "scripts/spell-target-effects.js",
     "scripts/extract-element.js",
     "scripts/sepulchral-mask.js",
     "scripts/parasitic-might.js",

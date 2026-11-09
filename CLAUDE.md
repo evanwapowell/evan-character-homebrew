@@ -17,7 +17,8 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
       re-centering on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
-      effects that weren't Sustained.
+      effects that weren't Sustained. pf2e's Sustain action prompts with the caster's sustained spells on any creature
+      in the scene (buffs on allies included), one entry per spell.
     - `ongoing-misery.js`: Familiar of Ongoing Misery.
     - `witch-charge.js`: the Designate Witch's Charge action.
     - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result
@@ -48,6 +49,12 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       Bestiary Tracking. Exploit Vulnerability's check is read too: its weaknesses by degree of success, off-guard on a
       critical failure (Effect: Exploit Vulnerability (Critical Failure)), and with Diverse Lore, Recall Knowledge's
       information. The facts library has no Foundry dependencies.
+    - `spell-target-effects.js` with `lib/spell-effect-links.js`: an Apply button on the card of a spell without a save
+      (Heroism, Stoke the Heart, Shield) for the spell effects it links. The caster checks which creatures get each
+      effect (their targets or PF2e Toolbelt's, or themselves for an aura or a spell with no targets or area); the
+      effects are made as pf2e makes them when dragged from the card (cast rank, caster as origin, the spell's traits),
+      so Sustain tracks them. The link parser picks the defaults (a heightened entry's version of the effect, not a
+      battle form's variants, amp or immunity effects) and has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node.
 - `scripts/lib/finch.js` and `animations/finch/`: the "Finch version" (a world setting in the menu's Module section, on

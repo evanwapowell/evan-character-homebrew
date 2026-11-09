@@ -137,27 +137,50 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
     }
 }
 
-/** Choose which of an actor's sustained effects to Sustain */
+/**
+ * A caster's sustained spells: their sustained effects on any creature in the scene, one entry per spell (Sustaining
+ * one of a spell's effects Sustains them all), each with the creatures it's on
+ */
+function getSustainedSpells(caster) {
+    const spells = new Map();
+    for (const effect of getSustainedEffects(caster, canvas.scene)) {
+        if (effect.remainingDuration.expired) continue;
+        const key = effect.system.context?.origin?.item ?? effect.uuid;
+        if (!spells.has(key)) spells.set(key, { effect, name: getOriginSpell(effect)?.name ?? effect.name, on: [] });
+        const entry = spells.get(key);
+        // Sustain the caster's own effect when there is one, so it's the one named
+        if (effect.actor === caster && entry.effect.actor !== caster) entry.effect = effect;
+        if (!entry.on.includes(effect.actor)) entry.on.push(effect.actor);
+    }
+    return [...spells.values()];
+}
+
+/** Choose which of a caster's sustained spells to Sustain, whether its effects are on the caster or other creatures */
 async function promptSustain(actor, { skipIfSingle = false } = {}) {
-    const effects = actor.itemTypes.effect.filter((e) => e.system.duration.sustained && !e.remainingDuration.expired);
-    if (effects.length === 0) {
+    const spells = getSustainedSpells(actor);
+    if (spells.length === 0) {
         ui.notifications.info(
             `${actor.name} has no sustained effects. Use the Sustain button beside the spell's Cast button instead.`,
         );
         return;
     }
-    if (skipIfSingle && effects.length === 1) return sustain(actor, { effect: effects[0] });
+    if (skipIfSingle && spells.length === 1) return sustain(actor, { effect: spells[0].effect });
 
     const esc = Handlebars.escapeExpression;
-    const content = effects
-        .map((effect, index) =>
-            [
+    const content = spells
+        .map(({ name, on }, index) => {
+            const others = on.filter((a) => a !== actor).map((a) => a.name);
+            const where =
+                others.length > 0
+                    ? ` <em>(on ${esc([...(on.includes(actor) ? ["you"] : []), ...others].join(", "))})</em>`
+                    : "";
+            return [
                 `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
                 `<input type="radio" name="choice" value="${index}" ${index === 0 ? "checked" : ""}>`,
-                `<span>${esc(effect.name)}</span>`,
+                `<span>${esc(name)}${where}</span>`,
                 `</label>`,
-            ].join(""),
-        )
+            ].join("");
+        })
         .join("");
 
     const choice = await foundry.applications.api.DialogV2.wait({
@@ -175,7 +198,7 @@ async function promptSustain(actor, { skipIfSingle = false } = {}) {
         rejectClose: false,
     });
     if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
-    return sustain(actor, { effect: effects[Number(choice)] });
+    return sustain(actor, { effect: spells[Number(choice)]?.effect });
 }
 
 const BUTTON_GAP = 4;
