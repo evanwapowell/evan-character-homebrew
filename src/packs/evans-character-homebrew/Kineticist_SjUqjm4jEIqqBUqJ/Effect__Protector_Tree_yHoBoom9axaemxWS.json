@@ -1,0 +1,61 @@
+{
+  "_id": "yHoBoom9axaemxWS",
+  "img": "icons/magic/nature/tree-animated-smile.webp",
+  "name": "Effect: Protector Tree",
+  "system": {
+    "description": {
+      "gm": "",
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.aHlcMMNQ85VLK7QT]{Timber Sentinel} or @UUID[Compendium.pf2e.spells-srd.Item.K9gI08enGtmih5X1]{Protector Tree}</p><p>Your protector tree stands for 1 minute. Whenever an ally adjacent to the tree is hit by a Strike, the tree interposes its branches and takes the damage first. Any additional damage beyond what it takes to reduce the tree to 0 Hit Points is dealt to the original target.</p><p>When this effect ends, the tree remains as an ordinary, non-magical tree if it's in soil. If you use Timber Sentinel again, the previous tree's effect ends.</p>"
+    },
+    "rules": [],
+    "slug": "effect-protector-tree",
+    "traits": {
+      "otherTags": [],
+      "value": []
+    },
+    "publication": {
+      "title": "Pathfinder Player Core 2",
+      "authors": "",
+      "license": "ORC",
+      "remaster": true
+    },
+    "level": {
+      "value": 1
+    },
+    "duration": {
+      "value": 1,
+      "unit": "minutes",
+      "expiry": "turn-start",
+      "sustained": false
+    },
+    "start": {
+      "value": 0,
+      "initiative": null
+    },
+    "tokenIcon": {
+      "show": true
+    },
+    "badge": null,
+    "context": null,
+    "unidentified": false
+  },
+  "type": "effect",
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "pf2e",
+    "systemVersion": "7.0.0",
+    "createdTime": 1793664000000,
+    "modifiedTime": 1793664000000,
+    "lastModifiedBy": null
+  },
+  "effects": [],
+  "folder": "SjUqjm4jEIqqBUqJ",
+  "flags": {},
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "_key": "!items!yHoBoom9axaemxWS"
+}

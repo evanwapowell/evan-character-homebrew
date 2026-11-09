@@ -26,6 +26,15 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result
       (damage, and Effect: Extract Element with the impulse bypasses), plays each element's animation, and ends the
       effects when the kinetic aura ends.
+    - `protector-tree.js`: Timber Sentinel (wood kineticist) and the Protector Tree spell it casts. Using the impulse
+      (or casting the spell, which pf2e 8.x marks; otherwise the card's Place Tree button) has its user pick a square
+      within 30 feet; the active GM makes the tree, a hazard actor (AC 10, 10 HP per rank: half the kineticist's level
+      rounded up, or the cast rank) in a "Protector Trees" folder, owned by the caster's players, and gives the caster
+      Effect: Protector Tree (1 minute). pf2e's `applyDamage` is wrapped (through libWrapper when it's active): damage
+      from a Strike that hits an ally of the caster (not the caster) adjacent to the tree goes to the tree first, and
+      the ally takes only what's left after the tree reaches 0 HP, keeping its damage types. At 0 HP the tree's token
+      and actor are removed; when the effect ends otherwise (duration, or the impulse used again), it stays as an
+      ordinary tree, and deleting its token removes its actor.
     - `sepulchral-mask.js`: Sepulchral Mask (psychopomp sorcerer): puts Aura: Sepulchral Mask on the caster when the
       spell is cast (pf2e 8.x marks real casts) or when pf2e's spell effect is dragged from the card, posts a card for
       each enemy that starts its turn in the emanation (the caster rolls the damage, the creature its Will save), and
@@ -109,16 +118,18 @@ Scripts refer to compendium items by ID, so never change existing IDs. The UUID 
   tradition effects the turn-start script hands out
 - `f0BUHuiZLiODSsg3` Designate Witch's Charge
 - `otpFtLUFZlVa0nhn` Effect: Extract Element
+- `yHoBoom9axaemxWS` Effect: Protector Tree
 - `JZzkqIbry9lR8y0P` Aura: Sepulchral Mask; `GOsDZYg9DXFPhzwg` Effect: Sepulchral Mask (the enemies' penalty)
 - `AxUfnmwrn1XTPTNU` Effect: Scrounger's Glee
 - `1rKbOmjn488MljOU` Effect: Exploit Vulnerability (Critical Failure)
 
 The scripts also rely on pf2e compendium IDs, which are the same in every pf2e version, for example Effect: Witch's
-Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), and
-Sepulchral Mask (`3mINzPzup2m9qzFU`) with its Spell Effect (`TER4qOsYPTszhhDG`), Devourer of Decay (`T9wA833bzZVlB3Lo`),
-Familiar of Parasitic Might (`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), Rallying Charge (Marshal)
-(`df4cBV3qZn3qNUmP`) with its Effect (`wjNNHgX6ceKLbn8Q`), and Exploit Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the
-ones it uses as constants at the top.
+Charge (`ugeStF0Rj8phBPWL`), the Sustain action (`3f5DMFu8fPiqHpRg`), Extract Element (`low5ORd87QeA9Oug`), Timber
+Sentinel (`aHlcMMNQ85VLK7QT`) and Protector Tree (`K9gI08enGtmih5X1`), and Sepulchral Mask (`3mINzPzup2m9qzFU`) with its
+Spell Effect (`TER4qOsYPTszhhDG`), Devourer of Decay (`T9wA833bzZVlB3Lo`), Familiar of Parasitic Might
+(`J5Wyh1EPmk848ivR`), Scrounger's Glee (`VNv96dJPi0WXKSFN`), Rallying Charge (Marshal) (`df4cBV3qZn3qNUmP`) with its
+Effect (`wjNNHgX6ceKLbn8Q`), and Exploit Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as
+constants at the top.
 
 ## Code conventions
 
@@ -147,6 +158,7 @@ nothing when they're absent. Never add them as dependencies (`relationships.requ
 - PF2e Toolbelt's Target Helper rolls saves without save messages, so spell conditions and Manifest Will's flat check
   also read its card flags and its `pf2e-toolbelt.rollSave` hook.
 - PF2e HUD's spell sidebar gets the Sustain icon.
+- libWrapper, when active, wraps pf2e's `applyDamage` for Protector Tree; without it the method is wrapped directly.
 - PF2e Flat Check rolls only for conditions; Manifest Will's distance-based concealment is handled here instead.
 - PF2e Workbench's Basic Action Macros rolls Recall Knowledge with its own macro: a whispered table and a bare d20, with
   no statistic or degree of success, so Recall Knowledge works each skill's modifier out with a roll that isn't posted.
