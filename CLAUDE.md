@@ -84,13 +84,14 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       `data-action` in `renderChatMessageHTML`, which runs before pf2e attaches its listeners). The caster checks what
       to counteract on their targets: a spell's effects and conditions from one casting (rank cast at, caster's spell
       DC), an aura's effects at their source, other effects (half their level, DC for their level), afflictions (their
-      DC), conditions, the creature itself or something else (both reported, not removed); unknown ranks and DCs are
-      typed in, and DCs of NPCs' spells are hidden from players unless pf2e shows DCs. The check is rolled through
-      pf2e's counteract statistic (against the DC, for one target) with an identifier, and when its message arrives,
-      what's counteracted is removed (through the active GM for creatures the user doesn't own) and a result card is
-      posted; a reroll updates the card. Counteract rolls made otherwise (an item's `[[/r 1d20+N #Counteract]]`, a
-      counteract `@Check`) get a button to resolve them the same way, and `api.counteract()` is a macro that rolls with
-      the selected creature's spellcasting, a skill or a set modifier. The rules library has no Foundry dependencies.
+      DC), conditions, the creature itself or something else (both reported, not removed). Unknown ranks are typed in, a
+      DC left blank is the DC for the rank, and DCs of NPCs' spells are hidden from players unless pf2e shows DCs. The
+      check is rolled through pf2e's counteract statistic (against the DC, for one target) with an identifier, and when
+      its message arrives, what's counteracted is removed (through the active GM for creatures the user doesn't own) and
+      a result card is posted; a reroll updates the card. Counteract rolls made otherwise (an item's `[[/r 1d20+N
+      #Counteract]]`, a counteract `@Check`) get a button to resolve them the same way, and `api.counteract()` is a
+      macro that rolls with the selected creature's spellcasting, a skill or a set modifier. The rules library has no
+      Foundry dependencies.
 - `scripts/lib/finch.js` and `animations/finch/`: the "Finch version" (a world setting in the menu's Module section, on
   by default): custom animations made for one character, a changeling witch whose theme is lost things, in place of
   JB2A's. Manifest Will (divine, occult and primal; arcane keeps JB2A's): an intro that builds the aura, then a

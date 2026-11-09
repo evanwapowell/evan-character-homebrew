@@ -378,7 +378,7 @@ function rowHtml(row, index, checked) {
             : `rank ${row.rank}<input type="hidden" name="rank-${index}" value="${row.rank}">`;
     const dc =
         editable || row.dc === null
-            ? `DC ${numberField(`dc-${index}`, row.dc, "?")}`
+            ? `DC ${numberField(`dc-${index}`, row.dc, "auto")}`
             : row.dcSecret
               ? "DC hidden"
               : `DC ${row.dc}`;
@@ -405,7 +405,8 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
     const rows = creatures
         .flatMap((actor) => getCandidates(actor, { counteractor }))
         .filter((row, i, all) => all.findIndex((r) => r.key === row.key) === i);
-    const preselect = rows.filter((r) => r.main && r.kind !== "creature");
+    // The only thing on the targets is checked to start with; not the counteractor's own, listed for want of targets
+    const preselect = rows.filter((r) => r.main && r.kind !== "creature" && r.creature !== counteractor);
 
     const sections = creatures.map((actor) => {
         const own = rows.map((row, i) => ({ row, i })).filter(({ row }) => row.creature === actor);
@@ -450,10 +451,10 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
         `<label style="display: flex; gap: 0.4em; align-items: center">`,
         `<input type="checkbox" name="pick-other">`,
         `<input type="text" name="other-name" placeholder="A spell being cast, an area, an item..." style="flex: 1">`,
-        `<span style="white-space: nowrap">rank ${numberField("rank-other", null, "?")} DC ${numberField("dc-other", null, "?")}</span>`,
+        `<span style="white-space: nowrap">rank ${numberField("rank-other", null, "?")} DC ${numberField("dc-other", null, "auto")}</span>`,
         `</label></fieldset>`,
         `<p class="hint">Target creatures before counteracting to list them here. A spell's counteract rank is the rank `,
-        `it was cast at; anything else's is half its level rounded up.</p>`,
+        `it was cast at; anything else's is half its level rounded up. Leave a DC blank to use the DC for its rank.</p>`,
     ].join("");
 
     const choice = await foundry.applications.api.DialogV2.wait({
@@ -476,10 +477,17 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
 
     const source = sources ? (sources.find((s) => s.id === choice.sourceId) ?? sources[0]) : null;
     const targets = choice.targets;
-    const missing = targets.filter((t) => !Number.isFinite(t.rank) || !Number.isFinite(t.dc));
+    const missing = targets.filter((t) => !Number.isFinite(t.rank));
     if (missing.length > 0) {
-        ui.notifications.warn(`Counteract: fill in the rank and DC of ${missing.map((t) => t.label).join(", ")}.`);
+        ui.notifications.warn(`Counteract: fill in the rank of ${missing.map((t) => t.label).join(", ")}.`);
         return null;
+    }
+    // A DC left blank is the DC for the target's rank (GM Core's DCs by spell rank)
+    for (const target of targets) {
+        if (Number.isFinite(target.dc)) continue;
+        target.dc = spellRankDC(target.rank, { pwol: isPwol() });
+        target.dcByRank = true;
+        target.dcSecret = false;
     }
     if (targets.length === 0) {
         ui.notifications.warn("Counteract: check what to counteract.");
@@ -646,8 +654,9 @@ async function removeItems(uuids) {
 /** One target's line on the result card */
 function resultLine(target, result, rank) {
     const where = target.creature ? ` on ${esc(target.creature)}` : "";
+    const byRank = target.dcByRank ? " for its rank" : "";
     const dc = Number.isFinite(target.dc)
-        ? `<span ${target.dcSecret ? "data-ehb-counteract-secret" : ""}>, DC ${target.dc}</span>`
+        ? `<span ${target.dcSecret ? "data-ehb-counteract-secret" : ""}>, DC ${target.dc}${byRank}</span>`
         : "";
     const head = `<strong>${esc(target.label)}</strong>${where} (rank ${target.rank}${dc})`;
     const outcome = outcomeLabel(result.outcome);
