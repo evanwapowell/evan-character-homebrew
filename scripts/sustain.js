@@ -231,9 +231,8 @@ function addSheetSustainButtons(sheet, html) {
 
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "cast-spell blue";
+        button.className = "cast-spell blue ehb-sheet-sustain";
         button.textContent = sustainTitle();
-        button.dataset.tooltip = "Post this spell's card again without spending anything";
         button.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -250,7 +249,7 @@ function addSheetSustainButtons(sheet, html) {
 
     // Each row is its own grid: widen the Cast column on every row of the list so the columns stay aligned
     for (const list of lists) {
-        const castButtons = [...list.querySelectorAll(":scope > li button.cast-spell:not([data-tooltip])")];
+        const castButtons = [...list.querySelectorAll(":scope > li button.cast-spell:not(.ehb-sheet-sustain)")];
         if (castButtons.length === 0) continue;
         const castWidth = Math.max(...castButtons.map((b) => measureButton(b, b.textContent.trim())));
         const width = castWidth + BUTTON_GAP + measureButton(castButtons[0], sustainTitle());
