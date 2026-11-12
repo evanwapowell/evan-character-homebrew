@@ -39,7 +39,9 @@ function auraFiles(tradition) {
 /**
  * Point the Aura rule elements of an Aura: Manifest Will source at the Finch loops, for the traditions that have one.
  * With `sequencer`, the loop is played by Sequencer after the intro instead, so the aura gets no texture of its own
- * (otherwise the finished aura would show before the intro has built it). Returns the new rules, or null if unchanged.
+ * (otherwise the finished aura would show before the intro has built it). The loop marks the emanation's edge, so pf2e's
+ * border ring is dropped too; the highlighted squares on hover keep the tradition's color. Returns the new rules, or
+ * null if unchanged.
  */
 function finchAuraRules(rules, { sequencer }) {
     let changed = false;
@@ -47,7 +49,7 @@ function finchAuraRules(rules, { sequencer }) {
         if (rule?.key !== "Aura" || rule.slug !== "manifest-will") return rule;
         const tradition = Object.keys(AURAS).find((t) => (rule.predicate ?? []).includes(`manifest-will:${t}`));
         if (!tradition) return rule;
-        const appearance = { ...(rule.appearance ?? {}) };
+        const appearance = { ...(rule.appearance ?? {}), border: null };
         appearance.texture = sequencer
             ? null
             : { ...(appearance.texture ?? {}), src: AURAS[tradition].loop, alpha: AURA_OPACITY };
