@@ -17,7 +17,7 @@
  * spell says when it's in soil; deleting its token removes it.
  */
 
-import { featureHooks, guardApi, isEnabled } from "./settings.js";
+import { createdHere, featureHooks, guardApi, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -656,8 +656,8 @@ async function startFromCard(message) {
 
 /* Hooks */
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     const card = getCard(message);
     if (!card) return;
     // Using the impulse posts its card. A spell's card is posted when it's cast, but pf2e 7.x doesn't mark casts, so
@@ -670,20 +670,20 @@ hooks.on("renderChatMessageHTML", (message, html) => renderCard(message, html));
 
 // The tree's end is handled even with the feature off, so trees don't linger
 Hooks.on("updateActor", (actor, changed) => {
-    if (game.user !== game.users.activeGM || !treeData(actor)) return;
+    if (!isActiveGM() || !treeData(actor)) return;
     if (foundry.utils.getProperty(changed, "system.attributes.hp.value") === undefined) return;
     if ((actor.hitPoints?.value ?? actor.system.attributes.hp.value) <= 0) destroyTree(actor).catch(log);
 });
 
 Hooks.on("deleteToken", (token) => {
-    if (game.user !== game.users.activeGM) return;
+    if (!isActiveGM()) return;
     const tree = game.actors.get(token.actorId);
     if (!treeData(tree) || tokensOf(tree).length > 0) return;
     removeTree(tree).catch(log);
 });
 
 Hooks.on("deleteItem", (item) => {
-    if (game.user !== game.users.activeGM) return;
+    if (!isActiveGM()) return;
     const data = effectData(item);
     const tree = data?.tree ? fromUuidSync(data.tree) : null;
     if (tree) endTree(tree).catch(log);
@@ -723,7 +723,7 @@ Hooks.once("setup", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (game.user !== game.users.activeGM) return;
+        if (!isActiveGM()) return;
         if (data?.action === "protectorTreeCreate") await createTree(data).catch(log);
         if (data?.action === "protectorTreeDamage") {
             const token = await fromUuid(data.tokenUuid);

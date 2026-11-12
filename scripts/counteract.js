@@ -28,7 +28,7 @@ import {
     rankFromText,
     spellRankDC,
 } from "./lib/counteract-rules.js";
-import { featureHooks, guardApi } from "./settings.js";
+import { createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -891,8 +891,8 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
 });
 
 // The counteract check this user rolled (or rerolled): resolve it
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     const id = requestIdOf(message);
     if (!id) return;
     const request = pending.get(id) ?? findCard(id)?.flags[MODULE_ID].counteract.request ?? null;
@@ -912,7 +912,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "counteractRemove" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "counteractRemove" || !isActiveGM()) return;
         const byActor = new Map();
         for (const uuid of data.uuids ?? []) {
             const item = await fromUuid(uuid).catch(() => null);

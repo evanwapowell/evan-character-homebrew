@@ -7,7 +7,7 @@
  * sickened 1. A Fortitude save rolled from the box pf2e adds to the hex's card is handled too.
  */
 
-import { canAnimate, featureHooks, guardApi, isEnabled } from "./settings.js";
+import { canAnimate, createdHere, featureHooks, guardApi, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -307,8 +307,8 @@ function isInlineSave(message, context) {
     return hasParasiticMight(witch);
 }
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     if (isHexCast(message)) {
         return void promptParasiticMight(message.actor, { spell: message.item }).catch(log);
     }
@@ -386,7 +386,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "parasiticMight" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "parasiticMight" || !isActiveGM()) return;
         await resolveSave(data).catch(log);
     });
 });

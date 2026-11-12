@@ -19,7 +19,7 @@
  * play each step.
  */
 
-import { canAnimate, guardApi, isEnabled } from "./settings.js";
+import { canAnimate, createdHere, guardApi, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -648,8 +648,8 @@ async function onEscape(message, context) {
 const isEscape = (context) =>
     (context.options ?? []).some((o) => o === "action:escape" || o.startsWith("action:escape:"));
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+Hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     const kind = getCardKind(message);
     if (kind) {
         if (isEnabled(KINDS[kind].feature)) useStrike(kind, message.actor, { item: message.item }).catch(log);
@@ -758,7 +758,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (game.user !== game.users.activeGM) return;
+        if (!isActiveGM()) return;
         if (data?.action === "familiarStrikeSave") await resolveSave(data).catch(log);
         else if (data?.action === "shedSpiritHeal") await resolveHeal(data).catch(log);
     });

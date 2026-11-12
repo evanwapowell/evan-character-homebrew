@@ -7,7 +7,7 @@
  * lasts 5 minutes or until the kineticist's kinetic aura ends. Each element has its own animation.
  */
 
-import { canAnimate, featureHooks } from "./settings.js";
+import { canAnimate, createdHere, featureHooks, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -431,8 +431,8 @@ function getSave(message) {
 
 const log = (error) => console.error(`${MODULE_ID} | Extract Element`, error);
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     if (isCard(message)) return void onUse(message).catch(log);
     const save = getSave(message);
     if (save) onSave(save).catch(log);
@@ -455,7 +455,7 @@ function isKineticAuraEffect(item) {
 // "These effects last for 5 minutes or until your kinetic aura ends"
 Hooks.on("deleteItem", async (item) => {
     const kineticist = item.actor;
-    if (game.user !== game.users.activeGM || !kineticist || !isKineticAuraEffect(item)) return;
+    if (!isActiveGM() || !kineticist || !isKineticAuraEffect(item)) return;
     if (kineticist.items.some((i) => i.id !== item.id && isKineticAuraEffect(i))) return;
 
     const actors = new Set(game.actors);
@@ -472,7 +472,7 @@ Hooks.on("deleteItem", async (item) => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "extractElement" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "extractElement" || !isActiveGM()) return;
         await resolveExtraction(data).catch(log);
     });
 });

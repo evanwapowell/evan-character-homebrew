@@ -10,7 +10,7 @@
  * from the card for every creature in the area, as usual.
  */
 
-import { canAnimate, featureHooks } from "./settings.js";
+import { canAnimate, createdHere, featureHooks, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -520,8 +520,8 @@ function getSave(message) {
     return cardId ? { ...save, card, fromTurnCard: true } : save;
 }
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
 
     // pf2e 8.x marks a spell that was cast, rather than posted to chat: put the mask on the caster
     const origin = message.flags.pf2e?.origin;
@@ -617,8 +617,8 @@ function renderTurnCard(message, html) {
 
 hooks.on("renderChatMessageHTML", (message, html) => renderTurnCard(message, html));
 
-hooks.on("createItem", (item, _options, userId) => {
-    if (userId !== game.user.id || !item.actor) return;
+hooks.on("createItem", (item, options, userId) => {
+    if (!createdHere(item, options, userId) || !item.actor) return;
     // pf2e's spell effect, dragged from the spell's card: make it the aura, at the rank and with the origin it has
     if (isSystemEffect(item)) {
         const origin = item.system.context?.origin;
@@ -632,7 +632,7 @@ hooks.on("createItem", (item, _options, userId) => {
 });
 
 hooks.on("updateCombat", (combat, changed) => {
-    if (game.user !== game.users.activeGM) return;
+    if (!isActiveGM()) return;
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
     // Going back through the turn order doesn't start a turn
     const previous = combat.previous;
@@ -644,7 +644,7 @@ hooks.on("updateCombat", (combat, changed) => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (game.user !== game.users.activeGM) return;
+        if (!isActiveGM()) return;
         if (data?.action === "sepulchralMask") await resolveSave(data).catch(log);
         if (data?.action === "sepulchralMaskDamage") await resolveDamage(data).catch(log);
     });

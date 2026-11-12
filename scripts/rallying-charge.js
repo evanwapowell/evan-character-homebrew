@@ -12,7 +12,7 @@
  * miss, or the end of the marshal's turn spends the charge with no effect.
  */
 
-import { canAnimate, featureHooks, guardApi } from "./settings.js";
+import { canAnimate, createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -276,9 +276,9 @@ hooks.on("preCreateChatMessage", (message) => {
     message.updateSource({ [`flags.${MODULE_ID}.rallyingCharge`]: { turn: getTurn(), spent: false } });
 });
 
-hooks.on("createChatMessage", (message) => {
-    // Every client sees the damage roll, so only the user who rolled it acts
-    if (message.author !== game.user || !isMeleeStrikeDamage(message.flags.pf2e?.context)) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    // Every client sees the damage roll, so only the session that rolled it acts
+    if (!createdHere(message, options, userId) || !isMeleeStrikeDamage(message.flags.pf2e?.context)) return;
     onStrikeDamage(message).catch(log);
 });
 
@@ -301,7 +301,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "rallyingCharge" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "rallyingCharge" || !isActiveGM()) return;
         await applyEffects(data).catch(log);
     });
 });

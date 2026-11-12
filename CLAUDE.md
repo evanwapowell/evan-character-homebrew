@@ -12,8 +12,12 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 - `scripts/*.js`: plain ES modules loaded by Foundry, with no build step.
     - `settings.js`: the Features settings menu (Configure Settings → this module → Configure Features), with an
       on/off switch for each feature and the features' own settings, and the helpers the other scripts import:
-      `featureHooks`, `isEnabled`, `guardApi`, `canAnimate`, and for the Finch version, `canAnimateFinch` and
-      `isFinchVersion`.
+      `featureHooks`, `isEnabled`, `guardApi`, `canAnimate`, for the Finch version, `canAnimateFinch` and
+      `isFinchVersion`, and from `lib/session.js`, `isActiveGM`, `isPrimarySession` and `createdHere`.
+    - `lib/session.js`: a user (the GM especially) can be connected more than once, in two windows or on two devices,
+      and each session runs the hooks. A user's sessions announce themselves over the module socket, and one of them
+      (a shown one, then the oldest) is chosen to act for the user; messages and items are marked with the session
+      that created them.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
       re-centering on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
@@ -163,6 +167,10 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
   (pf2e 7.x) and `v14-dev` (pf2e 8.x). Don't rely on memory for pf2e internals.
 - Players can't edit creatures they don't own. When a change has to reach another creature, the user's client asks the
   active GM over the module socket (`module.evan-character-homebrew`), as the existing socket actions do.
+- A user can have more than one session, so check `isActiveGM()` for the active GM's work, never
+  `game.user === game.users.activeGM`, and `createdHere(document, options, userId)` in `createChatMessage` and
+  `createItem` hooks, never `userId === game.user.id`. Work given to a user (a prompt for whoever answers for a
+  creature) checks `isPrimarySession()`.
 - Scripts react to Sustains through `game.modules.get(MODULE_ID).sustainHandlers`, which run one after another so their
   prompts don't overlap. They add spell effects to the spell conditions' Apply button through `spellEffects`
   (`(spell, outcome) => [effect UUIDs]`). Macro entry points go on `game.modules.get(MODULE_ID).api`.
