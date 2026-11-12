@@ -131,7 +131,7 @@ function playFinchAura(auraEffect) {
 }
 
 // The Finch version swaps the aura's texture for its own loop, or, when Sequencer plays the loop after the intro,
-// removes it. Every tradition's rule is changed (the tradition may not be chosen yet), so re-centering, which copies
+// removes it, and drops pf2e's border ring, since the loop marks the edge. Every tradition's rule is changed (the tradition may not be chosen yet), so re-centering, which copies
 // the effect, keeps it.
 hooks.on("preCreateItem", (item) => {
     if (item.type !== "effect" || item.slug !== "aura-manifest-will" || !isFinchVersion()) return;
