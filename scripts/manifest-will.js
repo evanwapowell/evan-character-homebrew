@@ -5,7 +5,15 @@
  */
 
 import { auraFiles, finchAuraRules, playAura } from "./lib/finch.js";
-import { canAnimate, canAnimateFinch, featureHooks, isEnabled, isFinchVersion } from "./settings.js";
+import {
+    canAnimate,
+    canAnimateFinch,
+    createdHere,
+    featureHooks,
+    isActiveGM,
+    isEnabled,
+    isFinchVersion,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -140,8 +148,8 @@ hooks.on("preCreateItem", (item) => {
 });
 
 // Cast or Sustain: the aura effect is applied to the caster or, for a seneschal, their charge
-hooks.on("createItem", (item, _options, userId) => {
-    if (userId !== game.user.id || item.type !== "effect" || item.slug !== "aura-manifest-will") return;
+hooks.on("createItem", (item, options, userId) => {
+    if (!createdHere(item, options, userId) || item.type !== "effect" || item.slug !== "aura-manifest-will") return;
     if (canAnimateFinch() && playFinchAura(item)) return;
     playCastAnimation(item);
 });
@@ -301,8 +309,8 @@ async function checkConcealment(message) {
     }
 }
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     checkConcealment(message).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
 });
 
@@ -343,19 +351,19 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
     // Players can't edit creatures they don't own, so the active GM moves the aura for them
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "moveManifestWill" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "moveManifestWill" || !isActiveGM()) return;
         await moveAuraEffect(data.effectUuid, data.centerUuid);
     });
 });
 
 hooks.on("updateCombat", (combat, changed) => {
-    if (game.user !== game.users.activeGM) return;
+    if (!isActiveGM()) return;
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
     onTurnStart(combat.combatant).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
 });
 
 Hooks.on("deleteCombat", async (combat) => {
-    if (game.user !== game.users.activeGM) return;
+    if (!isActiveGM()) return;
     for (const actor of new Set(combat.combatants.map((c) => c.actor).filter((a) => a))) {
         const ids = getManifestWillEffects(actor).map((e) => e.id);
         if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);

@@ -6,7 +6,7 @@
  */
 
 import { playCurse } from "./lib/finch.js";
-import { canAnimate, canAnimateFinch, featureHooks, guardApi, isEnabled } from "./settings.js";
+import { canAnimate, canAnimateFinch, createdHere, featureHooks, guardApi, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -222,8 +222,8 @@ async function promptOngoingMisery(actor) {
     }
 }
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id || !isHexCast(message)) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId) || !isHexCast(message)) return;
     promptOngoingMisery(message.actor).catch((error) => console.error(`${MODULE_ID} | Ongoing Misery`, error));
 });
 
@@ -252,7 +252,7 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
     // Players can't update effects on creatures they don't own, so the active GM extends those
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "ongoingMisery" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "ongoingMisery" || !isActiveGM()) return;
         const effect = await fromUuid(data.effectUuid);
         if (effect) await extendEffect(effect, data);
     });

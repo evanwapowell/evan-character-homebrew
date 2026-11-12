@@ -30,7 +30,7 @@ import {
     exploitResult,
     ordinal,
 } from "./lib/recall-knowledge-facts.js";
-import { isEnabled } from "./settings.js";
+import { createdHere, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -1162,8 +1162,8 @@ async function showKnown(tokenDoc = game.user.targets.first()?.document) {
 /** The settings menu's feature for a check: Recall Knowledge and Exploit Vulnerability are turned off separately */
 const featureOf = (kind) => (kind === "exploit" ? "exploitVulnerability" : "recallKnowledge");
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id) return;
+Hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId)) return;
     const check = getCheck(message);
     if (check && isEnabled(featureOf(check.kind))) onRolled(message, check).catch(log);
 });
@@ -1231,7 +1231,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (!String(data?.action ?? "").startsWith("recallKnowledge") || game.user !== game.users.activeGM) return;
+        if (!String(data?.action ?? "").startsWith("recallKnowledge") || !isActiveGM()) return;
         await Promise.resolve(onGMEvent(data)).catch(log);
     });
 });

@@ -10,7 +10,7 @@
  * at a Strike against a creature with the effect, the caster's user is asked whether to Dismiss the spell to heal them.
  */
 
-import { canAnimate, featureHooks, isEnabled } from "./settings.js";
+import { canAnimate, featureHooks, isActiveGM, isEnabled, isPrimarySession } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -78,7 +78,8 @@ async function onStrikeCrit(message, context) {
     for (const effect of target.itemTypes.effect.filter((e) => isGleeEffect(e) && !e.remainingDuration.expired)) {
         const caster = effect.origin;
         if (!caster || attacker === caster || !attacker.isAllyOf(caster)) continue;
-        if (getResponder(caster) !== game.user) continue;
+        // One of the responder's sessions asks
+        if (getResponder(caster) !== game.user || !isPrimarySession()) continue;
         asked.add(message.id);
         await promptDismiss({ caster, effect, attacker, attackerToken: message.token, target });
         return;
@@ -157,7 +158,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "scroungersGlee" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "scroungersGlee" || !isActiveGM()) return;
         await dismissSpell(data).catch(log);
     });
 });

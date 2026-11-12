@@ -9,7 +9,7 @@
  */
 
 import { defaultEffects, parseLinks } from "./lib/spell-effect-links.js";
-import { featureHooks } from "./settings.js";
+import { featureHooks, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -290,7 +290,7 @@ hooks.on("renderChatMessageHTML", (message, html) => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "applySpellTargetEffects" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "applySpellTargetEffects" || !isActiveGM()) return;
         const actor = await fromUuid(data.actorUuid);
         if (!(actor instanceof Actor)) return;
         await applyToActor(actor, data.sources ?? [], data.deleteIds ?? []).catch(log);

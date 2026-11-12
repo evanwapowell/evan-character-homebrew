@@ -11,7 +11,7 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
-import { featureHooks, guardApi } from "./settings.js";
+import { createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -433,8 +433,8 @@ hooks.on("updateItem", (item, changed) => {
 hooks.on("deleteItem", (item) => refreshReminders(item));
 
 // When pf2e's Sustain action is posted, ask what was sustained
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id || !isSystemSustain(message)) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId) || !isSystemSustain(message)) return;
     const actor = message.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user.character;
     if (!actor) return;
     promptSustain(actor, { skipIfSingle: true }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
@@ -447,7 +447,7 @@ hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, elem
 // A sustained effect cast during an encounter counts as cast that round
 hooks.on("createItem", (item) => {
     const combat = game.combat;
-    if (game.user !== game.users.activeGM || !combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) {
+    if (!isActiveGM() || !combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) {
         return;
     }
     if (item.type !== "effect" || !item.system.duration.sustained || item.flags[MODULE_ID]?.sustained) return;
@@ -456,7 +456,7 @@ hooks.on("createItem", (item) => {
 
 // The end of a turn ends what wasn't Sustained, then the next creature's turn starts with its reminder
 hooks.on("updateCombat", async (combat, changed) => {
-    if (game.user !== game.users.activeGM || !combat.started || !("turn" in changed || "round" in changed)) return;
+    if (!isActiveGM() || !combat.started || !("turn" in changed || "round" in changed)) return;
     const log = (error) => console.error(`${MODULE_ID} | Sustain`, error);
     if (game.settings.get(MODULE_ID, "sustainedDurations")) await endUnsustained(combat).catch(log);
     if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat).catch(log);
@@ -464,7 +464,7 @@ hooks.on("updateCombat", async (combat, changed) => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "recordSustained" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "recordSustained" || !isActiveGM()) return;
         await recordSustained(data.effectUuids);
     });
 });

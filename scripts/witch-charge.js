@@ -5,7 +5,7 @@
  * Intelligence modifier, which then become their charges.
  */
 
-import { canAnimate, featureHooks, guardApi } from "./settings.js";
+import { canAnimate, createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -213,8 +213,8 @@ function requestCharge(witch, requestId = foundry.utils.randomID()) {
     game.socket.emit(SOCKET, { action: "designateCharge", witchUuid: witch.uuid, targetTokenUuids, requestId });
 }
 
-hooks.on("createChatMessage", (message, _options, userId) => {
-    if (userId !== game.user.id || !isDesignateAction(message)) return;
+hooks.on("createChatMessage", (message, options, userId) => {
+    if (!createdHere(message, options, userId) || !isDesignateAction(message)) return;
     const witch = message.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user.character;
     if (witch) requestCharge(witch, message.id);
 });
@@ -234,7 +234,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "designateCharge" || game.user !== game.users.activeGM) return;
+        if (data?.action !== "designateCharge" || !isActiveGM()) return;
         await designateCharges(data.witchUuid, data.targetTokenUuids, data.requestId);
     });
 });
