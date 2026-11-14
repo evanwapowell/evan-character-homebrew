@@ -66,6 +66,7 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       who can see the marshal (not blinded or unconscious, no sight-blocking wall between them) gets pf2e's Effect:
       Rallying Charge (Marshal) with the marshal as its origin, so it grants their Charisma modifier as temporary Hit
       Points until the start of their next turn. A miss, a ranged Strike or the end of the marshal's turn spends it.
+      Damage rolled while viewing another scene leaves the charge active, to be rolled again on the marshal's scene.
     - `recall-knowledge.js` with `lib/recall-knowledge-facts.js`: Recall Knowledge about creatures, from pf2e's action
       or Basic Action Macros' (which rolls one d20 for every skill and Lore). The roller's player picks a question (or
       writes one); the GM gets a card with the degree of success against the creature's identification DCs (harder for
@@ -249,8 +250,9 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
 - Tests of the real scripts on a Foundry stand-in (`tests/harness/`): `foundry.mjs` fakes the globals the scripts
   touch (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`,
   `foundry.utils`, `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session,
-  `fromUuid`, and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds pf2e-shaped actors, items, effects and
-  chat messages, following pf2e's source (each builder names its file). `createWorld({ users })` then
+  `fromUuid`, `Roll` (each die rolls its middle), and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds
+  pf2e-shaped actors, items, effects, scenes, tokens and chat messages, following pf2e's source (each builder names its
+  file). `createWorld({ users })` then
   `world.connect(userId, { scripts })` opens a session with its own copy of the scripts and globals, so one user can
   be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]` has the script's exports,
   `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep each session's own.

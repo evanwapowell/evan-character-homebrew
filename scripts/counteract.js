@@ -746,7 +746,7 @@ async function counteractWithSpell(message, spell, event) {
         rank: spell.rank,
     });
     if (!picked) return;
-    const token = message.token ?? counteractor.getActiveTokens(true, true)[0]?.document ?? null;
+    const token = message.token ?? counteractor.getActiveTokens(true, true)[0] ?? null;
     await rollCheck({ request: picked.request, source, actor: counteractor, token, event });
 }
 

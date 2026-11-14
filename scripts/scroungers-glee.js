@@ -105,7 +105,7 @@ async function promptDismiss({ caster, effect, attacker, attackerToken, target }
     if (!fromUuidSync(effect.uuid)) return ui.notifications.info(`${TITLE}: the spell has already ended.`);
 
     const roll = await new Roll(formula).evaluate();
-    const allyToken = attackerToken ?? attacker.getActiveTokens(true, true)[0]?.document ?? null;
+    const allyToken = attackerToken ?? attacker.getActiveTokens(true, true)[0] ?? null;
     await roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor: caster }),
         flavor: [
