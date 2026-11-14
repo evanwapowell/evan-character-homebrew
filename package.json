@@ -6,9 +6,11 @@
   "scripts": {
     "build": "node tools/packs.mjs build",
     "unpack": "node tools/packs.mjs unpack",
-    "test": "node tools/check.mjs"
+    "test": "node tools/check.mjs && prettier --check \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.js\" && node --test \"tests/**/*.test.js\"",
+    "format": "prettier --write \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.js\""
   },
   "devDependencies": {
-    "@foundryvtt/foundryvtt-cli": "^3.0.5"
+    "@foundryvtt/foundryvtt-cli": "^3.0.5",
+    "prettier": "^3.10.1"
   }
 }

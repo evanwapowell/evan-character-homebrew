@@ -1,0 +1,34 @@
+# Runs the checks and tests, and builds the compendium, on every pull request, so a change that breaks them shows a
+# failed check before it's merged. The release workflow runs them again before publishing.
+name: Checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install the build tools
+        run: npm ci
+
+      - name: Check and test the module
+        run: npm test
+
+      - name: Build the compendium
+        run: npm run build

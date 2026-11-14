@@ -464,7 +464,7 @@ async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
 
 /** Send to the active GM, or handle it here when this user is the active GM */
 function toGM(data) {
-    if (game.user === game.users.activeGM) return Promise.resolve(onGMEvent(data)).catch(log);
+    if (isActiveGM()) return Promise.resolve(onGMEvent(data)).catch(log);
     if (!game.users.activeGM) {
         ui.notifications.warn(`${TITLE}: a GM must be logged in to answer.`);
         return null;
