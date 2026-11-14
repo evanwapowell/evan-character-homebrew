@@ -39,12 +39,45 @@ export function makeActor(world, { id = makeId("actor"), name = "Creature", type
         isOfType(...types) {
             return types.includes(type) || (types.includes("creature") && type !== "hazard" && type !== "loot");
         },
-        getActiveTokens: () => [],
+        /** Its tokens on scenes, as the TokenDocuments `getActiveTokens(true, true)` returns */
+        getActiveTokens: () =>
+            [...world.documents.values()].filter((d) => d.documentName === "Token" && d.actor === actor),
         getSelfRollOptions: (prefix = "self") => [`${prefix}:type:${type}`],
     };
     world.add(actor);
     for (const item of items) addItem(world, actor, item);
     return actor;
+}
+
+/** A scene, with its tokens */
+export function makeScene(world, { id = makeId("scene"), name = "Scene" } = {}) {
+    return world.add({ documentName: "Scene", id, _id: id, uuid: `Scene.${id}`, name, tokens: [] });
+}
+
+/**
+ * A token of an actor on a scene (a TokenDocument), with its placeable as `object`: its center and `distanceTo` (pf2e's
+ * TokenPF2e#distanceTo, in feet, here 5 feet a square on a grid with no diagonals rule).
+ */
+export function addToken(world, scene, actor, { id = makeId("token"), x = 0, y = 0, hidden = false } = {}) {
+    const token = {
+        documentName: "Token",
+        id,
+        _id: id,
+        uuid: `${scene.uuid}.Token.${id}`,
+        name: actor.name,
+        parent: scene,
+        actor,
+        hidden,
+        x,
+        y,
+    };
+    token.object = {
+        document: token,
+        center: { x: x * 100 + 50, y: y * 100 + 50 },
+        distanceTo: (other) => 5 * Math.max(Math.abs(other.document.x - x), Math.abs(other.document.y - y)),
+    };
+    scene.tokens.push(token);
+    return world.add(token);
 }
 
 /**

@@ -53,6 +53,7 @@ const GLOBALS = [
     "CONFIG",
     "canvas",
     "ChatMessage",
+    "Roll",
     "fromUuid",
     "fromUuidSync",
     "document",
@@ -269,6 +270,7 @@ class FakeChatMessage {
         this.whisper = source.whisper ?? [];
         this.blind = !!source.blind;
         this.rolls = (data.rolls ?? []).map((roll) => roll);
+        this.timestamp = source.timestamp ?? Date.now();
         this.author = null;
     }
 
@@ -286,6 +288,17 @@ class FakeChatMessage {
 
     get actor() {
         return this.world.actors.get(this.speaker?.actor) ?? null;
+    }
+
+    /** The speaker's token, on its scene (ChatMessage#getSpeakerActor's token, as pf2e's `token` getter reads it) */
+    get token() {
+        const { scene, token } = this.speaker ?? {};
+        return scene && token ? (this.world.fromUuidSync(`Scene.${scene}.Token.${token}`) ?? null) : null;
+    }
+
+    /** Foundry's: a GM, or the message's author */
+    canUserModify(user) {
+        return !!user?.isGM || this.author === user;
     }
 
     get item() {
@@ -320,6 +333,32 @@ class FakeChatMessage {
         this.world.messages.delete(this._id);
         this.world.callAll("deleteChatMessage", () => [this, {}, currentSession().user.id]);
         return this;
+    }
+}
+
+/**
+ * A roll (Foundry's Roll): only dice terms ("2d4", "1d6 + 2"), and each die rolls its middle (rounded up), so totals
+ * are known. `toMessage` posts it with ChatMessage.create.
+ */
+class FakeRoll {
+    constructor(formula, data = {}) {
+        this.formula = formula;
+        this.data = data;
+        this.total = undefined;
+    }
+
+    async evaluate() {
+        this.total = 0;
+        for (const [, sign, count, faces, flat] of this.formula.matchAll(/([+-]?)\s*(?:(\d*)d(\d+)|(\d+))/g)) {
+            const value = faces ? Number(count || 1) * Math.ceil(Number(faces) / 2) : Number(flat);
+            this.total += sign === "-" ? -value : value;
+        }
+        return this;
+    }
+
+    async toMessage(data = {}) {
+        if (this.total === undefined) await this.evaluate();
+        return ChatMessage.create({ ...data, rolls: [this] });
     }
 }
 
@@ -448,6 +487,7 @@ class Session {
             CONFIG: { PF2E: {}, ChatMessage: { documentClass: ChatMessage } },
             canvas: { ready: false, scene: null, tokens: { controlled: [], placeables: [] } },
             ChatMessage,
+            Roll: FakeRoll,
             fromUuid: async (uuid) => world.fromUuidSync(uuid),
             fromUuidSync: (uuid) => world.fromUuidSync(uuid),
             document: this.dom.window.document,
