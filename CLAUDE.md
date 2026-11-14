@@ -119,8 +119,8 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 
 ## Releases and workflow
 
-- A push to `main` publishes a release when `module.json`'s version hasn't been released yet: the workflow runs
-  `npm test`, builds the compendium, points the manifest's `download` at this version's release, zips `module.json`,
+- A push to `main` publishes a release when `module.json`'s version hasn't been released yet: the workflow fetches
+  pf2e's data for the spell baselines, runs `npm test`, builds the compendium, points the manifest's `download` at this version's release, zips `module.json`,
   `packs/`, `scripts/`, `token-subjects/` and `animations/`, and publishes them as the latest release, tagged with the version.
   Foundry's manifest URL points at the latest release. Other branches, and pushes that don't bump the version, publish
   nothing, and an existing release is never overwritten.
