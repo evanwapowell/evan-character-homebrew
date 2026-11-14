@@ -5,12 +5,12 @@
   "system": {
     "description": {
       "gm": "",
-      "value": "<p>Granted by @UUID[Compendium.pf2e.actionspf2e.Item.PTEiTXsObvtke43x]{Stitching Strike}</p><p>The witch's familiar unraveled into magical fibers that bind you: you're @UUID[Compendium.pf2e.conditionitems.Item.Immobilized] for 1 round or until you @UUID[Compendium.pf2e.actionspf2e.Item.Escape]{Escape} against the witch's spell DC.</p><p>When it's applied, the DC is added below, with an Escape link. A successful Escape against it ends the effect.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.actionspf2e.Item.PTEiTXsObvtke43x]{Stitching Strike}</p><p>The witch's familiar unraveled into magical fibers that bind you: you're @UUID[Compendium.pf2e.conditionitems.Item.eIcWbB5o3pP6OIMe]{Immobilized} for 1 round or until you @UUID[Compendium.pf2e.actionspf2e.Item.SkZAQRkLLkmBQNB9]{Escape} against the witch's spell DC.</p><p>When it's applied, the DC is added below, with an Escape link. A successful Escape against it ends the effect.</p>"
     },
     "rules": [
       {
         "key": "GrantItem",
-        "uuid": "Compendium.pf2e.conditionitems.Item.Immobilized",
+        "uuid": "Compendium.pf2e.conditionitems.Item.eIcWbB5o3pP6OIMe",
         "inMemoryOnly": true
       }
     ],

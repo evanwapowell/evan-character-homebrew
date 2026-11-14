@@ -19,7 +19,7 @@
  * play each step.
  */
 
-import { canAnimate, createdHere, guardApi, isActiveGM, isEnabled } from "./settings.js";
+import { canAnimate, createdHere, guardApi, hasModuleData, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -78,7 +78,7 @@ function getKind(item) {
 
 /** Whether a chat message is the activity's card, rather than a save or damage rolled from it */
 function getCardKind(message) {
-    if (message.flags.pf2e?.context || message.rolls.length > 0 || message.flags[MODULE_ID]) return null;
+    if (message.flags.pf2e?.context || message.rolls.length > 0 || hasModuleData(message)) return null;
     return getKind(message.item);
 }
 

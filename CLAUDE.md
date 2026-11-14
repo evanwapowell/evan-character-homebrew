@@ -13,7 +13,8 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `settings.js`: the Features settings menu (Configure Settings → this module → Configure Features), with an
       on/off switch for each feature and the features' own settings, and the helpers the other scripts import:
       `featureHooks`, `isEnabled`, `guardApi`, `canAnimate`, for the Finch version, `canAnimateFinch` and
-      `isFinchVersion`, and from `lib/session.js`, `isActiveGM`, `isPrimarySession` and `createdHere`.
+      `isFinchVersion`, and from `lib/session.js`, `isActiveGM`, `isPrimarySession`, `createdHere` and
+      `hasModuleData`.
     - `lib/session.js`: a user (the GM especially) can be connected more than once, in two windows or on two devices,
       and each session runs the hooks. A user's sessions announce themselves over the module socket, and one of them
       (a shown one, then the oldest) is chosen to act for the user; messages and items are marked with the session
@@ -138,6 +139,10 @@ When items are edited in Foundry instead:
 - Otherwise (for example on The Forge), use the item's "Export Data" and replace its file in `src/packs/` with the
   export. Exports have no `_key`, which `npm run build` adds from the item's `_id`; keep the `_id` the item had.
 
+Link pf2e's items by ID, in rule elements and in descriptions (`Compendium.pf2e.conditionitems.Item.TBSHQspnbcqxsmjL`,
+not `...Item.Frightened`): pf2e's own source uses names, but only its build turns them into IDs, and a name doesn't
+resolve in Foundry.
+
 Scripts refer to compendium items by ID, so never change existing IDs. The UUID prefix is
 `Compendium.evan-character-homebrew.evans-character-homebrew.Item.`. IDs in use:
 
@@ -171,6 +176,8 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
   `game.user === game.users.activeGM`, and `createdHere(document, options, userId)` in `createChatMessage` and
   `createItem` hooks, never `userId === game.user.id`. Work given to a user (a prompt for whoever answers for a
   creature) checks `isPrimarySession()`.
+- Every chat message carries the session mark in this module's flags, so `message.flags[MODULE_ID]` is always set.
+  To tell whether a message is one of the module's own, test a named key or `hasModuleData(message)`.
 - Scripts react to Sustains through `game.modules.get(MODULE_ID).sustainHandlers`, which run one after another so their
   prompts don't overlap. They add spell effects to the spell conditions' Apply button through `spellEffects`
   (`(spell, outcome) => [effect UUIDs]`). Macro entry points go on `game.modules.get(MODULE_ID).api`.

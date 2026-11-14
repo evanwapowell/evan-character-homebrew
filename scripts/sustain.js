@@ -11,7 +11,7 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
-import { createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
+import { createdHere, featureHooks, guardApi, hasModuleData, isActiveGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -288,7 +288,7 @@ function addHudSustainButtons(app, element) {
 
 /** Whether a chat message is pf2e's own Sustain action, which doesn't say what was sustained */
 function isSystemSustain(message) {
-    if (message.flags[MODULE_ID]) return false;
+    if (hasModuleData(message)) return false;
     const item = message.item;
     const uuids = [item?.sourceId, item?.uuid, message.flags.pf2e?.origin?.uuid];
     if (uuids.some((uuid) => String(uuid ?? "").endsWith(`.${SUSTAIN_ID}`))) return true;
