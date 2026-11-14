@@ -11,7 +11,7 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
-import { createdHere, featureHooks, guardApi, hasModuleData, isActiveGM } from "./settings.js";
+import { confirmActiveGM, createdHere, featureHooks, guardApi, hasModuleData } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -445,18 +445,18 @@ hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html
 hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, element));
 
 // A sustained effect cast during an encounter counts as cast that round
-hooks.on("createItem", (item) => {
+hooks.on("createItem", async (item) => {
     const combat = game.combat;
-    if (!isActiveGM() || !combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) {
-        return;
-    }
+    if (!combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) return;
     if (item.type !== "effect" || !item.system.duration.sustained || item.flags[MODULE_ID]?.sustained) return;
-    item.update({ [`flags.${MODULE_ID}.sustained`]: { combat: combat.id, round: combat.round } });
+    const round = combat.round;
+    if (!(await confirmActiveGM()) || item.flags[MODULE_ID]?.sustained) return;
+    item.update({ [`flags.${MODULE_ID}.sustained`]: { combat: combat.id, round } });
 });
 
 // The end of a turn ends what wasn't Sustained, then the next creature's turn starts with its reminder
 hooks.on("updateCombat", async (combat, changed) => {
-    if (!isActiveGM() || !combat.started || !("turn" in changed || "round" in changed)) return;
+    if (!combat.started || !("turn" in changed || "round" in changed) || !(await confirmActiveGM())) return;
     const log = (error) => console.error(`${MODULE_ID} | Sustain`, error);
     if (game.settings.get(MODULE_ID, "sustainedDurations")) await endUnsustained(combat).catch(log);
     if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat).catch(log);
@@ -464,7 +464,7 @@ hooks.on("updateCombat", async (combat, changed) => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "recordSustained" || !isActiveGM()) return;
+        if (data?.action !== "recordSustained" || !(await confirmActiveGM())) return;
         await recordSustained(data.effectUuids);
     });
 });

@@ -7,7 +7,14 @@
  * script, as before, and listed here by key; they're shown only in this menu.
  */
 
-import { createdHere, hasModuleData, isActiveGM, isPrimarySession } from "./lib/session.js";
+import {
+    confirmActiveGM,
+    confirmPrimarySession,
+    createdHere,
+    hasModuleData,
+    isActiveGM,
+    isPrimarySession,
+} from "./lib/session.js";
 
 const MODULE_ID = "evan-character-homebrew";
 
@@ -412,6 +419,8 @@ Hooks.once("init", () => {
 
 export {
     FEATURES,
+    confirmActiveGM,
+    confirmPrimarySession,
     createdHere,
     canAnimate,
     canAnimateFinch,

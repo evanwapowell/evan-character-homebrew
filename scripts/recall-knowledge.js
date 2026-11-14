@@ -30,7 +30,7 @@ import {
     exploitResult,
     ordinal,
 } from "./lib/recall-knowledge-facts.js";
-import { createdHere, hasModuleData, isActiveGM, isEnabled } from "./settings.js";
+import { confirmActiveGM, createdHere, hasModuleData, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -462,9 +462,9 @@ async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
     return result && typeof result === "object" ? result : null;
 }
 
-/** Send to the active GM, or handle it here when this user is the active GM */
-function toGM(data) {
-    if (isActiveGM()) return Promise.resolve(onGMEvent(data)).catch(log);
+/** Send to the active GM, or handle it here when this is the active GM's session that acts */
+async function toGM(data) {
+    if (await confirmActiveGM()) return Promise.resolve(onGMEvent(data)).catch(log);
     if (!game.users.activeGM) {
         ui.notifications.warn(`${TITLE}: a GM must be logged in to answer.`);
         return null;
@@ -482,7 +482,7 @@ async function onRolled(message, check) {
 
     for (const tokenDoc of targets) {
         const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, kind: check.kind };
-        toGM({ action: "recallKnowledgeStart", ...data });
+        await toGM({ action: "recallKnowledgeStart", ...data });
     }
 
     for (const tokenDoc of targets) {
@@ -494,7 +494,7 @@ async function onRolled(message, check) {
         const asked = await askQuestion(actor, tokenDoc, { exploit: check.kind === "exploit" });
         if (!asked) continue;
         const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, ...asked };
-        toGM({ action: "recallKnowledgeQuestion", ...data });
+        await toGM({ action: "recallKnowledgeQuestion", ...data });
     }
 }
 
@@ -1231,7 +1231,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (!String(data?.action ?? "").startsWith("recallKnowledge") || !isActiveGM()) return;
+        if (!String(data?.action ?? "").startsWith("recallKnowledge") || !(await confirmActiveGM())) return;
         await Promise.resolve(onGMEvent(data)).catch(log);
     });
 });

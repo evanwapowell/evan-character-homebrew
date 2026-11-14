@@ -406,6 +406,8 @@ class Session {
     scripts = {};
     visibility = "visible";
     connected = false;
+    /** How long socket messages to and from this session take, in milliseconds: a slow connection */
+    latency = 0;
 
     constructor(world, user) {
         this.world = world;
@@ -532,6 +534,12 @@ class Session {
         this.run(() => this.dom.window.document.dispatchEvent(new this.dom.window.Event("visibilitychange")));
     }
 
+    /** Show a scene on the canvas (null: none), then canvasReady, as Foundry does once the canvas is drawn */
+    viewScene(scene) {
+        Object.assign(this.globals.canvas, { ready: !!scene, scene: scene ?? null });
+        if (scene) this.Hooks.callAll("canvasReady", this.globals.canvas);
+    }
+
     /** Close the window: pagehide (which says goodbye), then nothing more runs. `silently`: it crashed or slept. */
     disconnect({ silently = false } = {}) {
         if (!silently) {
@@ -630,16 +638,25 @@ class World {
         return message;
     }
 
-    /** The module socket: what one session emits reaches every other connected session, not itself */
+    /**
+     * The module socket: what one session emits reaches every other connected session, not itself, at once or, when
+     * either has a `latency`, after it (on the timers, so fake timers need ticking)
+     */
     emit(from, event, data) {
         const payload = structuredClone(data);
         for (const session of this.connected()) {
             if (session === from) continue;
+            const latency = Math.max(from.latency, session.latency);
             for (const handler of session.socketHandlers.get(event) ?? []) {
+                const deliver = () => session.connected && session.run(() => handler(payload));
+                if (latency > 0) {
+                    setTimeout(deliver, latency);
+                    continue;
+                }
                 this.#pending += 1;
                 queueMicrotask(() => {
                     this.#pending -= 1;
-                    if (session.connected) session.run(() => handler(payload));
+                    deliver();
                 });
             }
         }

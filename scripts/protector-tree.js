@@ -17,7 +17,7 @@
  * spell says when it's in soil; deleting its token removes it.
  */
 
-import { createdHere, featureHooks, guardApi, isActiveGM, isEnabled } from "./settings.js";
+import { confirmActiveGM, createdHere, featureHooks, guardApi, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -669,24 +669,22 @@ hooks.on("createChatMessage", (message, options, userId) => {
 hooks.on("renderChatMessageHTML", (message, html) => renderCard(message, html));
 
 // The tree's end is handled even with the feature off, so trees don't linger
-Hooks.on("updateActor", (actor, changed) => {
-    if (!isActiveGM() || !treeData(actor)) return;
-    if (foundry.utils.getProperty(changed, "system.attributes.hp.value") === undefined) return;
-    if ((actor.hitPoints?.value ?? actor.system.attributes.hp.value) <= 0) destroyTree(actor).catch(log);
+Hooks.on("updateActor", async (actor, changed) => {
+    if (!treeData(actor) || foundry.utils.getProperty(changed, "system.attributes.hp.value") === undefined) return;
+    if ((actor.hitPoints?.value ?? actor.system.attributes.hp.value) > 0 || !(await confirmActiveGM())) return;
+    destroyTree(actor).catch(log);
 });
 
-Hooks.on("deleteToken", (token) => {
-    if (!isActiveGM()) return;
+Hooks.on("deleteToken", async (token) => {
     const tree = game.actors.get(token.actorId);
-    if (!treeData(tree) || tokensOf(tree).length > 0) return;
+    if (!treeData(tree) || tokensOf(tree).length > 0 || !(await confirmActiveGM())) return;
     removeTree(tree).catch(log);
 });
 
-Hooks.on("deleteItem", (item) => {
-    if (!isActiveGM()) return;
+Hooks.on("deleteItem", async (item) => {
     const data = effectData(item);
     const tree = data?.tree ? fromUuidSync(data.tree) : null;
-    if (tree) endTree(tree).catch(log);
+    if (tree && (await confirmActiveGM())) endTree(tree).catch(log);
 });
 
 Hooks.once("init", () => {
@@ -723,7 +721,9 @@ Hooks.once("setup", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (!isActiveGM()) return;
+        if (!["protectorTreeCreate", "protectorTreeDamage"].includes(data?.action) || !(await confirmActiveGM())) {
+            return;
+        }
         if (data?.action === "protectorTreeCreate") await createTree(data).catch(log);
         if (data?.action === "protectorTreeDamage") {
             const token = await fromUuid(data.tokenUuid);
