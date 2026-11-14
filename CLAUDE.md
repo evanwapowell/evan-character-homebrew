@@ -108,7 +108,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
   export to WebM with alpha); not part of the release.
 - `token-subjects/`: token art.
 - `tools/packs.mjs` and `tools/check.mjs`, run with npm (`package.json`): build or unpack the compendium, and check the
-  module before a release.
+  module (see "Testing").
+- `tests/`: unit tests for the libraries with no Foundry dependencies, run by `npm test`; not part of the release.
+- `.github/workflows/ci.yml`: runs `npm test` and `npm run build` on every pull request.
 - `.github/workflows/release.yml`: builds and publishes releases (see below).
 
 ## Releases and workflow
@@ -121,8 +123,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 - So bump `version` in `module.json` with every change to the module (the workflow fills in `download`): the middle
   number for a new feature (1.12.0 → 1.13.0), the last for a fix or small tweak (1.13.0 → 1.13.1). Changes outside the
   zipped files (like this file) don't need a bump.
-- When a change is done and tested, open a PR to `main` and merge it, so the release goes out. Then check that the
-  release's `module.json` and zip are live.
+- When a change is done and tested, open a PR to `main` and merge it once its checks pass (the Checks workflow runs
+  `npm test` and `npm run build` on every PR), so the release goes out. Then check that the release's `module.json` and
+  zip are live.
 - Anything a new script needs must be inside one of the zipped folders. Add new entry scripts to `esmodules`; files they
   import (like `scripts/lib/`) don't need listing.
 
@@ -167,7 +170,8 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
 
 ## Code conventions
 
-- Format with Prettier, print width 120 and tab width 4, matching the existing scripts.
+- Format with Prettier (`.prettierrc`: print width 120, tab width 4); `npm run format` formats the scripts, tools and
+  tests, and `npm test` fails on unformatted code.
 - Code against pf2e's real APIs, checked in its source for every supported version: `foundryvtt/pf2e` branches `v13-dev`
   (pf2e 7.x) and `v14-dev` (pf2e 8.x). Don't rely on memory for pf2e internals.
 - Players can't edit creatures they don't own. When a change has to reach another creature, the user's client asks the
@@ -215,7 +219,20 @@ Misery's default (prolong on every hex) reflects how the table plays now, pendin
 
 ## Testing
 
-Run `npm test` and `npm run build` before pushing. There's no Foundry instance in this environment. Test against pf2e's
+Run `npm test` and `npm run build` before pushing; the Checks workflow runs them again on every PR. `npm test` runs:
+
+- `tools/check.mjs`: the manifest, every script's syntax, the files the scripts play, the compendium source, and the
+  conventions above that reading the files can confirm: relative imports resolve to files that export each name, every
+  top-level script is in `esmodules`, no test of the bare `flags[MODULE_ID]` on a message, no comparing `game.user`
+  with `game.users.activeGM` or `userId` with `game.user.id` outside `lib/session.js`, compendium links (in
+  `src/packs/` and string literals in `scripts/`) end in a 16-character ID, and the module's own items the scripts use
+  exist in `src/packs/`.
+- Prettier's check.
+- The unit tests in `tests/` (`*.test.js`, Node's built-in `node:test` runner), for the libraries with no Foundry
+  dependencies: `counteract-rules`, `recall-knowledge-facts`, `spell-effect-links` and `spell-condition-parser`. A
+  change to one of these libraries adds or updates its tests.
+
+There's no Foundry instance in this environment. Test against pf2e's
 real data (cloned from `foundryvtt/pf2e`) in Node, with stand-ins for Foundry objects and jsdom for HTML, exercising the
 actual scripts end to end. Run the parser over every spell with a save when changing it. Say clearly in summaries and
 PRs that changes weren't run in Foundry.
