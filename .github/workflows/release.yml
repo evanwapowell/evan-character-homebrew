@@ -47,6 +47,19 @@ jobs:
         if: steps.released.outputs.exists == 'false'
         run: npm ci
 
+      # pf2e's spells at the commits pinned in tools/pf2e.json, for the spell parser baselines, which fail on CI
+      # without them
+      - name: Cache pf2e's data
+        if: steps.released.outputs.exists == 'false'
+        uses: actions/cache@v4
+        with:
+          path: .cache/pf2e
+          key: pf2e-${{ hashFiles('tools/pf2e.json') }}
+
+      - name: Fetch pf2e's data
+        if: steps.released.outputs.exists == 'false'
+        run: npm run fetch-pf2e
+
       - name: Check the module
         if: steps.released.outputs.exists == 'false'
         run: npm test
