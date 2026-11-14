@@ -99,6 +99,15 @@ function getTurn() {
 
 /** Cards already spent on a hit, in case this client couldn't flag them */
 const spent = new Set();
+/**
+ * Damage rolls of the charge made away from the marshal's scene, where the allies couldn't be found: the charge stays
+ * active, and these don't count as another Strike's damage when the roll is made again on the scene
+ */
+const offScene = new Set();
+
+function isOffScene(message) {
+    return offScene.has(message.id) || !!message.flags[MODULE_ID]?.rallyingCharge?.offScene;
+}
 
 /** Whether the charge's card is still good: not spent, and posted in this combat turn (or recently, out of combat) */
 function isActive(card, damageMessage) {
@@ -126,8 +135,12 @@ function findCharge(damageMessage) {
         if (!bySpeaker(message, damageMessage.speaker)) continue;
         if (isChargeCard(message)) return isActive(message, damageMessage) ? message : null;
         const context = message.flags.pf2e?.context;
-        // Another Strike's damage came first, so this one isn't the charge's
-        if (isStrikeDamage(context)) return null;
+        if (isStrikeDamage(context)) {
+            // The charge's damage, rolled away from the marshal's scene: rolled again here, it still counts
+            if (isOffScene(message)) continue;
+            // Another Strike's damage came first, so this one isn't the charge's
+            return null;
+        }
         if (isStrikeAttack(context)) {
             if (strike || !isMeleeStrikeAttack(context)) return null;
             if (context.outcome && !HITS.includes(context.outcome)) return null;
@@ -172,16 +185,26 @@ function playRallyAnimation(tokens) {
  * The charge hit: post who gains the temporary Hit Points, and give them the effect, or have the active GM do it for
  * allies this user doesn't own
  */
-async function rally({ marshalToken, feat = null, target = null, card = null }) {
+async function rally({ marshalToken, feat = null, target = null, card = null, damageMessage = null }) {
     const marshal = marshalToken.actor;
+    if (canvas.scene?.id !== marshalToken.parent.id) {
+        // The charge stays active, so rolling the damage again on the scene rallies the allies
+        if (damageMessage) {
+            offScene.add(damageMessage.id);
+            if (damageMessage.canUserModify(game.user, "update")) {
+                await damageMessage.update({ [`flags.${MODULE_ID}.rallyingCharge.offScene`]: true });
+            }
+        }
+        const again = damageMessage ? " and roll the damage again" : "";
+        return ui.notifications.warn(
+            `${TITLE}: view ${marshal.name}'s scene${again} to find the allies who saw the hit.`,
+        );
+    }
     if (card) {
         spent.add(card.id);
         if (card.canUserModify(game.user, "update")) {
             await card.update({ [`flags.${MODULE_ID}.rallyingCharge.spent`]: true });
         }
-    }
-    if (canvas.scene?.id !== marshalToken.parent.id) {
-        return ui.notifications.warn(`${TITLE}: view ${marshal.name}'s scene to find the allies who saw the hit.`);
     }
 
     const recipients = getRecipients(marshalToken);
@@ -267,7 +290,7 @@ async function onStrikeDamage(message) {
     // The Strike has to damage an enemy, not an ally
     const target = message.target?.actor ?? null;
     if (target && (target === marshal || target.isAllyOf(marshal))) return;
-    await rally({ marshalToken, feat: card.item, target, card });
+    await rally({ marshalToken, feat: card.item, target, card, damageMessage: message });
 }
 
 hooks.on("preCreateChatMessage", (message) => {
