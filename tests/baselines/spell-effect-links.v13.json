@@ -1,0 +1,2132 @@
+{
+    "Aberrant Form": {
+        "listed": ["Spell Effect: Aberrant Form"],
+        "defaults": {
+            "5": ["Spell Effect: Aberrant Form"]
+        }
+    },
+    "Adapt Self": {
+        "listed": ["Spell Effect: Adapt Self (Swim)", "Spell Effect: Adapt Self (Darkvision)"],
+        "defaults": {
+            "1": []
+        }
+    },
+    "Adaptive Ablation": {
+        "listed": ["Spell Effect: Adaptive Ablation"],
+        "defaults": {
+            "4": ["Spell Effect: Adaptive Ablation"]
+        }
+    },
+    "Aerial Form": {
+        "listed": [
+            "Spell Effect: Aerial Form (Bat)",
+            "Spell Effect: Aerial Form (Bird)",
+            "Spell Effect: Aerial Form (Pterosaur)",
+            "Spell Effect: Aerial Form (Wasp)"
+        ],
+        "defaults": {
+            "4": []
+        }
+    },
+    "Agile Feet": {
+        "listed": ["Spell Effect: Agile Feet"],
+        "defaults": {
+            "1": ["Spell Effect: Agile Feet"]
+        }
+    },
+    "Ancestral Form": {
+        "listed": ["Spell Effect: Ancestral Form"],
+        "defaults": {
+            "6": ["Spell Effect: Ancestral Form"]
+        }
+    },
+    "Ancestral Memories": {
+        "listed": ["Spell Effect: Ancestral Memories"],
+        "defaults": {
+            "1": ["Spell Effect: Ancestral Memories"]
+        }
+    },
+    "Angel Form": {
+        "listed": ["Spell Effect: Angel Form"],
+        "defaults": {
+            "7": ["Spell Effect: Angel Form"]
+        }
+    },
+    "Angelic Halo": {
+        "listed": ["Aura: Angelic Halo"],
+        "defaults": {
+            "1": ["Aura: Angelic Halo"]
+        }
+    },
+    "Angelic Wings": {
+        "listed": ["Spell Effect: Angelic Wings"],
+        "defaults": {
+            "3": ["Spell Effect: Angelic Wings"]
+        }
+    },
+    "Anima Invocation (Modified)": {
+        "listed": ["Spell Effect: Anima Invocation"],
+        "defaults": {
+            "10": ["Spell Effect: Anima Invocation"]
+        }
+    },
+    "Animal Feature": {
+        "listed": ["Spell Effect: Animal Feature"],
+        "defaults": {
+            "2": ["Spell Effect: Animal Feature"]
+        }
+    },
+    "Animal Form": {
+        "listed": [
+            "Spell Effect: Animal Form (Ape)",
+            "Spell Effect: Animal Form (Bear)",
+            "Spell Effect: Animal Form (Bull)",
+            "Spell Effect: Animal Form (Canine)",
+            "Spell Effect: Animal Form (Cat)",
+            "Spell Effect: Animal Form (Crab)",
+            "Spell Effect: Animal Form (Crocodile)",
+            "Spell Effect: Animal Form (Deer)",
+            "Spell Effect: Animal Form (Frog)",
+            "Spell Effect: Animal Form (Orca)",
+            "Spell Effect: Animal Form (Seal)",
+            "Spell Effect: Animal Form (Shark)",
+            "Spell Effect: Animal Form (Snake)"
+        ],
+        "defaults": {
+            "2": []
+        }
+    },
+    "Animate Rope": {
+        "listed": ["Spell Effect: Animate Rope"],
+        "defaults": {
+            "1": ["Spell Effect: Animate Rope"]
+        }
+    },
+    "Anointed Ground": {
+        "listed": ["Spell Effect: Anointed Ground"],
+        "defaults": {
+            "3": ["Spell Effect: Anointed Ground"]
+        }
+    },
+    "Ant Haul": {
+        "listed": ["Spell Effect: Ant Haul"],
+        "defaults": {
+            "1": ["Spell Effect: Ant Haul"]
+        }
+    },
+    "Anticipate Peril": {
+        "listed": ["Spell Effect: Anticipate Peril"],
+        "defaults": {
+            "1": ["Spell Effect: Anticipate Peril"]
+        }
+    },
+    "Apex Companion": {
+        "listed": ["Spell Effect: Apex Companion"],
+        "defaults": {
+            "10": ["Spell Effect: Apex Companion"]
+        }
+    },
+    "Arcane Countermeasure": {
+        "listed": ["Spell Effect: Arcane Countermeasure"],
+        "defaults": {
+            "5": ["Spell Effect: Arcane Countermeasure"]
+        }
+    },
+    "Armor of Bones": {
+        "listed": ["Spell Effect: Armor of Bones"],
+        "defaults": {
+            "3": ["Spell Effect: Armor of Bones"]
+        }
+    },
+    "Ash Form": {
+        "listed": ["Spell Effect: Ash Form"],
+        "defaults": {
+            "6": ["Spell Effect: Ash Form"]
+        }
+    },
+    "Ash-Strewn Ending": {
+        "listed": ["Spell Effect: Ash-Strewn Ending"],
+        "defaults": {
+            "4": ["Spell Effect: Ash-Strewn Ending"]
+        }
+    },
+    "Athletic Rush": {
+        "listed": ["Spell Effect: Athletic Rush"],
+        "defaults": {
+            "1": ["Spell Effect: Athletic Rush"]
+        }
+    },
+    "Augmented Body": {
+        "listed": ["Spell Effect: Augmented Body"],
+        "defaults": {
+            "1": ["Spell Effect: Augmented Body"]
+        }
+    },
+    "Bathe in Blood": {
+        "listed": ["Spell Effect: Bathe in Blood"],
+        "defaults": {
+            "8": ["Spell Effect: Bathe in Blood"]
+        }
+    },
+    "Battlefield Persistence": {
+        "listed": ["Spell Effect: Battlefield Persistence"],
+        "defaults": {
+            "3": ["Spell Effect: Battlefield Persistence"]
+        }
+    },
+    "Benediction": {
+        "listed": ["Spell Effect: Benediction"],
+        "defaults": {
+            "1": ["Spell Effect: Benediction"]
+        }
+    },
+    "Beseech the Sphinx": {
+        "listed": ["Spell Effect: Beseech the Sphinx"],
+        "defaults": {
+            "1": ["Spell Effect: Beseech the Sphinx"]
+        }
+    },
+    "Bind Undead": {
+        "listed": ["Spell Effect: Bind Undead"],
+        "defaults": {
+            "3": ["Spell Effect: Bind Undead"]
+        }
+    },
+    "Bit of Luck": {
+        "listed": ["Spell Effect: Bit of Luck"],
+        "defaults": {
+            "1": ["Spell Effect: Bit of Luck"]
+        }
+    },
+    "Bless": {
+        "listed": ["Aura: Bless"],
+        "defaults": {
+            "1": ["Aura: Bless"]
+        }
+    },
+    "Blessing of Defiance": {
+        "listed": ["Spell Effect: Blessing of Defiance"],
+        "defaults": {
+            "5": ["Spell Effect: Blessing of Defiance"]
+        }
+    },
+    "Blink Charge": {
+        "listed": ["Spell Effect: Blink Charge"],
+        "defaults": {
+            "5": ["Spell Effect: Blink Charge"]
+        }
+    },
+    "Blood Ward": {
+        "listed": ["Spell Effect: Blood Ward"],
+        "defaults": {
+            "1": ["Spell Effect: Blood Ward"]
+        }
+    },
+    "Blunt the Final Blade": {
+        "listed": ["Spell Effect: Blunt the Final Blade (Critical Success)"],
+        "defaults": {
+            "9": []
+        }
+    },
+    "Bone Flense": {
+        "listed": ["Effect: Bone Flense (Damage)", "Effect: Bone Flense (Reaction)"],
+        "defaults": {
+            "3": []
+        }
+    },
+    "Boost Eidolon": {
+        "listed": ["Spell Effect: Boost Eidolon"],
+        "defaults": {
+            "1": ["Spell Effect: Boost Eidolon"]
+        }
+    },
+    "Bottle the Storm": {
+        "listed": ["Spell Effect: Bottle the Storm"],
+        "defaults": {
+            "4": ["Spell Effect: Bottle the Storm"]
+        }
+    },
+    "Bullhorn": {
+        "listed": ["Spell Effect: Bullhorn"],
+        "defaults": {
+            "1": ["Spell Effect: Bullhorn"]
+        }
+    },
+    "Call to Arms": {
+        "listed": ["Spell Effect: Call to Arms"],
+        "defaults": {
+            "1": ["Spell Effect: Call to Arms"]
+        }
+    },
+    "Canopy Crawler": {
+        "listed": ["Spell Effect: Canopy Crawler"],
+        "defaults": {
+            "2": ["Spell Effect: Canopy Crawler"]
+        }
+    },
+    "Capital Dividend": {
+        "listed": ["Spell Effect: Capital Dividend"],
+        "defaults": {
+            "4": ["Spell Effect: Capital Dividend"]
+        }
+    },
+    "Cascade Countermeasure": {
+        "listed": ["Spell Effect: Cascade Countermeasure"],
+        "defaults": {
+            "3": ["Spell Effect: Cascade Countermeasure"]
+        }
+    },
+    "Cauterize Wounds": {
+        "listed": ["Spell Effect: Cauterize Wounds"],
+        "defaults": {
+            "2": ["Spell Effect: Cauterize Wounds"]
+        }
+    },
+    "Celestial Brand": {
+        "listed": ["Spell Effect: Celestial Brand"],
+        "defaults": {
+            "5": ["Spell Effect: Celestial Brand"]
+        }
+    },
+    "Charged Javelin": {
+        "listed": ["Spell Effect: Charged Javelin"],
+        "defaults": {
+            "1": ["Spell Effect: Charged Javelin"]
+        }
+    },
+    "Chromatic Armor": {
+        "listed": ["Spell Effect: Chromatic Armor"],
+        "defaults": {
+            "4": ["Spell Effect: Chromatic Armor"]
+        }
+    },
+    "Cinder Gaze": {
+        "listed": ["Spell Effect: Cinder Gaze"],
+        "defaults": {
+            "1": ["Spell Effect: Cinder Gaze"]
+        }
+    },
+    "Circle of Protection": {
+        "listed": ["Spell Effect: Protection"],
+        "defaults": {
+            "3": ["Spell Effect: Protection"]
+        }
+    },
+    "Claws of the Otter": {
+        "listed": ["Spell Effect: Claws of the Otter"],
+        "defaults": {
+            "2": ["Spell Effect: Claws of the Otter"]
+        }
+    },
+    "Clawsong": {
+        "listed": ["Spell Effect: Clawsong"],
+        "defaults": {
+            "2": ["Spell Effect: Clawsong"]
+        }
+    },
+    "Clinging Shadows Stance": {
+        "listed": ["Stance: Clinging Shadows Stance"],
+        "defaults": {
+            "4": ["Stance: Clinging Shadows Stance"]
+        }
+    },
+    "Coiling Dance": {
+        "listed": ["Spell Effect: Coiling Dance"],
+        "defaults": {
+            "2": ["Spell Effect: Coiling Dance"]
+        }
+    },
+    "Community Repair": {
+        "listed": ["Spell Effect: Community Repair"],
+        "defaults": {
+            "4": ["Spell Effect: Community Repair"]
+        }
+    },
+    "Community Restoration": {
+        "listed": ["Spell Effect: Community Restoration"],
+        "defaults": {
+            "4": ["Spell Effect: Community Restoration"]
+        }
+    },
+    "Competitive Edge": {
+        "listed": ["Spell Effect: Competitive Edge"],
+        "defaults": {
+            "4": ["Spell Effect: Competitive Edge"]
+        }
+    },
+    "Conductive Weapon": {
+        "listed": ["Spell Effect: Conductive Weapon"],
+        "defaults": {
+            "1": ["Spell Effect: Conductive Weapon"]
+        }
+    },
+    "Conquering Soldiers": {
+        "listed": ["Spell Effect: Conquering Soldiers (Depart)"],
+        "defaults": {
+            "10": ["Spell Effect: Conquering Soldiers (Depart)"]
+        }
+    },
+    "Contagious Idea": {
+        "listed": ["Spell Effect: Contagious Idea (Pleasant Thought)"],
+        "defaults": {
+            "5": ["Spell Effect: Contagious Idea (Pleasant Thought)"]
+        }
+    },
+    "Corrosive Body": {
+        "listed": ["Spell Effect: Corrosive Body"],
+        "defaults": {
+            "7": ["Spell Effect: Corrosive Body"]
+        }
+    },
+    "Cosmic Form": {
+        "listed": ["Spell Effect: Cosmic Form"],
+        "defaults": {
+            "7": ["Spell Effect: Cosmic Form"]
+        }
+    },
+    "Countless Eyes": {
+        "listed": ["Spell Effect: Countless Eyes"],
+        "defaults": {
+            "4": ["Spell Effect: Countless Eyes"]
+        }
+    },
+    "Courageous Anthem": {
+        "listed": ["Spell Effect: Courageous Anthem"],
+        "defaults": {
+            "1": ["Spell Effect: Courageous Anthem"]
+        }
+    },
+    "Cutting Eye": {
+        "listed": ["Spell Effect: Cutting Eye"],
+        "defaults": {
+            "1": ["Spell Effect: Cutting Eye"]
+        }
+    },
+    "Daemon Form": {
+        "listed": ["Spell Effect: Daemon Form"],
+        "defaults": {
+            "6": ["Spell Effect: Daemon Form"]
+        }
+    },
+    "Dancing Shield": {
+        "listed": ["Spell Effect: Dancing Shield"],
+        "defaults": {
+            "2": ["Spell Effect: Dancing Shield"]
+        }
+    },
+    "Darkened Sight": {
+        "listed": ["Spell Effect: Darkened Sight"],
+        "defaults": {
+            "4": ["Spell Effect: Darkened Sight"]
+        }
+    },
+    "Darkvision": {
+        "listed": ["Spell Effect: Darkvision", "Spell Effect: Darkvision (24 hours)"],
+        "defaults": {
+            "2": ["Spell Effect: Darkvision"]
+        }
+    },
+    "Death Ward": {
+        "listed": ["Spell Effect: Death Ward"],
+        "defaults": {
+            "5": ["Spell Effect: Death Ward"]
+        }
+    },
+    "Deep Sight": {
+        "listed": ["Spell Effect: Deep Sight"],
+        "defaults": {
+            "3": ["Spell Effect: Deep Sight"]
+        }
+    },
+    "Demon Form": {
+        "listed": ["Spell Effect: Demon Form"],
+        "defaults": {
+            "6": ["Spell Effect: Demon Form"]
+        }
+    },
+    "Devil Form": {
+        "listed": ["Spell Effect: Devil Form"],
+        "defaults": {
+            "6": ["Spell Effect: Devil Form"]
+        }
+    },
+    "Devouring Dark Form": {
+        "listed": ["Spell Effect: Devouring Dark Form"],
+        "defaults": {
+            "1": ["Spell Effect: Devouring Dark Form"]
+        }
+    },
+    "Diabolic Edict": {
+        "listed": ["Spell Effect: Diabolic Edict"],
+        "defaults": {
+            "1": ["Spell Effect: Diabolic Edict"]
+        }
+    },
+    "Diadem of Divine Radiance": {
+        "listed": ["Spell Effect: Diadem of Divine Radiance"],
+        "defaults": {
+            "5": ["Spell Effect: Diadem of Divine Radiance"]
+        }
+    },
+    "Dinosaur Form": {
+        "listed": [
+            "Spell Effect: Dinosaur Form (Ankylosaurus)",
+            "Spell Effect: Dinosaur Form (Brontosaurus)",
+            "Spell Effect: Dinosaur Form (Deinonychus)",
+            "Spell Effect: Dinosaur Form (Stegosaurus)",
+            "Spell Effect: Dinosaur Form (Triceratops)",
+            "Spell Effect: Dinosaur Form (Tyrannosaurus)"
+        ],
+        "defaults": {
+            "4": []
+        }
+    },
+    "Discern Secrets": {
+        "listed": ["Spell Effect: Discern Secrets"],
+        "defaults": {
+            "1": ["Spell Effect: Discern Secrets"]
+        }
+    },
+    "Divine Dragon's Watch": {
+        "listed": ["Spell Effects: Divine Dragon's Watch"],
+        "defaults": {
+            "5": ["Spell Effects: Divine Dragon's Watch"]
+        }
+    },
+    "Divine Keystone": {
+        "listed": ["Spell Effect: Divine Keystone (Critical Failure)"],
+        "defaults": {
+            "4": []
+        }
+    },
+    "Divine Vessel": {
+        "listed": ["Spell Effect: Divine Vessel", "Spell Effect: Divine Vessel (9th level)"],
+        "defaults": {
+            "7": ["Spell Effect: Divine Vessel"],
+            "9": ["Spell Effect: Divine Vessel (9th level)"]
+        }
+    },
+    "Domora's Defense": {
+        "listed": ["Spell Effect: Domora's Defense"],
+        "defaults": {
+            "5": ["Spell Effect: Domora's Defense"]
+        }
+    },
+    "Downpour": {
+        "listed": ["Spell Effect: Downpour"],
+        "defaults": {
+            "4": ["Spell Effect: Downpour"]
+        }
+    },
+    "Dragon Form": {
+        "listed": ["Spell Effect: Dragon Form"],
+        "defaults": {
+            "6": ["Spell Effect: Dragon Form"]
+        }
+    },
+    "Dragon Wings": {
+        "listed": ["Spell Effect: Dragon Wings"],
+        "defaults": {
+            "5": ["Spell Effect: Dragon Wings"]
+        }
+    },
+    "Dread Ambience": {
+        "listed": ["Spell Effect: Dread Ambience"],
+        "defaults": {
+            "5": ["Spell Effect: Dread Ambience"]
+        }
+    },
+    "Eat Fire": {
+        "listed": ["Spell Effect: Eat Fire"],
+        "defaults": {
+            "1": ["Spell Effect: Eat Fire"]
+        }
+    },
+    "Element Embodied": {
+        "listed": [
+            "Spell Effect: Element Embodied (Air)",
+            "Spell Effect: Element Embodied (Earth)",
+            "Spell Effect: Element Embodied (Fire)",
+            "Spell Effect: Element Embodied (Metal)",
+            "Spell Effect: Element Embodied (Water)",
+            "Spell Effect: Element Embodied (Wood)"
+        ],
+        "defaults": {
+            "10": []
+        }
+    },
+    "Elemental Absorption": {
+        "listed": ["Spell Effect: Elemental Absorption"],
+        "defaults": {
+            "3": ["Spell Effect: Elemental Absorption"]
+        }
+    },
+    "Elemental Betrayal": {
+        "listed": ["Spell Effect: Elemental Betrayal"],
+        "defaults": {
+            "1": ["Spell Effect: Elemental Betrayal"]
+        }
+    },
+    "Elemental Form": {
+        "listed": ["Spell Effect: Elemental Form"],
+        "defaults": {
+            "5": ["Spell Effect: Elemental Form"]
+        }
+    },
+    "Elemental Gift": {
+        "listed": ["Spell Effect: Elemental Gift"],
+        "defaults": {
+            "4": ["Spell Effect: Elemental Gift"]
+        }
+    },
+    "Elemental Motion": {
+        "listed": ["Spell Effect: Elemental Motion"],
+        "defaults": {
+            "3": ["Spell Effect: Elemental Motion"]
+        }
+    },
+    "Elemental Sheath": {
+        "listed": ["Spell Effect: Elemental Sheath"],
+        "defaults": {
+            "4": ["Spell Effect: Elemental Sheath"]
+        }
+    },
+    "Elephant Form": {
+        "listed": ["Spell Effect: Elephant Form"],
+        "defaults": {
+            "4": ["Spell Effect: Elephant Form"]
+        }
+    },
+    "Embodiment of Battle": {
+        "listed": ["Spell Effect: Embodiment of Battle"],
+        "defaults": {
+            "1": ["Spell Effect: Embodiment of Battle"]
+        }
+    },
+    "Embrace Nothingness": {
+        "listed": ["Spell Effect: Embrace Nothingness"],
+        "defaults": {
+            "9": ["Spell Effect: Embrace Nothingness"]
+        }
+    },
+    "Embrace the Pit": {
+        "listed": ["Spell Effect: Embrace the Pit"],
+        "defaults": {
+            "3": ["Spell Effect: Embrace the Pit"]
+        }
+    },
+    "Endure": {
+        "listed": ["Spell Effect: Endure"],
+        "defaults": {
+            "1": ["Spell Effect: Endure"]
+        }
+    },
+    "Enduring Might": {
+        "listed": ["Spell Effect: Enduring Might"],
+        "defaults": {
+            "4": ["Spell Effect: Enduring Might"]
+        }
+    },
+    "Energy Absorption": {
+        "listed": ["Spell Effect: Energy Absorption"],
+        "defaults": {
+            "4": ["Spell Effect: Energy Absorption"]
+        }
+    },
+    "Energy Aegis": {
+        "listed": ["Spell Effect: Energy Aegis"],
+        "defaults": {
+            "7": ["Spell Effect: Energy Aegis"]
+        }
+    },
+    "Enlarge": {
+        "listed": ["Spell Effect: Enlarge"],
+        "defaults": {
+            "2": ["Spell Effect: Enlarge"]
+        }
+    },
+    "Enlarge Companion": {
+        "listed": ["Spell Effect: Enlarge Companion"],
+        "defaults": {
+            "2": ["Spell Effect: Enlarge Companion"]
+        }
+    },
+    "Entreat Spirit": {
+        "listed": ["Spell Effect: Entreat Spirit"],
+        "defaults": {
+            "1": ["Spell Effect: Entreat Spirit"]
+        }
+    },
+    "Entropic Wheel": {
+        "listed": ["Spell Effect: Entropic Wheel"],
+        "defaults": {
+            "3": ["Spell Effect: Entropic Wheel"]
+        }
+    },
+    "Entwined Roots": {
+        "listed": ["Spell Effect: Entwined Roots"],
+        "defaults": {
+            "5": ["Spell Effect: Entwined Roots"]
+        }
+    },
+    "Euphoric Renewal": {
+        "listed": ["Spell Effect: Euphoric Renewal"],
+        "defaults": {
+            "4": ["Spell Effect: Euphoric Renewal"]
+        }
+    },
+    "Everlight": {
+        "listed": ["Spell Effect: Everlight"],
+        "defaults": {
+            "2": ["Spell Effect: Everlight"]
+        }
+    },
+    "Evolution Surge": {
+        "listed": ["Spell Effect: Evolution Surge"],
+        "defaults": {
+            "1": ["Spell Effect: Evolution Surge"]
+        }
+    },
+    "Extract Poison": {
+        "listed": ["Spell Effect: Extract Poison"],
+        "defaults": {
+            "2": ["Spell Effect: Extract Poison"]
+        }
+    },
+    "Face in the Crowd": {
+        "listed": ["Spell Effect: Face in the Crowd"],
+        "defaults": {
+            "1": ["Spell Effect: Face in the Crowd"]
+        }
+    },
+    "False Vitality": {
+        "listed": ["Spell Effect: False Vitality"],
+        "defaults": {
+            "2": ["Spell Effect: False Vitality"]
+        }
+    },
+    "Ferrous Form": {
+        "listed": ["Spell Effect: Ferrous Form"],
+        "defaults": {
+            "8": ["Spell Effect: Ferrous Form"]
+        }
+    },
+    "Fey Form": {
+        "listed": ["Spell Effect: Fey Form"],
+        "defaults": {
+            "4": ["Spell Effect: Fey Form"]
+        }
+    },
+    "Fiery Body": {
+        "listed": ["Spell Effect: Fiery Body"],
+        "defaults": {
+            "7": ["Spell Effect: Fiery Body"]
+        }
+    },
+    "Figment": {
+        "listed": ["Spell Effect: Figment"],
+        "defaults": {
+            "1": ["Spell Effect: Figment"]
+        }
+    },
+    "Filter Air": {
+        "listed": ["Spell Effect: Filter Air"],
+        "defaults": {
+            "4": ["Spell Effect: Filter Air"]
+        }
+    },
+    "Fire Shield": {
+        "listed": ["Spell Effect: Fire Shield"],
+        "defaults": {
+            "4": ["Spell Effect: Fire Shield"]
+        }
+    },
+    "Flame Barrier": {
+        "listed": ["Spell Effect: Flame Barrier"],
+        "defaults": {
+            "4": ["Spell Effect: Flame Barrier"]
+        }
+    },
+    "Flame Dancer": {
+        "listed": ["Spell Effect: Flame Dancer"],
+        "defaults": {
+            "5": ["Spell Effect: Flame Dancer"]
+        }
+    },
+    "Flame Wisp": {
+        "listed": ["Spell Effect: Flame Wisp"],
+        "defaults": {
+            "2": ["Spell Effect: Flame Wisp"]
+        }
+    },
+    "Flaming Fusillade": {
+        "listed": ["Spell Effect: Flaming Fusillade"],
+        "defaults": {
+            "6": ["Spell Effect: Flaming Fusillade"]
+        }
+    },
+    "Flashy Disappearance": {
+        "listed": ["Spell Effect: Flashy Disappearance"],
+        "defaults": {
+            "1": ["Spell Effect: Flashy Disappearance"]
+        }
+    },
+    "Fleet Step": {
+        "listed": ["Spell Effect: Fleet Step"],
+        "defaults": {
+            "1": ["Spell Effect: Fleet Step"]
+        }
+    },
+    "Flicker": {
+        "listed": ["Spell Effect: Flicker"],
+        "defaults": {
+            "4": ["Spell Effect: Flicker"]
+        }
+    },
+    "Fly": {
+        "listed": ["Spell Effect: Fly"],
+        "defaults": {
+            "4": ["Spell Effect: Fly"]
+        }
+    },
+    "Font of Serenity": {
+        "listed": ["Spell Effect: Font of Serenity"],
+        "defaults": {
+            "4": ["Spell Effect: Font of Serenity"]
+        }
+    },
+    "Forbidding Ward": {
+        "listed": ["Spell Effect: Forbidding Ward"],
+        "defaults": {
+            "1": ["Spell Effect: Forbidding Ward"]
+        }
+    },
+    "Foresight": {
+        "listed": ["Spell Effect: Foresight"],
+        "defaults": {
+            "9": ["Spell Effect: Foresight"]
+        }
+    },
+    "Fortify Summoning": {
+        "listed": ["Spell Effect: Fortify Summoning"],
+        "defaults": {
+            "1": ["Spell Effect: Fortify Summoning"]
+        }
+    },
+    "Fortifying Brew": {
+        "listed": ["Spell Effect: Fortifying Brew"],
+        "defaults": {
+            "5": ["Spell Effect: Fortifying Brew"]
+        }
+    },
+    "Fortissimo Composition": {
+        "listed": ["Spell Effect: Fortissimo Composition"],
+        "defaults": {
+            "4": ["Spell Effect: Fortissimo Composition"]
+        }
+    },
+    "Frenzied Revelry": {
+        "listed": ["Spell Effect: Frenzied Revelry"],
+        "defaults": {
+            "1": ["Spell Effect: Frenzied Revelry"]
+        }
+    },
+    "Funeral Flames": {
+        "listed": ["Spell Effect: Funeral Flames"],
+        "defaults": {
+            "1": ["Spell Effect: Funeral Flames"]
+        }
+    },
+    "Garden of Death": {
+        "listed": ["Spell Effect: Garden of Death (Critical Success)"],
+        "defaults": {
+            "4": []
+        }
+    },
+    "Garden of Healing": {
+        "listed": ["Spell Effect: Garden of Healing"],
+        "defaults": {
+            "1": ["Spell Effect: Garden of Healing"]
+        }
+    },
+    "Gecko Grip": {
+        "listed": ["Spell Effect: Gecko Grip"],
+        "defaults": {
+            "2": ["Spell Effect: Gecko Grip"]
+        }
+    },
+    "Ghostly Shift": {
+        "listed": ["Spell Effect: Ghostly Shift"],
+        "defaults": {
+            "3": ["Spell Effect: Ghostly Shift"]
+        }
+    },
+    "Ghostly Weapon": {
+        "listed": ["Spell Effect: Ghostly Weapon"],
+        "defaults": {
+            "3": ["Spell Effect: Ghostly Weapon"]
+        }
+    },
+    "Girzanje's March": {
+        "listed": ["Spell Effect: Girzanje's March"],
+        "defaults": {
+            "4": ["Spell Effect: Girzanje's March"]
+        }
+    },
+    "Glass Form": {
+        "listed": ["Spell Effect: Glass Form"],
+        "defaults": {
+            "4": ["Spell Effect: Glass Form"]
+        }
+    },
+    "Glimpse Weakness": {
+        "listed": ["Spell Effect: Glimpse Weakness"],
+        "defaults": {
+            "1": ["Spell Effect: Glimpse Weakness"]
+        }
+    },
+    "Glutton's Jaws": {
+        "listed": ["Spell Effect: Glutton's Jaws"],
+        "defaults": {
+            "1": ["Spell Effect: Glutton's Jaws"]
+        }
+    },
+    "Gravity Weapon": {
+        "listed": ["Spell Effect: Gravity Weapon"],
+        "defaults": {
+            "1": ["Spell Effect: Gravity Weapon"]
+        }
+    },
+    "Gray Shadow": {
+        "listed": ["Spell Effect: Gray Shadow"],
+        "defaults": {
+            "6": ["Spell Effect: Gray Shadow"]
+        }
+    },
+    "Guidance": {
+        "listed": ["Spell Effect: Guidance", "Effect: Guidance Immunity"],
+        "defaults": {
+            "1": ["Spell Effect: Guidance"]
+        }
+    },
+    "Guided Introspection": {
+        "listed": ["Spell Effect: Guided Introspection"],
+        "defaults": {
+            "1": ["Spell Effect: Guided Introspection"]
+        }
+    },
+    "Halcyon Mists": {
+        "listed": ["Spell Effect: Halcyon Mists"],
+        "defaults": {
+            "1": ["Spell Effect: Halcyon Mists"]
+        }
+    },
+    "Halt Death": {
+        "listed": ["Effect: Halt Death"],
+        "defaults": {
+            "10": ["Effect: Halt Death"]
+        }
+    },
+    "Hand of the Apprentice": {
+        "listed": ["Spell Effect: Hand of the Apprentice"],
+        "defaults": {
+            "1": ["Spell Effect: Hand of the Apprentice"]
+        }
+    },
+    "Harrowing": {
+        "listed": ["Spell Effect: Harrowing"],
+        "defaults": {
+            "1": ["Spell Effect: Harrowing"]
+        }
+    },
+    "Haste": {
+        "listed": ["Spell Effect: Haste"],
+        "defaults": {
+            "3": ["Spell Effect: Haste"]
+        }
+    },
+    "Healer's Blessing": {
+        "listed": ["Spell Effect: Healer's Blessing"],
+        "defaults": {
+            "1": ["Spell Effect: Healer's Blessing"]
+        }
+    },
+    "Helpful Reload": {
+        "listed": ["Spell Effect: Helpful Reload"],
+        "defaults": {
+            "2": ["Spell Effect: Helpful Reload"]
+        }
+    },
+    "Heroism": {
+        "listed": ["Spell Effect: Heroism"],
+        "defaults": {
+            "3": ["Spell Effect: Heroism"]
+        }
+    },
+    "Hidden Mind": {
+        "listed": ["Spell Effect: Hidden Mind"],
+        "defaults": {
+            "8": ["Spell Effect: Hidden Mind"]
+        }
+    },
+    "Hidebound": {
+        "listed": ["Spell Effect: Hidebound"],
+        "defaults": {
+            "2": ["Spell Effect: Hidebound"]
+        }
+    },
+    "Hippocampus Retreat": {
+        "listed": ["Spell Effect: Hippocampus Retreat"],
+        "defaults": {
+            "1": ["Spell Effect: Hippocampus Retreat"]
+        }
+    },
+    "Holy Host": {
+        "listed": ["Spell Effect: Holy Host (Azata)", "Spell Effect: Holy Host (Garuda)"],
+        "defaults": {
+            "8": []
+        }
+    },
+    "Honeyed Words": {
+        "listed": ["Spell Effect: Honeyed Words"],
+        "defaults": {
+            "4": ["Spell Effect: Honeyed Words"]
+        }
+    },
+    "Humanoid Form": {
+        "listed": ["Spell Effect: Humanoid Form"],
+        "defaults": {
+            "2": ["Spell Effect: Humanoid Form"]
+        }
+    },
+    "Hymn of Healing": {
+        "listed": ["Spell Effect: Hymn of Healing"],
+        "defaults": {
+            "1": ["Spell Effect: Hymn of Healing"]
+        }
+    },
+    "Illusory Disguise": {
+        "listed": ["Spell Effect: Illusory Disguise"],
+        "defaults": {
+            "1": ["Spell Effect: Illusory Disguise"]
+        }
+    },
+    "Illusory Shroud": {
+        "listed": ["Spell Effect: Illusory Shroud"],
+        "defaults": {
+            "2": ["Spell Effect: Illusory Shroud"]
+        }
+    },
+    "Imitate Fauna": {
+        "listed": ["Spell Effect: Imitate Fauna"],
+        "defaults": {
+            "2": ["Spell Effect: Imitate Fauna"]
+        }
+    },
+    "Impeccable Flow": {
+        "listed": ["Spell Effect: Impeccable Flow"],
+        "defaults": {
+            "2": ["Spell Effect: Impeccable Flow"]
+        }
+    },
+    "Incendiary Aura": {
+        "listed": ["Spell Effect: Incendiary Aura"],
+        "defaults": {
+            "1": ["Spell Effect: Incendiary Aura"]
+        }
+    },
+    "Infectious Enthusiasm": {
+        "listed": ["Spell Effect: Infectious Enthusiasm"],
+        "defaults": {
+            "1": ["Spell Effect: Infectious Enthusiasm"]
+        }
+    },
+    "Infuse Vitality": {
+        "listed": ["Spell Effect: Infuse Vitality"],
+        "defaults": {
+            "1": ["Spell Effect: Infuse Vitality"]
+        }
+    },
+    "Inner Upheaval": {
+        "listed": ["Spell Effect: Inner Upheaval"],
+        "defaults": {
+            "1": ["Spell Effect: Inner Upheaval"]
+        }
+    },
+    "Inscrutable Mask": {
+        "listed": ["Spell Effect: Inscrutable Mask"],
+        "defaults": {
+            "3": ["Spell Effect: Inscrutable Mask"]
+        }
+    },
+    "Insect Form": {
+        "listed": [
+            "Spell Effect: Insect Form (Ant)",
+            "Spell Effect: Insect Form (Beetle)",
+            "Spell Effect: Insect Form (Centipede)",
+            "Spell Effect: Insect Form (Mantis)",
+            "Spell Effect: Insect Form (Scorpion)",
+            "Spell Effect: Insect Form (Spider)"
+        ],
+        "defaults": {
+            "3": []
+        }
+    },
+    "Inside Ropes": {
+        "listed": ["Spell Effect: Inside Ropes (3rd Rank)"],
+        "defaults": {
+            "1": [],
+            "3": ["Spell Effect: Inside Ropes (3rd Rank)"]
+        }
+    },
+    "Instant Armor": {
+        "listed": ["Spell Effect: Instant Armor"],
+        "defaults": {
+            "2": ["Spell Effect: Instant Armor"]
+        }
+    },
+    "Iron Gut": {
+        "listed": ["Spell Effect: Iron Gut", "Spell Effect: Iron Gut (3rd Rank)"],
+        "defaults": {
+            "2": ["Spell Effect: Iron Gut"],
+            "3": ["Spell Effect: Iron Gut (3rd Rank)"]
+        }
+    },
+    "Juvenile Companion": {
+        "listed": ["Spell Effect: Juvenile Companion"],
+        "defaults": {
+            "1": ["Spell Effect: Juvenile Companion"]
+        }
+    },
+    "Keen Smell": {
+        "listed": ["Spell Effect: Keen Smell"],
+        "defaults": {
+            "1": ["Spell Effect: Keen Smell"]
+        }
+    },
+    "Kgalaserke's Axes": {
+        "listed": ["Spell Effect: Kgalaserke's Axes"],
+        "defaults": {
+            "2": ["Spell Effect: Kgalaserke's Axes"]
+        }
+    },
+    "Ki Cutting Sight": {
+        "listed": ["Spell Effect: Ki Cutting Sight"],
+        "defaults": {
+            "3": ["Spell Effect: Ki Cutting Sight"]
+        }
+    },
+    "Knock": {
+        "listed": ["Spell Effect: Knock"],
+        "defaults": {
+            "2": ["Spell Effect: Knock"]
+        }
+    },
+    "Lashunta's Life Bubble": {
+        "listed": ["Spell Effect: Lashunta's Life Bubble"],
+        "defaults": {
+            "5": ["Spell Effect: Lashunta's Life Bubble"]
+        }
+    },
+    "Lay on Hands": {
+        "listed": ["Spell Effect: Lay on Hands"],
+        "defaults": {
+            "1": ["Spell Effect: Lay on Hands"]
+        }
+    },
+    "Levitate": {
+        "listed": ["Spell Effect: Levitate"],
+        "defaults": {
+            "3": ["Spell Effect: Levitate"]
+        }
+    },
+    "Life Boost": {
+        "listed": ["Spell Effect: Life Boost"],
+        "defaults": {
+            "1": ["Spell Effect: Life Boost"]
+        }
+    },
+    "Life Connection": {
+        "listed": ["Spell Effect: Life Connection"],
+        "defaults": {
+            "3": ["Spell Effect: Life Connection"]
+        }
+    },
+    "Life-Giving Form": {
+        "listed": ["Spell Effect: Life-Giving Form"],
+        "defaults": {
+            "6": ["Spell Effect: Life-Giving Form"]
+        }
+    },
+    "Lifelink Surge": {
+        "listed": ["Spell Effect: Lifelink Surge"],
+        "defaults": {
+            "2": ["Spell Effect: Lifelink Surge"]
+        }
+    },
+    "Light": {
+        "listed": ["Spell Effect: Light"],
+        "defaults": {
+            "1": ["Spell Effect: Light"]
+        }
+    },
+    "Loremaster's Etude": {
+        "listed": ["Spell Effect: Loremaster's Etude"],
+        "defaults": {
+            "1": ["Spell Effect: Loremaster's Etude"]
+        }
+    },
+    "Lucky Number": {
+        "listed": ["Spell Effect: Lucky Number"],
+        "defaults": {
+            "2": ["Spell Effect: Lucky Number"]
+        }
+    },
+    "Magic Hide": {
+        "listed": ["Spell Effect: Magic Hide"],
+        "defaults": {
+            "1": ["Spell Effect: Magic Hide"]
+        }
+    },
+    "Magic Stone": {
+        "listed": ["Spell Effect: Magic Stone"],
+        "defaults": {
+            "1": ["Spell Effect: Magic Stone"]
+        }
+    },
+    "Magic's Vessel": {
+        "listed": ["Spell Effect: Magic's Vessel", "Spell Effect: Magic's Vessel (Resistance)"],
+        "defaults": {
+            "1": ["Spell Effect: Magic's Vessel"]
+        }
+    },
+    "Malignant Sustenance": {
+        "listed": ["Spell Effect: Malignant Sustenance"],
+        "defaults": {
+            "4": ["Spell Effect: Malignant Sustenance"]
+        }
+    },
+    "Manifest Will": {
+        "listed": ["Aura: Manifest Will", "Spell Effect: Manifest Will"],
+        "defaults": {
+            "1": ["Aura: Manifest Will"]
+        }
+    },
+    "Manifest Will (this module)": {
+        "listed": ["Aura: Manifest Will"],
+        "defaults": {
+            "1": ["Aura: Manifest Will"]
+        }
+    },
+    "Mantle of the Frozen Heart": {
+        "listed": ["Spell Effect: Mantle of the Frozen Heart"],
+        "defaults": {
+            "5": ["Spell Effect: Mantle of the Frozen Heart"]
+        }
+    },
+    "Mantle of the Magma Heart": {
+        "listed": ["Spell Effect: Mantle of the Magma Heart"],
+        "defaults": {
+            "5": ["Spell Effect: Mantle of the Magma Heart"]
+        }
+    },
+    "Mantle of the Melting Heart": {
+        "listed": ["Spell Effect: Mantle of the Melting Heart"],
+        "defaults": {
+            "5": ["Spell Effect: Mantle of the Melting Heart"]
+        }
+    },
+    "Mantle of the Unwavering Heart": {
+        "listed": ["Spell Effect: Mantle of the Unwavering Heart"],
+        "defaults": {
+            "5": ["Spell Effect: Mantle of the Unwavering Heart"]
+        }
+    },
+    "Mimic Undead": {
+        "listed": ["Spell Effect: Mimic Undead"],
+        "defaults": {
+            "2": ["Spell Effect: Mimic Undead"]
+        }
+    },
+    "Mind Swap": {
+        "listed": ["Spell Effect: Mind Swap (Critical Success)"],
+        "defaults": {
+            "5": []
+        }
+    },
+    "Mirror Image": {
+        "listed": ["Spell Effect: Mirror Image"],
+        "defaults": {
+            "2": ["Spell Effect: Mirror Image"]
+        }
+    },
+    "Monstrosity Form": {
+        "listed": ["Spell Effect: Monstrosity Form"],
+        "defaults": {
+            "8": ["Spell Effect: Monstrosity Form"]
+        }
+    },
+    "Moon Frenzy": {
+        "listed": ["Spell Effect: Moon Frenzy"],
+        "defaults": {
+            "5": ["Spell Effect: Moon Frenzy"]
+        }
+    },
+    "Mountain Resilience": {
+        "listed": ["Spell Effect: Mountain Resilience"],
+        "defaults": {
+            "4": ["Spell Effect: Mountain Resilience"]
+        }
+    },
+    "Musical Accompaniment": {
+        "listed": ["Spell Effect: Musical Accompaniment"],
+        "defaults": {
+            "1": ["Spell Effect: Musical Accompaniment"]
+        }
+    },
+    "Musical Shift": {
+        "listed": ["Spell Effect: Musical Shift"],
+        "defaults": {
+            "8": ["Spell Effect: Musical Shift"]
+        }
+    },
+    "Mystic Armor": {
+        "listed": ["Spell Effect: Mystic Armor"],
+        "defaults": {
+            "1": ["Spell Effect: Mystic Armor"]
+        }
+    },
+    "Nature Incarnate": {
+        "listed": ["Spell Effect: Nature Incarnate"],
+        "defaults": {
+            "10": ["Spell Effect: Nature Incarnate"]
+        }
+    },
+    "Necromancer's Generosity": {
+        "listed": ["Spell Effect: Necromancer's Generosity"],
+        "defaults": {
+            "1": ["Spell Effect: Necromancer's Generosity"]
+        }
+    },
+    "Nudge the Odds": {
+        "listed": ["Spell Effect: Nudge the Odds"],
+        "defaults": {
+            "1": ["Spell Effect: Nudge the Odds"]
+        }
+    },
+    "Nymph's Token": {
+        "listed": ["Spell Effect: Nymph's Token"],
+        "defaults": {
+            "1": ["Spell Effect: Nymph's Token"]
+        }
+    },
+    "Oaken Resilience": {
+        "listed": ["Spell Effect: Oaken Resilience"],
+        "defaults": {
+            "2": ["Spell Effect: Oaken Resilience"]
+        }
+    },
+    "Object Memory": {
+        "listed": ["Spell Effect: Object Memory (Weapon)"],
+        "defaults": {
+            "1": ["Spell Effect: Object Memory (Weapon)"]
+        }
+    },
+    "One with the Land": {
+        "listed": ["Spell Effect: One with the Land"],
+        "defaults": {
+            "9": ["Spell Effect: One with the Land"]
+        }
+    },
+    "Ooze Form": {
+        "listed": ["Spell Effect: Ooze Form"],
+        "defaults": {
+            "3": ["Spell Effect: Ooze Form"]
+        }
+    },
+    "Organsight": {
+        "listed": ["Spell Effect: Organsight"],
+        "defaults": {
+            "3": ["Spell Effect: Organsight"]
+        }
+    },
+    "Pest Form": {
+        "listed": ["Spell Effect: Pest Form"],
+        "defaults": {
+            "1": ["Spell Effect: Pest Form"]
+        }
+    },
+    "Phantasmal Protagonist": {
+        "listed": ["Spell Effect: Thematic Action (Ally)"],
+        "defaults": {
+            "4": ["Spell Effect: Thematic Action (Ally)"]
+        }
+    },
+    "Phase Familiar": {
+        "listed": ["Spell Effect: Phase Familiar"],
+        "defaults": {
+            "1": ["Spell Effect: Phase Familiar"]
+        }
+    },
+    "Phoenix Ward": {
+        "listed": ["Spell Effect: Phoenix Ward"],
+        "defaults": {
+            "4": ["Spell Effect: Phoenix Ward"]
+        }
+    },
+    "Physical Boost": {
+        "listed": ["Spell Effect: Physical Boost"],
+        "defaults": {
+            "1": ["Spell Effect: Physical Boost"]
+        }
+    },
+    "Plant Form": {
+        "listed": ["Spell Effect: Plant Form (Arboreal)", "Spell Effect: Plant Form (Flytrap)"],
+        "defaults": {
+            "5": []
+        }
+    },
+    "Pocket Library": {
+        "listed": ["Spell Effect: Pocket Library"],
+        "defaults": {
+            "1": ["Spell Effect: Pocket Library"]
+        }
+    },
+    "Practice Makes Perfect": {
+        "listed": ["Spell Effect: Practice Makes Perfect"],
+        "defaults": {
+            "1": ["Spell Effect: Practice Makes Perfect"]
+        }
+    },
+    "Precious Gleam": {
+        "listed": ["Spell Effect: Precious Gleam"],
+        "defaults": {
+            "1": ["Spell Effect: Precious Gleam"]
+        }
+    },
+    "Precious Metals": {
+        "listed": ["Spell Effect: Precious Metals"],
+        "defaults": {
+            "4": ["Spell Effect: Precious Metals"]
+        }
+    },
+    "Primal Herd": {
+        "listed": ["Spell Effect: Primal Herd"],
+        "defaults": {
+            "10": ["Spell Effect: Primal Herd"]
+        }
+    },
+    "Primal Summons": {
+        "listed": ["Spell Effect: Primal Summons"],
+        "defaults": {
+            "6": ["Spell Effect: Primal Summons"]
+        }
+    },
+    "Prismatic Armor": {
+        "listed": ["Spell Effect: Prismatic Armor"],
+        "defaults": {
+            "7": ["Spell Effect: Prismatic Armor"]
+        }
+    },
+    "Prismatic Shield": {
+        "listed": ["Spell Effect: Prismatic Shield"],
+        "defaults": {
+            "9": ["Spell Effect: Prismatic Shield"]
+        }
+    },
+    "Protect Companion": {
+        "listed": ["Spell Effect: Protect Companion"],
+        "defaults": {
+            "1": ["Spell Effect: Protect Companion"]
+        }
+    },
+    "Protection": {
+        "listed": ["Spell Effect: Protection"],
+        "defaults": {
+            "1": ["Spell Effect: Protection"]
+        }
+    },
+    "Protective Wards": {
+        "listed": ["Aura: Protective Wards"],
+        "defaults": {
+            "1": ["Aura: Protective Wards"]
+        }
+    },
+    "Protector's Sphere": {
+        "listed": ["Aura: Protector's Sphere"],
+        "defaults": {
+            "4": ["Aura: Protector's Sphere"]
+        }
+    },
+    "Purify Tanglebriar": {
+        "listed": ["Spell Effect: Purify Tanglebriar"],
+        "defaults": {
+            "9": ["Spell Effect: Purify Tanglebriar"]
+        }
+    },
+    "Qi Form": {
+        "listed": ["Spell Effect: Qi Form"],
+        "defaults": {
+            "9": ["Spell Effect: Qi Form"]
+        }
+    },
+    "Rallying Anthem": {
+        "listed": ["Spell Effect: Rallying Anthem"],
+        "defaults": {
+            "2": ["Spell Effect: Rallying Anthem"]
+        }
+    },
+    "Rapid Adaptation": {
+        "listed": ["Spell Effect: Rapid Adaptation"],
+        "defaults": {
+            "2": ["Spell Effect: Rapid Adaptation"]
+        }
+    },
+    "Rapid Retreat": {
+        "listed": ["Spell Effect: Rapid Retreat"],
+        "defaults": {
+            "4": ["Spell Effect: Rapid Retreat"]
+        }
+    },
+    "Ray of Frost": {
+        "listed": ["Spell Effect: Ray of Frost"],
+        "defaults": {
+            "1": ["Spell Effect: Ray of Frost"]
+        }
+    },
+    "Read Aura": {
+        "listed": ["Spell Effect: Read Aura"],
+        "defaults": {
+            "1": ["Spell Effect: Read Aura"]
+        }
+    },
+    "Read the Air": {
+        "listed": ["Spell Effect: Read the Air"],
+        "defaults": {
+            "1": ["Spell Effect: Read the Air"]
+        }
+    },
+    "Regenerate": {
+        "listed": ["Spell Effect: Regenerate"],
+        "defaults": {
+            "7": ["Spell Effect: Regenerate"]
+        }
+    },
+    "Reinforce Eidolon": {
+        "listed": ["Spell Effect: Reinforce Eidolon"],
+        "defaults": {
+            "1": ["Spell Effect: Reinforce Eidolon"]
+        }
+    },
+    "Repel Metal": {
+        "listed": ["Spell Effect: Repel Metal"],
+        "defaults": {
+            "4": ["Spell Effect: Repel Metal"]
+        }
+    },
+    "Resist Energy": {
+        "listed": ["Spell Effect: Resist Energy"],
+        "defaults": {
+            "2": ["Spell Effect: Resist Energy"]
+        }
+    },
+    "Return the Favor": {
+        "listed": ["Spell Effect: Return the Favor"],
+        "defaults": {
+            "3": ["Spell Effect: Return the Favor"]
+        }
+    },
+    "Revel in Retribution": {
+        "listed": ["Spell Effect: Revel in Retribution"],
+        "defaults": {
+            "6": ["Spell Effect: Revel in Retribution"]
+        }
+    },
+    "Rite of Cleansing Flame": {
+        "listed": [
+            "Spell Effect: Rite of Cleansing Flame (Critical Success)",
+            "Spell Effect: Rite of Cleansing Flame (Failure)"
+        ],
+        "defaults": {
+            "2": []
+        }
+    },
+    "River Carving Mountains": {
+        "listed": ["Spell Effect: River Carving Mountains"],
+        "defaults": {
+            "1": ["Spell Effect: River Carving Mountains"]
+        }
+    },
+    "Rousing Splash": {
+        "listed": ["Spell Effect: Rousing Splash"],
+        "defaults": {
+            "1": ["Spell Effect: Rousing Splash"]
+        }
+    },
+    "Runic Body": {
+        "listed": ["Spell Effect: Runic Body"],
+        "defaults": {
+            "1": ["Spell Effect: Runic Body"]
+        }
+    },
+    "Runic Impression": {
+        "listed": ["Spell Effect: Runic Impression"],
+        "defaults": {
+            "4": ["Spell Effect: Runic Impression"]
+        }
+    },
+    "Runic Weapon": {
+        "listed": ["Spell Effect: Runic Weapon"],
+        "defaults": {
+            "1": ["Spell Effect: Runic Weapon"]
+        }
+    },
+    "Sacred Form": {
+        "listed": ["Spell Effect: Sacred Form"],
+        "defaults": {
+            "6": ["Spell Effect: Sacred Form"]
+        }
+    },
+    "Safe Passage": {
+        "listed": ["Spell Effect: Safe Passage"],
+        "defaults": {
+            "3": ["Spell Effect: Safe Passage"]
+        }
+    },
+    "Safeguard Secret": {
+        "listed": ["Spell Effect: Safeguard Secret"],
+        "defaults": {
+            "4": ["Spell Effect: Safeguard Secret"]
+        }
+    },
+    "Sand Form": {
+        "listed": ["Spell Effect: Sand Form"],
+        "defaults": {
+            "3": ["Spell Effect: Sand Form"]
+        }
+    },
+    "Scintillating Safeguard": {
+        "listed": ["Spell Effect: Scintillating Safeguard"],
+        "defaults": {
+            "6": ["Spell Effect: Scintillating Safeguard"]
+        }
+    },
+    "See the Unseen": {
+        "listed": ["Spell Effect: See the Unseen"],
+        "defaults": {
+            "2": ["Spell Effect: See the Unseen"]
+        }
+    },
+    "Serrate": {
+        "listed": ["Spell Effect: Serrate"],
+        "defaults": {
+            "1": ["Spell Effect: Serrate"]
+        }
+    },
+    "Share Vision": {
+        "listed": ["Spell Effect: Share Vision"],
+        "defaults": {
+            "1": ["Spell Effect: Share Vision"]
+        }
+    },
+    "Shield": {
+        "listed": ["Spell Effect: Shield", "Effect: Shield Immunity"],
+        "defaults": {
+            "1": ["Spell Effect: Shield"]
+        }
+    },
+    "Shielding Formation": {
+        "listed": ["Spell Effect: Shielding Formation"],
+        "defaults": {
+            "4": ["Spell Effect: Shielding Formation"]
+        }
+    },
+    "Shields of the Spirit": {
+        "listed": ["Spell Effect: Shields of the Spirit"],
+        "defaults": {
+            "1": ["Spell Effect: Shields of the Spirit"]
+        }
+    },
+    "Shifting Form": {
+        "listed": ["Spell Effect: Shifting Form"],
+        "defaults": {
+            "4": ["Spell Effect: Shifting Form"]
+        }
+    },
+    "Shillelagh": {
+        "listed": ["Spell Effect: Shillelagh"],
+        "defaults": {
+            "1": ["Spell Effect: Shillelagh"]
+        }
+    },
+    "Shrink": {
+        "listed": ["Spell Effect: Shrink"],
+        "defaults": {
+            "2": ["Spell Effect: Shrink"]
+        }
+    },
+    "Silence": {
+        "listed": ["Spell Effect: Silence"],
+        "defaults": {
+            "2": ["Spell Effect: Silence"]
+        }
+    },
+    "Silver's Refrain": {
+        "listed": ["Spell Effect: Silver's Refrain"],
+        "defaults": {
+            "1": ["Spell Effect: Silver's Refrain"]
+        }
+    },
+    "Snake Fangs": {
+        "listed": ["Spell Effect: Snake Fangs"],
+        "defaults": {
+            "4": ["Spell Effect: Snake Fangs"]
+        }
+    },
+    "Song of Silver": {
+        "listed": ["Spell Effect: Song of Silver"],
+        "defaults": {
+            "6": ["Spell Effect: Song of Silver"]
+        }
+    },
+    "Song of Strength": {
+        "listed": ["Spell Effect: Song of Strength"],
+        "defaults": {
+            "1": ["Spell Effect: Song of Strength"]
+        }
+    },
+    "Soothe": {
+        "listed": ["Spell Effect: Soothe"],
+        "defaults": {
+            "1": ["Spell Effect: Soothe"]
+        }
+    },
+    "Soothing Blossoms": {
+        "listed": ["Spell Effect: Soothing Blossoms"],
+        "defaults": {
+            "3": ["Spell Effect: Soothing Blossoms"]
+        }
+    },
+    "Soothing Words": {
+        "listed": ["Spell Effect: Soothing Words"],
+        "defaults": {
+            "1": ["Spell Effect: Soothing Words"]
+        }
+    },
+    "Speaking Sky": {
+        "listed": ["Spell Effect: Speaking Sky"],
+        "defaults": {
+            "6": ["Spell Effect: Speaking Sky"]
+        }
+    },
+    "Spectral Advance": {
+        "listed": ["Spell Effect: Spectral Advance"],
+        "defaults": {
+            "5": ["Spell Effect: Spectral Advance"]
+        }
+    },
+    "Spiral of Horrors": {
+        "listed": ["Aura: Spiral of Horrors"],
+        "defaults": {
+            "4": ["Aura: Spiral of Horrors"]
+        }
+    },
+    "Spirit Sense": {
+        "listed": ["Spell Effect: Spirit Sense"],
+        "defaults": {
+            "2": ["Spell Effect: Spirit Sense"]
+        }
+    },
+    "Spirit Ward": {
+        "listed": ["Spell Effect: Spirit Ward"],
+        "defaults": {
+            "1": ["Spell Effect: Spirit Ward"]
+        }
+    },
+    "Spirit of the Beast": {
+        "listed": ["Spell Effect: Spirit of the Beast"],
+        "defaults": {
+            "2": ["Spell Effect: Spirit of the Beast"]
+        }
+    },
+    "Spiritual Renewal": {
+        "listed": ["Spell Effect: Spiritual Renewal"],
+        "defaults": {
+            "4": ["Spell Effect: Spiritual Renewal"]
+        }
+    },
+    "Stoke the Heart": {
+        "listed": ["Spell Effect: Stoke the Heart"],
+        "defaults": {
+            "1": ["Spell Effect: Stoke the Heart"]
+        }
+    },
+    "Stormwind Flight": {
+        "listed": ["Spell Effect: Stormwind Flight"],
+        "defaults": {
+            "4": ["Spell Effect: Stormwind Flight"]
+        }
+    },
+    "Strength of Mind": {
+        "listed": ["Spell Effect: Strength of Mind"],
+        "defaults": {
+            "3": ["Spell Effect: Strength of Mind"]
+        }
+    },
+    "Summoner's Visage": {
+        "listed": ["Spell Effect: Summoner's Visage"],
+        "defaults": {
+            "2": ["Spell Effect: Summoner's Visage"]
+        }
+    },
+    "Sun's Fury": {
+        "listed": ["Spell Effect: Sun's Fury"],
+        "defaults": {
+            "3": ["Spell Effect: Sun's Fury"]
+        }
+    },
+    "Sure Strike": {
+        "listed": ["Spell Effect: Sure Strike"],
+        "defaults": {
+            "1": ["Spell Effect: Sure Strike"]
+        }
+    },
+    "Swarm Form": {
+        "listed": ["Spell Effect: Swarm Form"],
+        "defaults": {
+            "4": ["Spell Effect: Swarm Form"]
+        }
+    },
+    "Swear Oath": {
+        "listed": ["Spell Effect: Swear Oath"],
+        "defaults": {
+            "1": ["Spell Effect: Swear Oath"]
+        }
+    },
+    "Sweet Dream": {
+        "listed": ["Spell Effect: Sweet Dream"],
+        "defaults": {
+            "1": ["Spell Effect: Sweet Dream"]
+        }
+    },
+    "Sweetest Solstice": {
+        "listed": ["Spell Effect: Sweetest Solstice"],
+        "defaults": {
+            "2": ["Spell Effect: Sweetest Solstice"]
+        }
+    },
+    "Tailwind": {
+        "listed": ["Spell Effect: Tailwind", "Spell Effect: Tailwind (8 hours)"],
+        "defaults": {
+            "1": ["Spell Effect: Tailwind"],
+            "2": ["Spell Effect: Tailwind (8 hours)"]
+        }
+    },
+    "Take Root": {
+        "listed": ["Spell Effect: Take Root"],
+        "defaults": {
+            "1": ["Spell Effect: Take Root"]
+        }
+    },
+    "Tangle Vine": {
+        "listed": ["Spell Effect: Tangle Vine"],
+        "defaults": {
+            "1": ["Spell Effect: Tangle Vine"]
+        }
+    },
+    "Tangling Creepers": {
+        "listed": ["Spell Effect: Tangling Creepers"],
+        "defaults": {
+            "6": ["Spell Effect: Tangling Creepers"]
+        }
+    },
+    "Tempest Cloak": {
+        "listed": ["Spell Effect: Tempest Cloak"],
+        "defaults": {
+            "3": ["Spell Effect: Tempest Cloak"]
+        }
+    },
+    "Tempest Form": {
+        "listed": ["Spell Effect: Tempest Form"],
+        "defaults": {
+            "6": ["Spell Effect: Tempest Form"]
+        }
+    },
+    "Tempt Fate": {
+        "listed": ["Spell Effect: Tempt Fate"],
+        "defaults": {
+            "4": ["Spell Effect: Tempt Fate"]
+        }
+    },
+    "The Four Hunters": {
+        "listed": ["Spell Effect: The Four Hunters"],
+        "defaults": {
+            "3": ["Spell Effect: The Four Hunters"]
+        }
+    },
+    "Thermal Remedy": {
+        "listed": ["Spell Effect: Thermal Remedy"],
+        "defaults": {
+            "2": ["Spell Effect: Thermal Remedy"]
+        }
+    },
+    "Thermal Stasis": {
+        "listed": ["Spell Effect: Thermal Stasis"],
+        "defaults": {
+            "1": ["Spell Effect: Thermal Stasis"]
+        }
+    },
+    "Thicket of Knives": {
+        "listed": ["Spell Effect: Thicket of Knives"],
+        "defaults": {
+            "1": ["Spell Effect: Thicket of Knives"]
+        }
+    },
+    "Threefold Limb": {
+        "listed": ["Spell Effect: Threefold Limb (Ice)"],
+        "defaults": {
+            "1": ["Spell Effect: Threefold Limb (Ice)"]
+        }
+    },
+    "Thundering Dominance": {
+        "listed": ["Spell Effect: Thundering Dominance"],
+        "defaults": {
+            "2": ["Spell Effect: Thundering Dominance"]
+        }
+    },
+    "Touch of the Moon": {
+        "listed": ["Spell Effect: Touch of the Moon"],
+        "defaults": {
+            "4": ["Spell Effect: Touch of the Moon"]
+        }
+    },
+    "Touch of the Void": {
+        "listed": ["Spell Effect: Touch of the Void"],
+        "defaults": {
+            "1": ["Spell Effect: Touch of the Void"]
+        }
+    },
+    "Traveler's Transit": {
+        "listed": ["Spell Effect: Traveler's Transit"],
+        "defaults": {
+            "4": ["Spell Effect: Traveler's Transit"]
+        }
+    },
+    "Traveling Workshop": {
+        "listed": ["Spell Effect: Traveling Workshop"],
+        "defaults": {
+            "1": ["Spell Effect: Traveling Workshop"]
+        }
+    },
+    "Tremorsense": {
+        "listed": ["Spell Effect: Tremorsense"],
+        "defaults": {
+            "2": ["Spell Effect: Tremorsense"]
+        }
+    },
+    "Triple Time": {
+        "listed": ["Spell Effect: Triple Time"],
+        "defaults": {
+            "2": ["Spell Effect: Triple Time"]
+        }
+    },
+    "True Target": {
+        "listed": ["Spell Effect: True Target"],
+        "defaults": {
+            "7": ["Spell Effect: True Target"]
+        }
+    },
+    "Unblinking Flame Aura": {
+        "listed": ["Spell Effect: Unblinking Flame Aura"],
+        "defaults": {
+            "5": ["Spell Effect: Unblinking Flame Aura"]
+        }
+    },
+    "Unblinking Flame Ignition": {
+        "listed": ["Spell Effect: Unblinking Flame Ignition"],
+        "defaults": {
+            "9": ["Spell Effect: Unblinking Flame Ignition"]
+        }
+    },
+    "Unbreaking Wave Vapor": {
+        "listed": ["Spell Effect: Unbreaking Wave Vapor"],
+        "defaults": {
+            "5": ["Spell Effect: Unbreaking Wave Vapor"]
+        }
+    },
+    "Unfettered Movement": {
+        "listed": ["Spell Effect: Unfettered Movement"],
+        "defaults": {
+            "4": ["Spell Effect: Unfettered Movement"]
+        }
+    },
+    "Untamed Form": {
+        "listed": ["Spell Effect: Untamed Form"],
+        "defaults": {
+            "1": ["Spell Effect: Untamed Form"]
+        }
+    },
+    "Untamed Shift": {
+        "listed": ["Spell Effect: Untamed Shift"],
+        "defaults": {
+            "1": ["Spell Effect: Untamed Shift"]
+        }
+    },
+    "Untwisting Iron Augmentation": {
+        "listed": ["Spell Effect: Untwisting Iron Augmentation"],
+        "defaults": {
+            "7": ["Spell Effect: Untwisting Iron Augmentation"]
+        }
+    },
+    "Untwisting Iron Buffer": {
+        "listed": ["Spell Effect: Untwisting Iron Buffer"],
+        "defaults": {
+            "3": ["Spell Effect: Untwisting Iron Buffer"]
+        }
+    },
+    "Untwisting Iron Pillar": {
+        "listed": ["Spell Effect: Untwisting Iron Pillar"],
+        "defaults": {
+            "9": ["Spell Effect: Untwisting Iron Pillar"]
+        }
+    },
+    "Unusual Anatomy": {
+        "listed": ["Spell Effect: Unusual Anatomy"],
+        "defaults": {
+            "5": ["Spell Effect: Unusual Anatomy"]
+        }
+    },
+    "Uplifting Overture": {
+        "listed": ["Spell Effect: Uplifting Overture"],
+        "defaults": {
+            "1": ["Spell Effect: Uplifting Overture"]
+        }
+    },
+    "Valiant Anthem": {
+        "listed": ["Spell Effect: Valiant Anthem"],
+        "defaults": {
+            "2": ["Spell Effect: Valiant Anthem"]
+        }
+    },
+    "Vapor Form": {
+        "listed": ["Spell Effect: Vapor Form"],
+        "defaults": {
+            "4": ["Spell Effect: Vapor Form"]
+        }
+    },
+    "Variable Gravity": {
+        "listed": ["Spell Effect: Variable Gravity (High Gravity)"],
+        "defaults": {
+            "4": ["Spell Effect: Variable Gravity (High Gravity)"]
+        }
+    },
+    "Vicious Howl": {
+        "listed": ["Spell Effect: Vicious Howl"],
+        "defaults": {
+            "4": ["Spell Effect: Vicious Howl"]
+        }
+    },
+    "Vindicator's Mark": {
+        "listed": ["Spell Effect: Vindicator's Mark"],
+        "defaults": {
+            "1": ["Spell Effect: Vindicator's Mark"]
+        }
+    },
+    "Vision of Weakness": {
+        "listed": ["Spell Effect: Vision of Weakness"],
+        "defaults": {
+            "2": ["Spell Effect: Vision of Weakness"]
+        }
+    },
+    "Vital Beacon": {
+        "listed": ["Spell Effect: Vital Beacon"],
+        "defaults": {
+            "4": ["Spell Effect: Vital Beacon"]
+        }
+    },
+    "Vital Luminance": {
+        "listed": ["Spell Effect: Vital Luminance"],
+        "defaults": {
+            "4": ["Spell Effect: Vital Luminance"]
+        }
+    },
+    "Warding Aggression": {
+        "listed": ["Spell Effect: Warding Aggression"],
+        "defaults": {
+            "3": ["Spell Effect: Warding Aggression"]
+        }
+    },
+    "Warp Step": {
+        "listed": ["Spell Effect: Warp Step"],
+        "defaults": {
+            "1": ["Spell Effect: Warp Step"]
+        }
+    },
+    "Warping Pull": {
+        "listed": ["Spell Effect: Warping Pull"],
+        "defaults": {
+            "2": ["Spell Effect: Warping Pull"]
+        }
+    },
+    "Wash Your Luck": {
+        "listed": ["Spell Effect: Wash Your Luck"],
+        "defaults": {
+            "1": ["Spell Effect: Wash Your Luck"]
+        }
+    },
+    "Weapon Surge": {
+        "listed": ["Spell Effect: Weapon Surge"],
+        "defaults": {
+            "1": ["Spell Effect: Weapon Surge"]
+        }
+    },
+    "Weapon Trance": {
+        "listed": ["Spell Effect: Weapon Trance"],
+        "defaults": {
+            "1": ["Spell Effect: Weapon Trance"]
+        }
+    },
+    "Wild Winds Stance": {
+        "listed": ["Stance: Wild Winds Stance"],
+        "defaults": {
+            "4": ["Stance: Wild Winds Stance"]
+        }
+    },
+    "Wind Jump": {
+        "listed": ["Spell Effect: Wind Jump"],
+        "defaults": {
+            "5": ["Spell Effect: Wind Jump"]
+        }
+    },
+    "Wings of the Valkyrie": {
+        "listed": ["Spell Effect: Wings of the Valkyrie", "Spell Effect: Wings of the Valkyrie (Heightened)"],
+        "defaults": {
+            "3": ["Spell Effect: Wings of the Valkyrie"],
+            "5": ["Spell Effect: Wings of the Valkyrie (Heightened)"]
+        }
+    },
+    "Wooden Fists": {
+        "listed": ["Spell Effect: Wooden Fists"],
+        "defaults": {
+            "1": ["Spell Effect: Wooden Fists"]
+        }
+    },
+    "Word of Truth": {
+        "listed": ["Spell Effect: Word of Truth"],
+        "defaults": {
+            "1": ["Spell Effect: Word of Truth"]
+        }
+    },
+    "Wrathful Storm": {
+        "listed": ["Spell Effect: Wrathful Storm"],
+        "defaults": {
+            "9": ["Spell Effect: Wrathful Storm"]
+        }
+    },
+    "Zealous Conviction": {
+        "listed": ["Spell Effect: Zealous Conviction"],
+        "defaults": {
+            "6": ["Spell Effect: Zealous Conviction"]
+        }
+    }
+}

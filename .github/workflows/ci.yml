@@ -27,6 +27,16 @@ jobs:
       - name: Install the build tools
         run: npm ci
 
+      # pf2e's spells at the commits pinned in tools/pf2e.json, for the spell parser baselines
+      - name: Cache pf2e's data
+        uses: actions/cache@v4
+        with:
+          path: .cache/pf2e
+          key: pf2e-${{ hashFiles('tools/pf2e.json') }}
+
+      - name: Fetch pf2e's data
+        run: npm run fetch-pf2e
+
       - name: Check and test the module
         run: npm test
 

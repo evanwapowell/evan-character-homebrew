@@ -501,3 +501,5 @@ Hooks.once("init", () => {
         ),
     };
 });
+
+export { isSystemSustain };

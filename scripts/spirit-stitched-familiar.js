@@ -764,4 +764,4 @@ Hooks.once("ready", () => {
     });
 });
 
-export { degreeOf, getDice, getKind };
+export { degreeOf, getCardKind, getDice, getKind };

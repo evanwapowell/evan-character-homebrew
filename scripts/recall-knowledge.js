@@ -1235,3 +1235,5 @@ Hooks.once("ready", () => {
         await Promise.resolve(onGMEvent(data)).catch(log);
     });
 });
+
+export { getCheck };
