@@ -7,7 +7,7 @@
  * script, as before, and listed here by key; they're shown only in this menu.
  */
 
-import { createdHere, isActiveGM, isPrimarySession } from "./lib/session.js";
+import { createdHere, hasModuleData, isActiveGM, isPrimarySession } from "./lib/session.js";
 
 const MODULE_ID = "evan-character-homebrew";
 
@@ -417,6 +417,7 @@ export {
     canAnimateFinch,
     featureHooks,
     guardApi,
+    hasModuleData,
     isActiveGM,
     isEnabled,
     isFinchVersion,

@@ -30,7 +30,7 @@ import {
     exploitResult,
     ordinal,
 } from "./lib/recall-knowledge-facts.js";
-import { createdHere, isActiveGM, isEnabled } from "./settings.js";
+import { createdHere, hasModuleData, isActiveGM, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -109,7 +109,7 @@ function dieOf(roll) {
 function getCheck(message) {
     const flags = message.flags.pf2e ?? {};
     const context = flags.context;
-    if (context?.type !== "skill-check" || message.flags[MODULE_ID] || !message.rolls[0]) return null;
+    if (context?.type !== "skill-check" || hasModuleData(message) || !message.rolls[0]) return null;
     const options = context.options ?? [];
 
     if (isExploitItem(message.item) || options.includes("item:slug:exploit-vulnerability")) {

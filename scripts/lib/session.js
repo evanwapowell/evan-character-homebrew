@@ -45,6 +45,14 @@ function createdHere(document, options, userId) {
     return !session || session === self.id;
 }
 
+/**
+ * Whether this module put data of its own on a chat message: a card it posted, or a message it marked. Every message
+ * carries the session mark, so it doesn't count: test this, or a named key, never `message.flags[MODULE_ID]` itself.
+ */
+function hasModuleData(message) {
+    return Object.keys(message?.flags?.[MODULE_ID] ?? {}).some((key) => key !== "session");
+}
+
 Hooks.on("preCreateChatMessage", (message, _data, options) => {
     options[OPTION] = self.id;
     message.updateSource({ [`flags.${MODULE_ID}.session`]: self.id });
@@ -106,4 +114,4 @@ Hooks.once("ready", () => {
     window.addEventListener("pagehide", () => announce("bye"));
 });
 
-export { createdHere, isActiveGM, isPrimarySession };
+export { createdHere, hasModuleData, isActiveGM, isPrimarySession };
