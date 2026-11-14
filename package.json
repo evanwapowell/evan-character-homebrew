@@ -7,12 +7,13 @@
     "build": "node tools/packs.mjs build",
     "unpack": "node tools/packs.mjs unpack",
     "fetch-pf2e": "node tools/fetch-pf2e.mjs",
-    "test": "node tools/check.mjs && prettier --check \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.js\" && node --test \"tests/**/*.test.js\"",
+    "test": "node tools/check.mjs && prettier --check \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.{js,mjs}\" && node --test \"tests/**/*.test.js\"",
     "test:update-baselines": "node tools/parse-spells.mjs --update",
-    "format": "prettier --write \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.js\""
+    "format": "prettier --write \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.{js,mjs}\""
   },
   "devDependencies": {
     "@foundryvtt/foundryvtt-cli": "^3.0.5",
+    "jsdom": "^31.0.1",
     "prettier": "^3.10.1"
   }
 }

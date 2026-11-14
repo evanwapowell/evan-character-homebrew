@@ -108,9 +108,13 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
   export to WebM with alpha); not part of the release.
 - `token-subjects/`: token art.
 - `tools/packs.mjs` and `tools/check.mjs`, run with npm (`package.json`): build or unpack the compendium, and check the
-  module (see "Testing").
-- `tests/`: unit tests for the libraries with no Foundry dependencies, run by `npm test`; not part of the release.
-- `.github/workflows/ci.yml`: runs `npm test` and `npm run build` on every pull request.
+  module (see "Testing"). `tools/fetch-pf2e.mjs`, `tools/pf2e-data.mjs` and `tools/parse-spells.mjs` fetch pf2e's
+  spells at the commits pinned in `tools/pf2e.json` and run the spell parsers over them.
+- `tests/`: run by `npm test`, not part of the release: unit tests for the libraries with no Foundry dependencies, the
+  spell parsers' baselines over pf2e's spells (`tests/baselines/`), and tests of the real scripts on a Foundry
+  stand-in (`tests/harness/`).
+- `.github/workflows/ci.yml`: runs `npm test` (with pf2e's data fetched and cached) and `npm run build` on every pull
+  request.
 - `.github/workflows/release.yml`: builds and publishes releases (see below).
 
 ## Releases and workflow
@@ -231,8 +235,29 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
 - The unit tests in `tests/` (`*.test.js`, Node's built-in `node:test` runner), for the libraries with no Foundry
   dependencies: `counteract-rules`, `recall-knowledge-facts`, `spell-effect-links` and `spell-condition-parser`. A
   change to one of these libraries adds or updates its tests.
+- The spell parsers over all of pf2e's spells (`tests/spell-baselines.test.js`): both parsers' output for every spell
+  (with a save for `spell-condition-parser`, without one for `spell-effect-links`; this module's spells too) at the
+  pf2e commits pinned in `tools/pf2e.json`, compared with the baselines in `tests/baselines/`, with a readable diff per
+  spell. The baselines record today's output, wrong results included, so a parser fix changes them in the same PR:
+  run `npm run test:update-baselines` and commit the baselines, so the change is reviewed spell by spell.
+  `tests/spell-expectations.test.js` holds results written by hand for common spells that must stay right (Fear,
+  Slow, Heroism, battle forms and others); add a spell there when a fix makes it right. Both need pf2e's data:
+  `npm run fetch-pf2e` (`tools/fetch-pf2e.mjs`) makes a shallow, sparse clone of the pinned commits into
+  `.cache/pf2e/` (git-ignored). Without it the tests are skipped locally; CI caches the data by the pinned commits
+  and always runs them. To move to newer pf2e data, change the commits in `tools/pf2e.json`, fetch, update the
+  baselines and review their diff. `node tools/parse-spells.mjs` runs the parsers without writing anything.
+- Tests of the real scripts on a Foundry stand-in (`tests/harness/`): `foundry.mjs` fakes the globals the scripts
+  touch (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`,
+  `foundry.utils`, `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session,
+  `fromUuid`, and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds pf2e-shaped actors, items, effects and
+  chat messages, following pf2e's source (each builder names its file). `createWorld({ users })` then
+  `world.connect(userId, { scripts })` opens a session with its own copy of the scripts and globals, so one user can
+  be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]` has the script's exports,
+  `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep each session's own.
+  `tests/guards.test.js` checks that pf2e's messages reach the features and the module's own don't, and
+  `tests/session.test.js` checks the session helpers. Fix a hook-driven bug with a test here; export what a test
+  needs from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
 
-There's no Foundry instance in this environment. Test against pf2e's
-real data (cloned from `foundryvtt/pf2e`) in Node, with stand-ins for Foundry objects and jsdom for HTML, exercising the
-actual scripts end to end. Run the parser over every spell with a save when changing it. Say clearly in summaries and
-PRs that changes weren't run in Foundry.
+There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
+from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say
+clearly in summaries and PRs that changes weren't run in Foundry.
