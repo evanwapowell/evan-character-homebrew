@@ -105,7 +105,11 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       save result and apply its conditions. What the text gives later or only if something happens ("If it's asleep,
       it wakes up and is Paralyzed", Petrify's petrified) is offered unchecked. The parser has no Foundry
       dependencies, so it can be run in Node. What it applies records the spell, caster, rank and DC
-      (`flags.evan-character-homebrew.spellSource`), for Counteract.
+      (`flags.evan-character-homebrew.spellSource`), for Counteract. A timer that ends at the target's own next turn
+      ("until its next turn begins", "until the end of its next turn") is an effect with the target as origin, of the
+      rounds pf2e's expiry needs when it's created: 0 when the target's turn is still to come this round (pf2e ends an
+      effect at its origin's turn only once its rounds are up, and time moves on with the round), 1 when it has acted,
+      on its own turn (unless the timer is "for that turn") or outside an encounter.
     - `counteract.js` with `lib/counteract-rules.js`: counteracting. pf2e's Counteract button on spell cards (spells
       with `system.counteraction`, like Dispel Magic) only rolls the check; this takes it over (removing its
       `data-action` in `renderChatMessageHTML`, which runs before pf2e attaches its listeners). The caster checks what
@@ -280,29 +284,32 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   `.cache/pf2e/` (git-ignored). Without it the tests are skipped locally; CI caches the data by the pinned commits
   and always runs them. To move to newer pf2e data, change the commits in `tools/pf2e.json`, fetch, update the
   baselines and review their diff. `node tools/parse-spells.mjs` runs the parsers without writing anything.
-- Tests of the real scripts on a Foundry stand-in (`tests/harness/`): `foundry.mjs` fakes the globals the scripts
-  touch (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`,
-  `foundry.utils`, `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session,
-  `fromUuid`, `Roll` (each die rolls its middle), and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds
-  pf2e-shaped actors, items, effects, scenes, tokens, encounters and chat messages, following pf2e's source (each
-  builder names its file). `createWorld({ users })` then
-  `world.connect(userId, { scripts })` opens a session with its own copy of the scripts and globals, so one user can
-  be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]` has the script's exports,
-  `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep each session's own.
-  `session.setShown`, `session.viewScene(scene)`, `session.disconnect({ silently })`, `session.latency` (socket
-  messages to and from it are delivered that many milliseconds later, on the timers) and `session.unreachable`
-  (socket messages to and from it are lost while its user stays active: a frozen window) set up the session cases.
-  Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as the running session sees it,
-  and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their effects' Aura rules (their
-  tokens' `auras` have `containsToken`); items have `update` and `delete`, which come back a tick later, as from the
-  server. `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
-  `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included),
-  and pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. `tests/guards.test.js`
-  checks that pf2e's messages reach the features and the module's own don't, `tests/session.test.js` the session
-  helpers, `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js` the turns of an encounter
-  with Manifest Will's and Sustain's work on them, and `tests/spell-conditions.test.js` the spell conditions' Apply
-  button and dialog. Fix a hook-driven bug with a test here; export what a test needs
-  from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
+- Tests of the real scripts on a Foundry stand-in (`tests/harness/`): `foundry.mjs` fakes the globals the scripts touch
+  (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`, `foundry.utils`,
+  `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session, `fromUuid`, `Roll`
+  (each die rolls its middle), and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds pf2e-shaped actors, items,
+  effects, scenes, tokens, encounters and chat messages, following pf2e's source (each builder names its file).
+  `createWorld({ users })` then `world.connect(userId, { scripts })` opens a session with its own copy of the scripts
+  and globals, so one user can be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]`
+  has the script's exports, `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep
+  each session's own. `session.setShown`, `session.viewScene(scene)`, `session.disconnect({ silently })`,
+  `session.latency` (socket messages to and from it are delivered that many milliseconds later, on the timers) and
+  `session.unreachable` (socket messages to and from it are lost while its user stays active: a frozen window) set up
+  the session cases. Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as the running
+  session sees it, and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their effects' Aura
+  rules (their tokens' `auras` have `containsToken`); items have `update` and `delete`, which come back a tick later, as
+  from the server. `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`,
+  `previousTurn`, `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index
+  shifting included), and pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. The
+  world's time (`game.time.worldTime`) moves 6 seconds with each round, and an effect made with
+  `createEmbeddedDocuments` starts at it and expires as pf2e's do (`remainingDuration`, pf2e's
+  `calculateRemainingDuration`); expired effects stay on their actor. `tests/guards.test.js` checks that pf2e's messages
+  reach the features and the module's own don't, `tests/session.test.js` the session helpers,
+  `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js` the turns of an encounter with Manifest
+  Will's and Sustain's work on them, and `tests/spell-conditions.test.js` the Apply button's timers, from a save's
+  message through its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers
+  unchecked). Fix a hook-driven bug with a test here; export what a test needs from a script (a patch bump), or drive
+  it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
 from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say

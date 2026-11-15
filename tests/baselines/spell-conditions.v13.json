@@ -1030,7 +1030,7 @@
         "success": ["stupefied 2 for 1 round (caster's turn start)"],
         "failure": [
             "stupefied 2 for 1 minute (caster's turn start)",
-            "slowed 1 for 1 round (its turn end) [later or conditional: unchecked]"
+            "slowed 1 for 1 round (its turn end, counting its current turn) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "stupefied 4 for 1 minute (caster's turn start)",
@@ -1885,8 +1885,8 @@
     },
     "Warrior's Regret": {},
     "Wave of Despair": {
-        "success": ["slowed 1 for 1 round (its turn end) [later or conditional: unchecked]"],
-        "failure": ["slowed 1 for 1 round (its turn end) [later or conditional: unchecked]"],
+        "success": ["slowed 1 for 1 round (its turn end, counting its current turn) [later or conditional: unchecked]"],
+        "failure": ["slowed 1 for 1 round (its turn end, counting its current turn) [later or conditional: unchecked]"],
         "criticalFailure": ["slowed 1 for 1 minute (caster's turn start)"]
     },
     "Weaken Earth": {},
