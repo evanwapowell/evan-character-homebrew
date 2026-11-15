@@ -7,6 +7,8 @@
  * lasts 5 minutes or until the kineticist's kinetic aura ends. Each element has its own animation.
  */
 
+import { findItems } from "./lib/items.js";
+import { serially } from "./lib/serially.js";
 import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -244,30 +246,39 @@ function playExtractAnimation(element, targetToken, kineticistToken) {
  * that damage type, it instead has resistance equal to its level to damage from the impulse." pf2e applies damage,
  * and rolls checks against the creature, with a copy of it that has the attacker's roll options, so these rules only
  * take effect against the kineticist's impulses. Removals run after the creature's own rules have added theirs.
+ *
+ * A rule that removes takes away the first of the creature's entries of each of its types (pf2e's IWR rule elements,
+ * src/module/rules/rule-element/iwr/base.ts), so a type the creature has twice is removed by a second rule. A custom
+ * resistance can't be removed with other types (pf2e rejects the whole rule), nor without its definition, so it stays.
  */
 function getBypassRules(target) {
     const { damageTypes, immunityTypes, resistanceTypes } = CONFIG.PF2E;
-    const types = (iwrs) => [...new Set((iwrs ?? []).map((i) => i.type))];
-    const immunities = types(target.attributes?.immunities).filter(
+    /** The types of these entries, each as many times as the creature has it */
+    const types = (iwrs) => (iwrs ?? []).map((i) => i.type);
+    const unique = (list) => [...new Set(list)];
+    const immunityEntries = types(target.attributes?.immunities).filter(
         (t) => t in immunityTypes && (t in damageTypes || t in ELEMENTS),
     );
+    const immunities = unique(immunityEntries);
     const toResistance = immunities.filter((t) => t in damageTypes && t in resistanceTypes);
-    const resistances = types(target.attributes?.resistances).filter((t) => t in resistanceTypes);
+    const resistanceEntries = types(target.attributes?.resistances).filter(
+        (t) => t !== "custom" && t in resistanceTypes,
+    );
+    /** One list of types for each rule: the types the creature has at least that many times */
+    const rounds = (entries) => {
+        const counts = new Map();
+        for (const type of entries) counts.set(type, (counts.get(type) ?? 0) + 1);
+        const most = Math.max(0, ...counts.values());
+        return Array.from({ length: most }, (_, i) => [...counts].filter(([, n]) => n > i).map(([t]) => t));
+    };
 
     const label = "Extract Element";
     const rules = [];
-    if (resistances.length > 0) {
-        rules.push({
-            key: "Resistance",
-            mode: "remove",
-            type: resistances,
-            value: 0,
-            predicate: FROM_IMPULSE,
-            priority: 150,
-        });
+    for (const type of rounds(resistanceEntries)) {
+        rules.push({ key: "Resistance", mode: "remove", type, value: 0, predicate: FROM_IMPULSE, priority: 150 });
     }
-    if (immunities.length > 0) {
-        rules.push({ key: "Immunity", mode: "remove", type: immunities, predicate: FROM_IMPULSE, priority: 150 });
+    for (const type of rounds(immunityEntries)) {
+        rules.push({ key: "Immunity", mode: "remove", type, predicate: FROM_IMPULSE, priority: 150 });
     }
     if (toResistance.length > 0) {
         rules.push({
@@ -304,8 +315,19 @@ async function applyDamage({ kineticist, kineticistToken, item, target, targetTo
     await target.applyDamage({ damage, token: targetToken, item, rollOptions });
 }
 
-/** Apply the save's result to the target. Run by a GM, who can edit every creature and message. */
-async function resolveExtraction(data) {
+/**
+ * Apply the save's result to the target, once for each use. Run by a GM, who can edit every creature and message. Two
+ * saves for one use arriving together are applied one after the other, so the second finds the first's.
+ */
+function resolveExtraction(data) {
+    const key = data.cardId ?? `${data.kineticistUuid}|${data.targetTokenUuid}`;
+    return serially(key, () => applyExtraction(data));
+}
+
+/** Results this session applied for uses without a card, by kineticist and target */
+const appliedWithoutCard = new Set();
+
+async function applyExtraction(data) {
     const { element, outcome, total, cardId } = data;
     const kineticist = await fromUuid(data.kineticistUuid);
     const targetToken = await fromUuid(data.targetTokenUuid);
@@ -318,7 +340,8 @@ async function resolveExtraction(data) {
     // Each use is resolved once, so a repeated or rerolled save doesn't deal its damage again
     const card = cardId ? game.messages.get(cardId) : null;
     const record = card?.flags[MODULE_ID]?.extractElement;
-    if (record?.resolved) return;
+    const useKey = `${kineticist.uuid}|${targetToken.uuid}`;
+    if (record?.resolved || (!card && appliedWithoutCard.has(useKey))) return;
     if (findExtraction(target, kineticist)) {
         return ChatMessage.create({
             speaker,
@@ -326,12 +349,16 @@ async function resolveExtraction(data) {
             content: `<p><strong>Extract Element</strong> Matter extracted from ${esc(target.name)} is already in ${esc(kineticist.name)}'s kinetic aura, so it can't be targeted again. Nothing was applied.</p>`,
         });
     }
-    if (card) {
+    // Recorded once the result can't be applied again without repeating it: after the damage. Until then, a failure
+    // leaves the use to be resolved by rolling again.
+    const markResolved = async () => {
+        if (!card) return void appliedWithoutCard.add(useKey);
         const resolved = { kineticist: kineticist.uuid, target: targetToken.uuid, element, resolved: true };
         await card.update({ [`flags.${MODULE_ID}.extractElement`]: resolved });
-    }
+    };
 
     if (outcome === "criticalSuccess") {
+        await markResolved();
         return ChatMessage.create({
             speaker,
             content: `<p><strong>Extract Element</strong> ${esc(target.name)} critically succeeds and is unaffected.</p>`,
@@ -339,6 +366,7 @@ async function resolveExtraction(data) {
     }
 
     await applyDamage({ kineticist, kineticistToken, item, target, targetToken, outcome });
+    await markResolved();
 
     const effect = await fromUuid(EFFECT_UUID);
     if (!effect) return ui.notifications.error("Extract Element: the module's Effect: Extract Element was not found.");
@@ -450,22 +478,25 @@ function isKineticAuraEffect(item) {
     return item.slug === "effect-kinetic-aura" || item.name === "Effect: Kinetic Aura";
 }
 
-// "These effects last for 5 minutes or until your kinetic aura ends"
+// "These effects last for 5 minutes or until your kinetic aura ends": the kineticist's effects are found on every
+// creature, without building the actors of unlinked tokens that have none
 Hooks.on("deleteItem", async (item) => {
     const kineticist = item.actor;
     if (!kineticist || !isKineticAuraEffect(item) || !(await confirmActiveGM())) return;
     if (kineticist.items.some((i) => i.id !== item.id && isKineticAuraEffect(i))) return;
 
-    const actors = new Set(game.actors);
-    for (const scene of game.scenes) {
-        for (const token of scene.tokens) if (!token.actorLink && token.actor) actors.add(token.actor);
-    }
-    for (const actor of actors) {
-        const ids = actor.itemTypes.effect
-            .filter((e) => e.flags[MODULE_ID]?.extractElement?.kineticist === kineticist.uuid)
-            .map((e) => e.id);
-        if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids).catch(log);
+    const isExtraction = (e) =>
+        e.type === "effect" && e.flags?.[MODULE_ID]?.extractElement?.kineticist === kineticist.uuid;
+    for (const { actor, items } of findItems(isExtraction)) {
+        await actor
+            .deleteEmbeddedDocuments(
+                "Item",
+                items.map((e) => e.id),
+            )
+            .catch(log);
     }
 });
 
 onGMRequest("extractElement", (data) => resolveExtraction(data));
+
+export { getBypassRules, resolveExtraction };

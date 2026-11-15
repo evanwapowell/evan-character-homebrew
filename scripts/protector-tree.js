@@ -40,6 +40,8 @@ const HP_PER_RANK = 10;
 const TREE_IMG = "icons/environment/wilderness/tree-oak.webp";
 const FOLDER_NAME = "Protector Trees";
 const HITS = ["success", "criticalSuccess"];
+/** Degrees of success, by their index */
+const OUTCOMES = ["criticalFailure", "failure", "success", "criticalSuccess"];
 
 const esc = (text) => Handlebars.escapeExpression(text);
 const log = (error) => console.error(`${MODULE_ID} | Protector Tree`, error);
@@ -87,20 +89,31 @@ function tokensOf(actor) {
 
 /* Geometry, from the documents, so it works on scenes no one is viewing */
 
-/** A token's space, in pixels, with its elevation and height in grid units (feet) */
+/**
+ * A token's space, in pixels, with its elevation and height in grid units (feet). A Tiny creature's space is the whole
+ * square it's in, as pf2e measures it (`TokenPF2e#mechanicalBounds`: the grid square at its top-left corner, at least
+ * a square wide and high).
+ */
 function spaceOf(token, scene = token.parent) {
     const size = scene.grid.size;
     const distance = scene.grid.distance;
     const width = Math.max(token.width, 0.5);
     const height = Math.max(token.height, 0.5);
-    return {
-        x0: token.x,
-        y0: token.y,
-        x1: token.x + width * size,
-        y1: token.y + height * size,
-        z0: Number(token.elevation) || 0,
-        z1: (Number(token.elevation) || 0) + Math.max(width, height) * distance,
-    };
+    const z0 = Number(token.elevation) || 0;
+    const z1 = z0 + Math.max(width, height) * distance;
+    if (width < 1 || height < 1) {
+        const x0 = Math.floor(token.x / size) * size;
+        const y0 = Math.floor(token.y / size) * size;
+        return {
+            x0,
+            y0,
+            x1: x0 + Math.max(size, width * size),
+            y1: y0 + Math.max(size, height * size),
+            z0,
+            z1,
+        };
+    }
+    return { x0: token.x, y0: token.y, x1: token.x + width * size, y1: token.y + height * size, z0, z1 };
 }
 
 /**
@@ -293,14 +306,22 @@ function pickSquare(casterToken) {
     });
 }
 
-/** Place a tree for the impulse or spell: the user picks the square, and the active GM makes the tree */
+/**
+ * Place a tree for the impulse or spell: the user picks the square, and the active GM makes the tree. Resolves to
+ * whether the tree was grown.
+ */
 async function placeTree({ kind, actor, token = null, item = null, rank, messageId = null }) {
     const casterToken = token ?? getSceneToken(actor);
-    if (!actor || !casterToken)
-        return warn(`${actor?.name ?? "The caster"} needs a token on the scene to place the tree.`);
-    if (!game.user.isGM && !game.users.activeGM) return warn("a GM must be logged in to grow the tree.");
+    if (!actor || !casterToken) {
+        warn(`${actor?.name ?? "The caster"} needs a token on the scene to place the tree.`);
+        return false;
+    }
+    if (!game.user.isGM && !game.users.activeGM) {
+        warn("a GM must be logged in to grow the tree.");
+        return false;
+    }
     const square = await pickSquare(casterToken);
-    if (!square) return;
+    if (!square) return false;
 
     const data = {
         kind,
@@ -311,10 +332,13 @@ async function placeTree({ kind, actor, token = null, item = null, rank, message
         sceneId: casterToken.parent.id,
         x: square.x,
         y: square.y,
+        // The tree grows at the caster's elevation, so it's next to creatures on a rooftop with them
+        elevation: Number(casterToken.elevation) || 0,
         messageId,
     };
     // Players can't make actors or tokens, so the active GM does
-    await askGM("protectorTreeCreate", data, { title: TITLE, task: "grow the tree" });
+    const answer = await askGM("protectorTreeCreate", data, { title: TITLE, task: "grow the tree" });
+    return answer.ok;
 }
 
 async function getFolder() {
@@ -323,14 +347,32 @@ async function getFolder() {
     return Folder.create({ name: FOLDER_NAME, type: "Actor", flags: { [MODULE_ID]: { protectorTrees: true } } });
 }
 
+/** Cards whose tree this session is growing, so a second request for one card grows nothing */
+const growing = new Set();
+
+/** Grow the tree for a card, once. Run by a GM. */
+async function createTree(data) {
+    const { messageId } = data;
+    if (!messageId) return growTree(data);
+    if (growing.has(messageId) || game.messages.get(messageId)?.flags[MODULE_ID]?.protectorTree?.placed) {
+        throw new Error("the tree for this card was already placed");
+    }
+    growing.add(messageId);
+    try {
+        return await growTree(data);
+    } finally {
+        growing.delete(messageId);
+    }
+}
+
 /** Grow the tree and give the caster its effect. Run by a GM. */
-async function createTree({ kind, rank, casterUuid, casterTokenUuid, itemUuid, sceneId, x, y, messageId }) {
+async function growTree({ kind, rank, casterUuid, casterTokenUuid, itemUuid, sceneId, x, y, elevation, messageId }) {
     const caster = await fromUuid(casterUuid);
     const scene = game.scenes.get(sceneId);
     const casterToken = casterTokenUuid ? await fromUuid(casterTokenUuid) : null;
-    if (!caster || !scene) return;
+    if (!caster || !scene) throw new Error("the caster or the scene is gone");
     const effect = await fromUuid(EFFECT_UUID);
-    if (!effect) return ui.notifications.error(`${TITLE}: the module's Effect: Protector Tree was not found.`);
+    if (!effect) throw new Error("the module's Effect: Protector Tree was not found");
 
     // "If you use this impulse again, any previous one ends, and an ordinary tree remains."
     if (kind === "impulse") {
@@ -388,9 +430,11 @@ async function createTree({ kind, rank, casterUuid, casterTokenUuid, itemUuid, s
             [MODULE_ID]: { protectorTree: { caster: caster.uuid, effect: effectUuid, kind, rank, active: true } },
         },
     });
-    if (!tree) return;
+    if (!tree) throw new Error("the tree's actor wasn't created");
 
-    const tokenSource = (await tree.getTokenDocument({ x, y, elevation: 0 })).toObject();
+    // From a GM session on an earlier version, the request has no elevation: the caster's token's
+    const z = Number(elevation ?? casterToken?.elevation) || 0;
+    const tokenSource = (await tree.getTokenDocument({ x, y, elevation: z })).toObject();
     const [token] = await scene.createEmbeddedDocuments("Token", [tokenSource]);
 
     const effectSource = effect.toObject();
@@ -422,6 +466,7 @@ async function createTree({ kind, rank, casterUuid, casterTokenUuid, itemUuid, s
             `${hp} Hit Points, for 1 minute. It takes the damage from Strikes that hit ${esc(caster.name)}'s ` +
             `allies next to it.</p>`,
     });
+    return { tree: tree.uuid, token: token?.uuid ?? null };
 }
 
 /* The tree's end */
@@ -476,14 +521,37 @@ function getActiveEffect(tree) {
     return effect;
 }
 
-/** Damage from a Strike that hit */
-function isStrikeHit({ item = null, rollOptions = new Set(), outcome = null }) {
+/**
+ * Damage from a Strike that hit. A Strike's damage carries its action in the roll options pf2e applies it with (a
+ * character's `action:strike`; anyone's `self:action:slug:strike`, given as `origin:action:slug:strike`), also when it
+ * was rolled without an attack roll; an NPC attack's inline damage, or an area or auto-fire attack, doesn't. Its
+ * outcome is known when the damage was rolled against a target.
+ */
+function isStrikeHit({ rollOptions = new Set(), outcome = null }) {
     if (outcome && !HITS.includes(outcome)) return false;
     const options = rollOptions instanceof Set ? rollOptions : new Set(rollOptions ?? []);
+    return options.has("action:strike") || options.has("origin:action:slug:strike");
+}
+
+/** A component's total in a damage instance (pf2e's `DamageInstance#componentTotal`), 0 when it can't be read */
+function componentTotal(instance, component) {
+    try {
+        return Number(instance.componentTotal?.(component)) || 0;
+    } catch {
+        return 0;
+    }
+}
+
+/**
+ * Splash damage only: the creatures next to the target of a Strike that missed. pf2e marks the roll, but a roll applied
+ * at half or double damage is a new one without the mark (`DamageRoll#alter`), so it's also told from its instances.
+ */
+function isSplashOnly(roll) {
+    if (roll.options?.splashOnly) return true;
+    const instances = roll.instances ?? [];
     return (
-        !!item?.isOfType?.("weapon", "melee") ||
-        options.has("action:strike") ||
-        options.has("origin:action:slug:strike")
+        instances.length > 0 &&
+        instances.every((i) => !i.persistent && i.total > 0 && componentTotal(i, "splash") >= i.total)
     );
 }
 
@@ -493,11 +561,13 @@ function findTree(actor, params) {
     if (final || !token?.parent || !actor?.isOfType?.("creature")) return null;
     if (!damage || typeof damage !== "object" || !Array.isArray(damage.instances) || !(damage.total > 0)) return null;
     // Splash damage from a hit reaches creatures next to the target, which weren't hit by the Strike
-    if (damage.options?.splashOnly) return null;
+    if (isSplashOnly(damage)) return null;
     if (treeData(actor) || !isStrikeHit(params)) return null;
 
     for (const treeToken of token.parent.tokens) {
-        const tree = treeToken.actor;
+        // Trees are world actors, with linked tokens: other tokens' actors aren't read (or built)
+        if (!treeToken.actorLink) continue;
+        const tree = game.actors.get(treeToken.actorId);
         if (!treeData(tree)?.active || !(tree.hitPoints?.value > 0)) continue;
         const effect = getActiveEffect(tree);
         const caster = effect?.actor;
@@ -510,30 +580,81 @@ function findTree(actor, params) {
 }
 
 /**
- * What's left of the damage once the tree has taken `absorbed`, with its damage types and materials, so the ally's
- * resistances still apply. Persistent damage comes along with it.
+ * What's left of a damage roll once the tree has taken `absorbed`, as a damage formula, from its instances: `{ type,
+ * materials, persistent, expression, total, precision, splash, undoubled }`, where `precision` and `splash` are the
+ * totals of those components and `undoubled` the total without a critical hit's doubling (pf2e's `componentTotal` and
+ * `critImmuneTotal`). The tree takes the instances in order. What's left of each keeps its type and materials, and its
+ * share of precision and splash damage and of the doubling, so the ally's immunities, resistances and weaknesses to
+ * those still apply. Persistent damage comes along whole. Null when nothing is left.
  */
-async function getRemainder(roll, absorbed) {
-    let left = absorbed;
+function remainderFormula(instances, absorbed) {
+    let left = Math.max(0, absorbed);
     const parts = [];
-    for (const instance of roll.instances) {
+    for (const instance of instances) {
         const flavor = [instance.type ?? "untyped", ...(instance.materials ?? [])].join(",");
         if (instance.persistent) {
-            const expression = instance.head?.expression;
-            if (expression) parts.push(`(${expression})[persistent,${flavor}]`);
+            if (instance.expression) parts.push(`(${instance.expression})[persistent,${flavor}]`);
             continue;
         }
-        let value = Math.trunc(Number(instance.total) || 0);
-        const taken = Math.min(left, Math.max(0, value));
+        const total = Math.trunc(Number(instance.total) || 0);
+        const taken = Math.min(left, Math.max(0, total));
         left -= taken;
-        value -= taken;
-        if (value > 0) parts.push(`${value}[${flavor}]`);
+        const value = total - taken;
+        if (value <= 0) continue;
+
+        const share = (component) => Math.round((value * Math.max(0, Number(component) || 0)) / total);
+        const precision = Math.min(value, share(instance.precision));
+        const splash = Math.min(value - precision, share(instance.splash));
+        const base = value - precision - splash;
+        const undoubled = Number(instance.undoubled ?? total);
+        const sum = (b, p, s) =>
+            [b ? String(b) : null, p ? `${p}[precision]` : null, s ? `${s}[splash]` : null].filter(Boolean);
+
+        let expression;
+        if (undoubled < total) {
+            // A critical hit's doubling: half of each component, doubled, and what's odd left undoubled
+            const halves = [Math.floor(base / 2), Math.floor(precision / 2), Math.floor(splash / 2)];
+            const odd = value - 2 * halves.reduce((a, b) => a + b, 0);
+            const inner = sum(...halves);
+            const doubled = inner.length === 0 ? null : `2 * ${inner.length > 1 ? `(${inner.join(" + ")})` : inner[0]}`;
+            expression = [doubled, odd ? String(odd) : null].filter(Boolean).join(" + ");
+        } else {
+            expression = sum(base, precision, splash).join(" + ");
+        }
+        parts.push(/^\d+$/.test(expression) ? `${expression}[${flavor}]` : `(${expression})[${flavor}]`);
     }
-    if (parts.length === 0) return null;
+    return parts.length > 0 ? `{${parts.join(",")}}` : null;
+}
+
+/** What's left of the damage once the tree has taken `absorbed`, as a damage roll (see `remainderFormula`) */
+async function getRemainder(roll, absorbed, outcome = null) {
+    const instances = roll.instances.map((instance) => {
+        const total = Math.trunc(Number(instance.total) || 0);
+        let undoubled = total;
+        try {
+            undoubled = Number(instance.critImmuneTotal ?? total);
+        } catch {
+            // Not evaluated: no doubling known
+        }
+        return {
+            type: instance.type,
+            materials: instance.materials ?? [],
+            persistent: !!instance.persistent,
+            expression: instance.head?.expression ?? null,
+            total,
+            precision: componentTotal(instance, "precision"),
+            splash: componentTotal(instance, "splash"),
+            undoubled: Number.isFinite(undoubled) ? undoubled : total,
+        };
+    });
+    const formula = remainderFormula(instances, absorbed);
+    if (!formula) return null;
     const DamageRoll = roll.constructor;
-    const options = { degreeOfSuccess: roll.options?.degreeOfSuccess ?? null };
+    // A roll applied at half or double damage is a new one without the original's options (`DamageRoll#alter`)
+    const degree = roll.options?.degreeOfSuccess ?? OUTCOMES.indexOf(outcome);
+    const options = { degreeOfSuccess: degree >= 0 ? degree : null };
     if (roll.options?.bypass) options.bypass = foundry.utils.deepClone(roll.options.bypass);
-    const remainder = new DamageRoll(`{${parts.join(",")}}`, {}, options);
+    const remainder = new DamageRoll(formula, {}, options);
     await remainder.evaluate();
     return remainder;
 }
@@ -579,7 +700,7 @@ async function interpose(actor, applyDamage, params, { tree, treeToken }) {
 
     let remainder = null;
     try {
-        remainder = await getRemainder(roll, absorbed);
+        remainder = await getRemainder(roll, absorbed, params.outcome ?? null);
     } catch (error) {
         log(error);
     }
@@ -646,21 +767,26 @@ function renderCard(message, html) {
             event.preventDefault();
             event.stopPropagation();
             button.disabled = true;
+            // Once the tree is placed, the card is updated and rendered without the button. Until then (and if it
+            // isn't placed) it stays disabled, so a second click doesn't grow a second tree.
             startFromCard(message)
-                .catch(log)
-                .finally(() => (button.disabled = false));
+                .catch((error) => void log(error))
+                .then((placed) => {
+                    if (!placed) button.disabled = false;
+                });
         });
         controls.append(button);
     }
     content.append(controls);
 }
 
+/** Place the tree for a card. Resolves to whether it was grown. */
 async function startFromCard(message) {
     const card = getCard(message);
     const actor = message.actor;
-    if (!card || !actor) return;
+    if (!card || !actor) return false;
     const rank = getRank(card.kind, { actor, item: card.item, message });
-    await placeTree({ kind: card.kind, actor, token: message.token, item: card.item, rank, messageId: message.id });
+    return placeTree({ kind: card.kind, actor, token: message.token, item: card.item, rank, messageId: message.id });
 }
 
 /* Hooks */
@@ -736,4 +862,4 @@ onGMRequest("protectorTreeDamage", async (data) => {
     if (amount > 0) await token.actor.applyDamage({ damage: amount, token });
 });
 
-export { distanceBetween, getRemainder, isAdjacent, isStrikeHit, spaceOf };
+export { createTree, distanceBetween, getRemainder, isAdjacent, isSplashOnly, isStrikeHit, remainderFormula, spaceOf };

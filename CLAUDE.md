@@ -50,17 +50,31 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       cast from 8.5.0 (`origin:action:slug:cast-a-spell` in the card's `flags.pf2e.origin.rollOptions`); before that
       the two can't be told apart, so the hex familiars take any card from a spellcasting entry for a cast, and
       Protector Tree and Sepulchral Mask fall back on the card's button or the effect's drag.
-    - `witch-charge.js`: the Designate Witch's Charge action.
+    - `lib/items.js`: `findItems(test)`, the items passing `test` on every creature in the world (world actors, and
+      unlinked tokens on every scene), without building the actor of an unlinked token that holds none: an unbuilt
+      token (pf2e's `hasConstructedActor`) is read from its source's delta items, so `test` reads only what items and
+      sources share (`type`, `name`, `flags`, `system`, `_stats`). Never loop over every token's `actor`.
+    - `lib/serially.js`: `serially(key, work)` runs work on one thing (a card) after the work queued before it, so two
+      saves for one card arriving together are applied in turn (Extract Element, Parasitic Might).
+    - `witch-charge.js`: the Designate Witch's Charge action. The active GM gives each target Effect: Witch's Charge
+      with the witch as origin, then removes the witch's earlier charges, then posts the card. A charge without an
+      origin (dragged from the compendium) is removed only when the witch is the only world actor with the Witch's
+      Charge feat; otherwise it's left, and the GM is told in a whisper.
     - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result
-      (damage, and Effect: Extract Element with the impulse bypasses), plays each element's animation, and ends the
-      effects when the kinetic aura ends.
+      (damage, and Effect: Extract Element with the impulse bypasses: each resistance entry but a custom one, and
+      immunities), once per use (recorded on the card after the damage is dealt), plays each element's animation, and
+      ends the effects when the kinetic aura ends.
     - `protector-tree.js`: Timber Sentinel (wood kineticist) and the Protector Tree spell it casts. Using the impulse
       (or casting the spell, which pf2e 8.5 marks; otherwise the card's Place Tree button) has its user pick a square
       within 30 feet; the active GM makes the tree, a hazard actor (AC 10, 10 HP per rank: half the kineticist's level
-      rounded up, or the cast rank) in a "Protector Trees" folder, owned by the caster's players, and gives the caster
-      Effect: Protector Tree (1 minute). pf2e's `applyDamage` is wrapped (through libWrapper when it's active): damage
-      from a Strike that hits an ally of the caster (not the caster) adjacent to the tree goes to the tree first, and
-      the ally takes only what's left after the tree reaches 0 HP, keeping its damage types. At 0 HP the tree's token
+      rounded up, or the cast rank) in a "Protector Trees" folder, owned by the caster's players, at the caster's
+      elevation, once per card (the card's button stays disabled until it's placed), and gives the caster Effect:
+      Protector Tree (1 minute). pf2e's `applyDamage` is wrapped (through libWrapper when it's active): damage from a
+      Strike (told by its roll options, not its item) that hits an ally of the caster (not the caster) adjacent to the
+      tree (a Tiny creature measured from its whole square, as pf2e does) goes to the tree first, and the ally takes
+      only what's left after the tree reaches 0 HP, keeping its damage types, materials and its share of precision and
+      splash damage and of a critical hit's doubling. Splash damage only (also at half or double) isn't taken. At 0 HP
+      the tree's token
       and actor are removed; when the effect ends otherwise (duration, or the impulse used again), it stays as an
       ordinary tree, and deleting its token removes its actor.
     - `sepulchral-mask.js`: Sepulchral Mask (psychopomp sorcerer): puts Aura: Sepulchral Mask on the caster when the
@@ -319,7 +333,12 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   window) set up the session cases. Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as
   the running session sees it, and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their
   effects' Aura rules (their tokens' `auras` have `containsToken`); items have `update` (an effect's as pf2e's
-  `_preUpdate` fills a duration's expiry) and `delete`, which come back a tick later, as from the server.
+  `_preUpdate` fills a duration's expiry) and `delete`, and messages `update`, which come back a tick later, as from
+  the server. Scenes are in `game.scenes`, on a 100-pixel, 5-foot square grid. `addToken` makes a linked token, or with
+  `{ unlinked: true, deltaItems }` an unlinked one whose own actor is built only when `actor` is read (`builds` counts
+  them; until then `hasConstructedActor` is false and `_source.delta.items` has its items). Collections iterate their
+  values, as Foundry's do. `CONFIG.Actor.documentClass.prototype.applyDamage` can be wrapped, and records what reaches
+  it on the actor it's called on (`damageApplied`); `CONST` and `Folder.create` are Foundry's.
   `spellCard(world, spell, { actualCast })` is a spell's card, marked as cast where the pf2e version does, and
   `embeddedSpellCard(world, actor, spell)` a scroll or wand's spell with its card (the spell's UUID finds nothing, as in
   pf2e). Actors have pf2e's `alliance` and `isAllyOf`, and `game.pf2e.Predicate` tests plain roll options.
@@ -340,7 +359,11 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   once, scroll spells, values asked for, spell effects), `tests/spell-target-effects.test.js` the no-save Apply button
   (who gets each effect, choices, applying once), and `tests/recall-knowledge.test.js` Recall Knowledge from the check
   through the card's review to the whisper and the record (sending again, rerolls, attempts, Basic Action Macros' roll,
-  names on critical failures). Fix a hook-driven bug with a test here; export what a test needs from a script (a patch
+  names on critical failures), `tests/witch-charge.test.js` Designate Witch's Charge from the card through the GM's
+  work, `tests/extract-element.test.js` the bypass rules, results applied once and the cleanup when the aura ends,
+  `tests/parasitic-might.test.js` the save's result applied once, and `tests/protector-tree.test.js` what the tree takes
+  (Strikes, splash, Tiny creatures, the remainder), growing it once at the caster's elevation, and a Strike through the
+  wrapped `applyDamage`. Fix a hook-driven bug with a test here; export what a test needs from a script (a patch
   bump), or drive it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned

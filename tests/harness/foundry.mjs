@@ -55,6 +55,8 @@ const GLOBALS = [
     "ChatMessage",
     "Roll",
     "Actor",
+    "Folder",
+    "CONST",
     "fromUuid",
     "fromUuidSync",
     "document",
@@ -333,8 +335,10 @@ class FakeChatMessage {
         return getProperty(this.flags[scope] ?? {}, key);
     }
 
+    /** Foundry's: the change is made when the server answers, a tick later, then updateChatMessage in every session */
     async update(changes, options = {}) {
         const session = currentSession();
+        await new Promise((resolve) => setImmediate(resolve));
         this.updateSource(changes);
         this.world.callAll("updateChatMessage", () => [this, changes, structuredClone(options), session.user.id]);
         return this;
@@ -435,8 +439,12 @@ class FakeRoll {
 
 /* The world, and its sessions */
 
-/** Foundry's Collection: a Map with the array methods the scripts use */
+/** Foundry's Collection: a Map with the array methods the scripts use, which iterates its values, as Foundry's does */
 export class Collection extends Map {
+    *[Symbol.iterator]() {
+        yield* this.values();
+    }
+
     get contents() {
         return [...this.values()];
     }
@@ -546,6 +554,8 @@ class Session {
             },
             messages: world.messages,
             actors: world.actors,
+            scenes: world.scenes,
+            folders: world.folders,
             i18n: {
                 lang: "en",
                 localize: (key) => STRINGS[key] ?? key,
@@ -579,12 +589,42 @@ class Session {
             },
             Handlebars: { escapeExpression: escapeHtml },
             // A round is 6 seconds (pf2e's src/scripts/hooks/init.ts); a turn takes no time of its own (Foundry's default)
-            CONFIG: { PF2E: {}, ChatMessage: { documentClass: ChatMessage }, time: { roundTime: 6, turnTime: 0 } },
+            CONFIG: {
+                PF2E: {},
+                // pf2e's ActorPF2e, whose prototype a script can wrap. The stand-in's actors aren't made from it: a test
+                // calls its methods on one (`CONFIG.Actor.documentClass.prototype.applyDamage.call(actor, params)`),
+                // and `applyDamage` records what reached it in the actor's `damageApplied`.
+                Actor: {
+                    documentClass: class ActorPF2e {
+                        async applyDamage(params) {
+                            (this.damageApplied ??= []).push(params);
+                            return this;
+                        }
+                    },
+                },
+                ChatMessage: { documentClass: ChatMessage },
+                time: { roundTime: 6, turnTime: 0 },
+            },
             canvas: { ready: false, scene: null, tokens: { controlled: [], placeables: [] } },
             ChatMessage,
             Roll: FakeRoll,
             // Foundry's Actor class, for `instanceof`: the stand-in's actors (pf2e.mjs's makeActor)
             Actor: FakeActor,
+            /** Foundry's Folder.create: a folder in the world, with its data */
+            Folder: {
+                create: async (data) => {
+                    const folder = { id: randomId(), ...structuredClone(data) };
+                    world.folders.set(folder.id, folder);
+                    return folder;
+                },
+            },
+            /** Foundry's constants the scripts read (common/constants.mjs) */
+            CONST: {
+                DOCUMENT_OWNERSHIP_LEVELS: { INHERIT: -1, NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 },
+                TOKEN_DISPOSITIONS: { SECRET: -2, HOSTILE: -1, NEUTRAL: 0, FRIENDLY: 1 },
+                TOKEN_DISPLAY_MODES: { NONE: 0, CONTROL: 10, OWNER_HOVER: 20, HOVER: 30, OWNER: 40, ALWAYS: 50 },
+                GRID_TYPES: { GRIDLESS: 0, SQUARE: 1 },
+            },
             fromUuid: async (uuid) => world.fromUuidSync(uuid),
             fromUuidSync: (uuid) => world.fromUuidSync(uuid),
             document: this.dom.window.document,
@@ -649,6 +689,8 @@ class Session {
 
 class World {
     actors = new Collection();
+    scenes = new Collection();
+    folders = new Collection();
     documents = new Map();
     /** Spells of scrolls and wands, which pf2e makes in memory: by their ID, for the cards that carry them */
     embeddedItems = new Map();
@@ -700,10 +742,14 @@ class World {
         return this.sessions.filter((s) => s.connected);
     }
 
-    /** Add a document (an actor, an item, a token) so fromUuid finds it */
+    /**
+     * Add a document (an actor, an item, a token, a scene) so fromUuid finds it; a world actor (not a token's) and a
+     * scene are also in `game.actors` and `game.scenes`
+     */
     add(document) {
         this.documents.set(document.uuid, document);
-        if (document.documentName === "Actor") this.actors.set(document.id, document);
+        if (document.documentName === "Actor" && !document.isToken) this.actors.set(document.id, document);
+        if (document.documentName === "Scene") this.scenes.set(document.id, document);
         return document;
     }
 
