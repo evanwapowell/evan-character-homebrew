@@ -5,6 +5,7 @@
  * Intelligence modifier, which then become their charges.
  */
 
+import { findItems } from "./lib/items.js";
 import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -12,6 +13,7 @@ const MODULE_ID = "evan-character-homebrew";
 const hooks = featureHooks("witchCharge");
 /** IDs of the action in this module's compendium, pf2e's feats, and pf2e's Effect: Witch's Charge */
 const ACTION_ID = "f0BUHuiZLiODSsg3";
+const CHARGE_FEAT_ID = "52QyoGaysrfBOy5H";
 const COMMUNION_ID = "4IeAAmx2vZEHmRLX";
 const SENESCHAL_DEDICATION_ID = "HIu1miRRGvGvHevN";
 const CHARGE_EFFECT_UUID = "Compendium.pf2e.feat-effects.Item.ugeStF0Rj8phBPWL";
@@ -23,11 +25,9 @@ function isDesignateAction(message) {
     return uuids.some((uuid) => String(uuid ?? "").endsWith(`.${ACTION_ID}`));
 }
 
+/** Effect: Witch's Charge, as an item or an item's source (see lib/items.js) */
 function isChargeEffect(effect) {
-    return (
-        [effect.sourceId, effect.uuid].some((uuid) => uuid === CHARGE_EFFECT_UUID) ||
-        effect.name === "Effect: Witch's Charge"
-    );
+    return effect._stats?.compendiumSource === CHARGE_EFFECT_UUID || effect.name === "Effect: Witch's Charge";
 }
 
 function hasFeat(actor, id, name) {
@@ -40,16 +40,6 @@ function hasFeat(actor, id, name) {
 function getMaxCharges(witch) {
     const hasCommunion = hasFeat(witch, COMMUNION_ID, "Witch's Communion");
     return hasCommunion ? Math.max(1, witch.system.abilities?.int?.mod ?? 1) : 1;
-}
-
-/** Every actor in the world: world actors, and those of unlinked tokens on any scene */
-function* allActors() {
-    yield* game.actors;
-    for (const scene of game.scenes) {
-        for (const token of scene.tokens) {
-            if (!token.actorLink && token.actor) yield token.actor;
-        }
-    }
 }
 
 /** JB2A (free) energy strands from the witch to a charge, by the longest distance each file covers */
@@ -90,102 +80,93 @@ function playChargeAnimation(witch, targetTokens) {
 }
 
 /**
- * A document ID made from the request, the same in every session. A request can reach two sessions (a user with
- * Foundry open in two windows or on two devices): both create the card and effects with the same IDs, so the server
- * keeps one of each rather than two.
+ * Make the targets the witch's only charges: give each Effect: Witch's Charge with the witch as its origin, then remove
+ * the witch's earlier charges, then post the card. Run by the active GM, who can edit every creature, in one session.
+ *
+ * An effect dragged onto a creature from the compendium has no origin, so whose charge it is isn't known: it's removed
+ * when this witch is the only creature in the world with the Witch's Charge feat, and otherwise left, and the card says
+ * so.
  */
-function idFor(...parts) {
-    const text = parts.join("|");
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let id = "";
-    for (let seed = 0; id.length < 16; seed++) {
-        // FNV-1a, a different stream for each seed, 4 characters from each
-        let hash = (2166136261 ^ seed) >>> 0;
-        for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619) >>> 0;
-        for (let k = 0; k < 4; k++, hash = Math.floor(hash / chars.length)) id += chars[hash % chars.length];
-    }
-    return id;
-}
-
-/** Create a document with a set ID, unless it exists (or another session created it first) */
-async function createOnce(collection, create) {
-    try {
-        await create();
-    } catch (error) {
-        if (!collection()) console.error(`${MODULE_ID} | Witch's Charge:`, error);
-    }
-}
-
-/** Requests this session is designating or has designated, so a request sent twice is handled once */
-const handled = new Set();
-
-/** Make the targets the witch's only charges. Run by a GM, who can edit every creature. */
-async function designateCharges(witchUuid, targetTokenUuids, requestId = foundry.utils.randomID()) {
-    const cardId = idFor("card", requestId);
-    if (handled.has(requestId) || game.messages.has(cardId)) return;
-    handled.add(requestId);
-
+async function designateCharges(witchUuid, targetTokenUuids) {
     const witch = await fromUuid(witchUuid);
     const targetTokens = (await Promise.all(targetTokenUuids.map((uuid) => fromUuid(uuid)))).filter((t) => t?.actor);
-    if (!witch || targetTokens.length === 0) return;
+    if (!witch) throw new Error("the witch is gone");
+    if (targetTokens.length === 0) throw new Error("the targets are gone");
     const effect = await fromUuid(CHARGE_EFFECT_UUID);
-    if (!effect) return ui.notifications.error("Witch's Charge: pf2e's Effect: Witch's Charge was not found.");
-    if (game.messages.has(cardId)) return;
+    if (!effect) throw new Error("pf2e's Effect: Witch's Charge was not found");
 
-    // The card first, so another session handling the same request sees it and stops
-    const esc = Handlebars.escapeExpression;
-    const names = targetTokens.map((t) => esc(t.name));
-    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
-    const text = `${esc(witch.name)} designates ${list} as their ${names.length > 1 ? "charges" : "charge"}.`;
-    await createOnce(
-        () => game.messages.get(cardId),
-        () =>
-            ChatMessage.create(
-                {
-                    _id: cardId,
-                    speaker: ChatMessage.getSpeaker({ actor: witch }),
-                    content: `<p><strong>Witch's Charge</strong> ${text}</p>`,
-                },
-                { keepId: true },
-            ),
-    );
-
-    // Remove the witch's charge from everyone, including effects dragged on without an origin, but not this request's
-    const effectIds = new Set(targetTokens.map((t) => idFor("effect", requestId, t.uuid)));
-    for (const actor of allActors()) {
-        const ids = actor.itemTypes.effect
-            .filter((e) => isChargeEffect(e) && [witch.uuid, undefined, null].includes(e.system.context?.origin?.actor))
-            .filter((e) => !effectIds.has(e.id))
-            .map((e) => e.id);
-        if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
-    }
-
+    const designated = [];
+    const failed = [];
+    const created = new Set();
     for (const targetToken of targetTokens) {
-        const actor = targetToken.actor;
-        const id = idFor("effect", requestId, targetToken.uuid);
-        if (actor.items.has(id)) continue;
         const source = effect.toObject();
-        source._id = id;
-        source._stats.compendiumSource = CHARGE_EFFECT_UUID;
+        delete source._id;
+        source._stats = { ...source._stats, compendiumSource: CHARGE_EFFECT_UUID };
         const witchToken = witch.getActiveTokens(true, true).find((t) => t.parent === targetToken.parent);
         source.system.context = {
             origin: { actor: witch.uuid, token: witchToken?.uuid ?? null, item: null, spellcasting: null },
             target: { actor: targetToken.actor.uuid, token: targetToken.uuid },
             roll: null,
         };
-        await createOnce(
-            () => actor.items.get(id),
-            () => actor.createEmbeddedDocuments("Item", [source], { keepId: true }),
-        );
+        try {
+            const [item] = (await targetToken.actor.createEmbeddedDocuments("Item", [source])) ?? [];
+            if (!item) throw new Error("it wasn't created");
+            created.add(item.uuid);
+            designated.push(targetToken);
+        } catch (error) {
+            console.error(`${MODULE_ID} | Witch's Charge:`, error);
+            failed.push(targetToken);
+        }
     }
+
+    const esc = Handlebars.escapeExpression;
+    const listOf = (tokens) => {
+        const names = tokens.map((t) => esc(t.name));
+        return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+    };
+    if (designated.length === 0) throw new Error(`no charge could be given to ${listOf(failed)}`);
+
+    // The witch's earlier charges, and those without an origin when no other creature could have given them
+    const otherWitch = game.actors.some((a) => a.uuid !== witch.uuid && hasFeat(a, CHARGE_FEAT_ID, "Witch's Charge"));
+    const left = [];
+    const isOldCharge = (e) => {
+        if (e.type !== "effect" || !isChargeEffect(e)) return false;
+        const origin = e.system?.context?.origin?.actor;
+        if (origin) return origin === witch.uuid;
+        return !otherWitch;
+    };
+    for (const { actor, items } of findItems(isOldCharge)) {
+        const ids = items.filter((e) => !created.has(e.uuid)).map((e) => e.id);
+        if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
+    }
+    if (otherWitch) {
+        const isOriginless = (e) => e.type === "effect" && isChargeEffect(e) && !e.system?.context?.origin?.actor;
+        for (const { actor } of findItems(isOriginless)) left.push({ name: actor.name });
+    }
+
+    const text = `${esc(witch.name)} designates ${listOf(designated)} as their ${designated.length > 1 ? "charges" : "charge"}.`;
+    await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: witch }),
+        content: `<p><strong>Witch's Charge</strong> ${text}</p>`,
+    });
+    // To the GM only: it names creatures with another witch's charge, which may be the party's enemies
+    if (left.length > 0) {
+        await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor: witch }),
+            whisper: ChatMessage.getWhisperRecipients("GM").map((u) => u.id),
+            content:
+                `<p><strong>Witch's Charge</strong> Effect: Witch's Charge without an origin is still on ` +
+                `${listOf(left)}: another creature has the Witch's Charge feat, so it may be theirs. If it was ` +
+                `${esc(witch.name)}'s, remove it.</p>`,
+        });
+    }
+    if (failed.length > 0) throw new Error(`no charge could be given to ${listOf(failed)}`);
+    return { designated: designated.map((t) => t.uuid) };
 }
 
-/**
- * Designate the user's targeted creatures as the witch's charges. `requestId` is the posted action's message ID, the
- * same in every window the user has open, so the GM designates once however many windows ask.
- */
+/** Designate the user's targeted creatures as the witch's charges */
 function requestCharge(witch, requestId = foundry.utils.randomID()) {
-    const targetTokens = [...game.user.targets].map((t) => t.document);
+    const targetTokens = [...game.user.targets].map((t) => t.document).filter((t) => t?.actor);
     const maxCharges = getMaxCharges(witch);
     if (targetTokens.length === 0 || targetTokens.length > maxCharges) {
         const count = maxCharges === 1 ? "exactly one creature" : `up to ${maxCharges} creatures (Witch's Communion)`;
@@ -207,7 +188,8 @@ function requestCharge(witch, requestId = foundry.utils.randomID()) {
     }
     // Played here, where the tokens are on screen; Sequencer shows it to everyone
     playChargeAnimation(witch, targetTokens);
-    // Players can't edit other creatures, so the active GM applies and removes the effects
+    // Players can't edit other creatures, so the active GM applies and removes the effects. (`requestId` is for a GM
+    // session on a version before 1.26.19, which used it to designate once.)
     const data = { witchUuid: witch.uuid, targetTokenUuids, requestId };
     return askGM("designateCharge", data, { title: "Witch's Charge", task: "designate the charge" });
 }
@@ -231,4 +213,6 @@ Hooks.once("init", () => {
     };
 });
 
-onGMRequest("designateCharge", (data) => designateCharges(data.witchUuid, data.targetTokenUuids, data.requestId));
+onGMRequest("designateCharge", (data) => designateCharges(data.witchUuid, data.targetTokenUuids));
+
+export { designateCharges, requestCharge };

@@ -8,6 +8,7 @@
  */
 
 import { isSpellCast } from "./lib/casting.js";
+import { serially } from "./lib/serially.js";
 import { askGM, canAnimate, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -246,8 +247,15 @@ async function applySickened(target) {
     return "applied";
 }
 
-/** Apply a save rolled from the card, or a reroll of it. Run by a GM, who can edit the card and every creature. */
-async function resolveSave({ cardId, outcome }) {
+/**
+ * Apply a save rolled from the card, or a reroll of it. Run by a GM, who can edit the card and every creature. Saves
+ * for one card are applied one after the other, so two failures arriving together make the creature sickened once.
+ */
+function resolveSave(data) {
+    return serially(data.cardId, () => applySave(data));
+}
+
+async function applySave({ cardId, outcome }) {
     const card = game.messages.get(cardId);
     const record = card?.flags[MODULE_ID]?.parasiticMight;
     const target = record?.target ? fromUuidSync(record.target)?.actor : null;
@@ -378,3 +386,5 @@ Hooks.once("init", () => {
 });
 
 onGMRequest("parasiticMight", (data) => resolveSave(data));
+
+export { resolveSave };

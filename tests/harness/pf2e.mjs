@@ -26,7 +26,8 @@ export const pf2eItemUuid = (pack, id) => `Compendium.pf2e.${pack}.Item.${id}`;
  * "opposition" for an NPC, unless given) with `isAllyOf`, and no tokens on a scene. Added to the world so
  * messages and fromUuid find it. `isOwner` is true for a GM and the users in `owners` (as the session running sees it),
  * unless a test sets it. `auras` are those of its effects' Aura rules (src/module/rules/rule-element/aura.ts), a rule
- * counting when its predicate's roll options are the ones its effect's ChoiceSet rules chose.
+ * counting when its predicate's roll options are the ones its effect's ChoiceSet rules chose. With `token`, it's that
+ * unlinked token's own actor (addToken makes them), not a world actor.
  */
 export function makeActor(
     world,
@@ -37,6 +38,7 @@ export function makeActor(
         items = [],
         owners = [],
         alliance = type === "npc" ? "opposition" : "party",
+        token = null,
     } = {},
 ) {
     let isOwner = null;
@@ -44,7 +46,9 @@ export function makeActor(
         documentName: "Actor",
         id,
         _id: id,
-        uuid: `Actor.${id}`,
+        uuid: token ? `${token.uuid}.Actor.${id}` : `Actor.${id}`,
+        isToken: !!token,
+        token,
         name,
         type,
         flags: {},
@@ -58,9 +62,16 @@ export function makeActor(
         isOfType(...types) {
             return types.includes(type) || (types.includes("creature") && type !== "hazard" && type !== "loot");
         },
-        /** Its tokens on scenes, as the TokenDocuments `getActiveTokens(true, true)` returns */
+        /**
+         * Its tokens on scenes, as the TokenDocuments `getActiveTokens(true, true)` returns: a world actor's linked
+         * tokens, or an unlinked token's own (other unlinked tokens' actors aren't built to look)
+         */
         getActiveTokens: () =>
-            [...world.documents.values()].filter((d) => d.documentName === "Token" && d.actor === actor),
+            token
+                ? [token]
+                : [...world.documents.values()].filter(
+                      (d) => d.documentName === "Token" && d.actorLink && d.actorId === actor.id,
+                  ),
         getSelfRollOptions: (prefix = "self") => [`${prefix}:type:${type}`],
         /** Its roll options (ActorPF2e#getRollOptions), here only its type */
         getRollOptions: () => [`self:type:${type}`],
@@ -231,9 +242,17 @@ export function addSkills(actor, skills) {
     return actor.skills;
 }
 
-/** A scene, with its tokens */
+/** A scene, with its tokens, on a square grid of 100 pixels and 5 feet a square */
 export function makeScene(world, { id = makeId("scene"), name = "Scene" } = {}) {
-    return world.add({ documentName: "Scene", id, _id: id, uuid: `Scene.${id}`, name, tokens: [] });
+    return world.add({
+        documentName: "Scene",
+        id,
+        _id: id,
+        uuid: `Scene.${id}`,
+        name,
+        tokens: [],
+        grid: { size: 100, distance: 5, type: 1 },
+    });
 }
 
 /**
@@ -241,8 +260,19 @@ export function makeScene(world, { id = makeId("scene"), name = "Scene" } = {}) 
  * TokenPF2e#distanceTo, in feet, here 5 feet a square on a grid with no diagonals rule). Its `auras` are its actor's,
  * each with `containsToken` (TokenAura in src/module/scene/token-document/aura/index.ts, here by distance alone). `x`
  * and `y` are in squares, and can be set to move it.
+ *
+ * A token is linked to its actor unless `unlinked`: then it has an actor of its own, a copy of the given one with its
+ * items and `deltaItems` (addItem's data), built only when `actor` is first read, as Foundry builds a synthetic actor.
+ * Until then pf2e's `hasConstructedActor` is false and its items are in its source (`_source.delta.items`); `builds`
+ * counts the actors built.
  */
-export function addToken(world, scene, actor, { id = makeId("token"), x = 0, y = 0, hidden = false } = {}) {
+export function addToken(
+    world,
+    scene,
+    actor,
+    { id = makeId("token"), x = 0, y = 0, hidden = false, unlinked = false, deltaItems = [] } = {},
+) {
+    let synthetic = null;
     const token = {
         documentName: "Token",
         id,
@@ -250,10 +280,56 @@ export function addToken(world, scene, actor, { id = makeId("token"), x = 0, y =
         uuid: `${scene.uuid}.Token.${id}`,
         name: actor.name,
         parent: scene,
-        actor,
+        actorId: actor.id,
+        actorLink: !unlinked,
+        builds: 0,
         hidden,
         x,
         y,
+        width: 1,
+        height: 1,
+        elevation: 0,
+        get actor() {
+            if (!unlinked) return actor;
+            if (!synthetic) {
+                token.builds += 1;
+                synthetic = makeActor(world, {
+                    id: actor.id,
+                    name: actor.name,
+                    type: actor.type,
+                    alliance: actor.alliance,
+                    token,
+                    items: [...actor.items.values()].map((item) => ({
+                        name: item.name,
+                        type: item.type,
+                        slug: item.slug,
+                        source: item._stats.compendiumSource,
+                        system: item.system,
+                        flags: item.flags,
+                    })),
+                });
+                for (const data of deltaItems) addItem(world, synthetic, data);
+            }
+            return synthetic;
+        },
+        /** pf2e's TokenDocumentPF2e#hasConstructedActor */
+        get hasConstructedActor() {
+            return !unlinked || !!synthetic;
+        },
+        /** Its source's actor delta, with the items it adds (before its actor is built) */
+        get _source() {
+            const items = synthetic
+                ? []
+                : deltaItems.map((data) => ({
+                      _id: data.id ?? null,
+                      name: data.name,
+                      type: data.type,
+                      system: { slug: data.slug ?? null, ...structuredClone(data.system ?? {}) },
+                      flags: structuredClone(data.flags ?? {}),
+                      _stats: { compendiumSource: data.source ?? null },
+                  }));
+            return { actorLink: !unlinked, actorId: actor.id, delta: unlinked ? { items } : null };
+        },
         get auras() {
             const auras = new Map();
             for (const [slug, data] of actor.auras ?? []) {

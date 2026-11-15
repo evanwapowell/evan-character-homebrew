@@ -302,7 +302,8 @@ for (const version of ["v13", "v14"]) {
             await settle(world, () => !!release);
             assert.equal(button.disabled, true);
             player.run(() => release());
-            await settle(world, () => effectsOn(actors.kyra, EFFECTS.anthem.name).length > 0);
+            // The button is enabled again once the card's update comes back from the server
+            await settle(world, () => effectsOn(actors.kyra, EFFECTS.anthem.name).length > 0 && !button.disabled);
             assert.equal(dialogs.length, 1);
             assert.equal(effectsOn(actors.kyra, EFFECTS.anthem.name).length, 1);
             assert.equal(button.disabled, false);
