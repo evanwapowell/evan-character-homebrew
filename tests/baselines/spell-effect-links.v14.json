@@ -422,7 +422,8 @@
     "Darkvision": {
         "listed": ["Spell Effect: Darkvision", "Spell Effect: Darkvision (24 hours)"],
         "defaults": {
-            "2": ["Spell Effect: Darkvision"]
+            "2": ["Spell Effect: Darkvision"],
+            "5": ["Spell Effect: Darkvision (24 hours)"]
         }
     },
     "Death Ward": {

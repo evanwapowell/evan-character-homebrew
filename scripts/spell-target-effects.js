@@ -5,10 +5,13 @@
  * are applied as if dragged from the card: at the rank it was cast, with the caster as their origin, so the Sustain
  * feature keeps sustained ones going. A save's effects are applied by the spell conditions' Apply button instead.
  *
- * Players can't edit creatures they don't own, so the active GM applies effects to those.
+ * Players can't edit creatures they don't own, so the active GM applies effects to those. pf2e asks the user creating
+ * an effect to make its choices (Resist Energy's damage type), so the caster makes them before the effects are handed
+ * to the GM. Once applied, the card is marked: its button says so, and nothing is checked when it's used again.
  */
 
-import { defaultEffects, parseLinks } from "./lib/spell-effect-links.js";
+import { defaultEffects, parseHeightened, parseLinks } from "./lib/spell-effect-links.js";
+import { buildSpellEffectSource, getSceneToken, isAuraEffect } from "./lib/spell-effect-source.js";
 import { askGM, featureHooks, onGMRequest, warnGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -17,10 +20,6 @@ const TOOLBELT_ID = "pf2e-toolbelt";
 const hooks = featureHooks("spellTargetEffects");
 
 const log = (error) => console.error(`${MODULE_ID} | Spell effects for targets`, error);
-
-function getSceneToken(actor) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
-}
 
 /** The spell of a card from casting it (or Sustaining it), not of a roll made from it, when it has no save */
 function getCastSpell(message) {
@@ -39,9 +38,10 @@ function getLinkedEffects(spell) {
             return [];
         }
         if (doc?.type !== "effect") return [];
-        return [{ ...link, uuid: doc.uuid ?? link.uuid, name: doc.name, img: doc.img }];
+        return [{ ...link, uuid: doc.uuid ?? link.uuid, name: doc.name, img: doc.img, aura: isAuraEffect(doc) }];
     });
-    const defaults = new Set(defaultEffects(effects, spell.rank));
+    const heightened = parseHeightened(spell.system.description.value);
+    const defaults = new Set(defaultEffects(effects, spell.rank, { heightened }));
     // Effects linked in the text, like the cover Manifest Will's aura gives, are the spell's only when it has no others
     const listed = effects.some((e) => e.standalone) ? effects.filter((e) => e.standalone) : effects;
     return listed.map((effect) => ({ ...effect, selected: defaults.has(effect.uuid) }));
@@ -73,14 +73,48 @@ function isSelfSpell(spell) {
     return !spell.system.target?.value?.trim() && !spell.system.area;
 }
 
-/** The creatures to offer, the caster last, each with which effects it gets by default */
+/**
+ * The caster's allies in the spell's emanation, like Courageous Anthem's: their tokens on the caster's scene within its
+ * radius (pf2e's token distance), by pf2e's alliances. Null when the spell's area isn't an emanation, or it can't be
+ * measured (the caster has no token on the scene being viewed).
+ */
+function getEmanationTokens(spell, casterToken) {
+    const area = spell.system.area;
+    const radius = Number(area?.value);
+    if (area?.type !== "emanation" || !radius || !casterToken?.object) return null;
+    const caster = spell.actor;
+    const scene = casterToken.parent;
+    const tokens = [];
+    for (const token of scene?.tokens ?? []) {
+        const actor = token.actor;
+        if (!actor || !token.object || tokens.some((t) => t.actor === actor)) continue;
+        if (token === casterToken || actor === caster) continue;
+        if (!actor.isAllyOf?.(caster)) continue;
+        if (casterToken.object.distanceTo(token.object) <= radius) tokens.push(token);
+    }
+    return tokens;
+}
+
+/**
+ * The creatures to offer, the caster last, each with which effects it gets by default: an aura or a spell on the
+ * caster alone goes on the caster; an emanation's effect on the caster and their allies in it; any other on the
+ * targets, or the caster when there are none. Once the card's effects were applied, nothing is checked.
+ */
 function getCandidates(message, spell, effects) {
     const caster = spell.actor;
     const casterToken = message.token ?? getSceneToken(caster);
     const targets = getTargetTokens(message);
-    const creatures = targets.map((token) => ({ actor: token.actor, token, target: true }));
+    const creatures = targets.map((token) => ({ actor: token.actor, token, target: true, inArea: false }));
+    const emanation = getEmanationTokens(spell, casterToken);
+    for (const token of emanation ?? []) {
+        const existing = creatures.find((c) => c.actor === token.actor);
+        if (existing) existing.inArea = true;
+        else creatures.push({ actor: token.actor, token, target: false, inArea: true });
+    }
     if (!creatures.some((c) => c.actor === caster))
-        creatures.push({ actor: caster, token: casterToken, target: false });
+        creatures.push({ actor: caster, token: casterToken, target: false, inArea: true });
+    else creatures.find((c) => c.actor === caster).inArea = true;
+    const applied = isApplied(message);
 
     // A Sustain doesn't apply again what the spell already has on any creature, like an aura moved to a charge
     const sustain = !!message.flags[MODULE_ID]?.sustain;
@@ -91,16 +125,17 @@ function getCandidates(message, spell, effects) {
         ...creature,
         has: effects.map((effect) => findExisting(creature.actor, effect.uuid, caster).length > 0),
         checked: effects.map((effect) => {
-            if (!effect.selected || (sustain && anywhere(effect))) return false;
+            if (applied || !effect.selected || (sustain && anywhere(effect))) return false;
             if (findExisting(creature.actor, effect.uuid, caster).length > 0) return false;
-            const onCaster = /^Aura:/i.test(effect.name) || isSelfSpell(spell) || targets.length === 0;
-            return onCaster ? creature.actor === caster : creature.target;
+            if (effect.aura || isSelfSpell(spell)) return creature.actor === caster;
+            if (emanation) return creature.inArea;
+            return targets.length === 0 ? creature.actor === caster : creature.target;
         }),
     }));
 }
 
 /** Let the caster check which creatures get each effect. Returns [{ effect, actors }], or null if cancelled. */
-async function confirmEffects(spell, effects, creatures) {
+async function confirmEffects(spell, effects, creatures, { applied = false } = {}) {
     const esc = Handlebars.escapeExpression;
     const caster = spell.actor;
     const sections = effects.map((effect, e) => {
@@ -120,8 +155,12 @@ async function confirmEffects(spell, effects, creatures) {
         const heading = `<div style="display: flex; gap: 0.5em; align-items: center">${img}<strong>${esc(effect.name)}</strong></div>`;
         return [heading, ...boxes].join("");
     });
+    const note = applied
+        ? `<p><em>These effects were already applied from this card. Check what to apply again.</em></p>`
+        : "";
     const content = [
-        ...sections,
+        note + sections[0],
+        ...sections.slice(1),
         `<p style="font-size: var(--font-size-12)">Target creatures before clicking Apply to list them here.</p>`,
     ].join("<hr>");
 
@@ -147,42 +186,64 @@ async function confirmEffects(spell, effects, creatures) {
     });
 }
 
-/** The effect as pf2e makes it when it's dragged from the spell's card onto the creature */
-async function buildSource(effectUuid, { message, spell, target }) {
-    const effect = await fromUuid(effectUuid);
-    if (effect?.type !== "effect") return null;
-    const caster = spell.actor;
-    const casterToken = message.token ?? getSceneToken(caster);
-    const source = effect.toObject();
-    delete source._id;
-    source._stats = { ...source._stats, compendiumSource: effectUuid };
-    source.system.level = { ...source.system.level, value: spell.rank };
-    const spellcasting = spell.spellcasting
-        ? {
-              attribute: {
-                  type: spell.attribute,
-                  mod: spell.spellcasting.statistic?.attributeModifier?.value ?? 0,
-              },
-              tradition: spell.spellcasting.tradition,
-          }
-        : null;
-    source.system.context = {
-        origin: {
-            actor: caster.uuid,
-            token: casterToken?.uuid ?? null,
-            item: spell.uuid,
-            spellcasting,
-            rollOptions: message.flags.pf2e?.origin?.rollOptions ?? spell.getOriginData?.().rollOptions ?? [],
-        },
-        target: { actor: target.uuid, token: getSceneToken(target)?.uuid ?? null },
-        roll: null,
+/** Whether a predicate has a statement pf2e fills in from the item, like "{item|flags.pf2e.rulesSelections.x}" */
+function isInjected(value) {
+    if (typeof value === "string") return value.includes("{");
+    if (Array.isArray(value)) return value.some(isInjected);
+    return !!value && typeof value === "object" && Object.values(value).some(isInjected);
+}
+
+/**
+ * Make the choices pf2e would ask for when the effect is created (ChoiceSet rules with a list of choices, like Resist
+ * Energy's damage type), on this client, before the effect is handed to the GM: pf2e asks whoever creates it, and takes
+ * a selection already on the rule without asking (ChoiceSetRuleElement#preCreate in
+ * src/module/rules/rule-element/choice-set/rule-element.ts, the same in pf2e 7.x and 8.x). Choices drawn from items or
+ * settings are left for pf2e to ask. Returns false when the user cancels.
+ */
+async function makeChoices(source, actor) {
+    const esc = Handlebars.escapeExpression;
+    const options = new Set(actor.getRollOptions?.() ?? []);
+    const passes = (predicate) => {
+        if (!Array.isArray(predicate) || predicate.length === 0) return true;
+        // A predicate drawn from the item ("{item|…}") is pf2e's to resolve
+        if (isInjected(predicate)) return true;
+        const Predicate = game.pf2e?.Predicate;
+        return Predicate ? new Predicate(foundry.utils.deepClone(predicate)).test(options) : true;
     };
-    // pf2e gives an effect without traits the spell's traits that effects can have
-    if (!source.system.traits?.value?.length) {
-        const traits = spell.system.traits.value.filter((t) => t in CONFIG.PF2E.effectTraits);
-        source.system.traits = { ...source.system.traits, value: traits };
+    for (const rule of source.system.rules ?? []) {
+        if (rule?.key !== "ChoiceSet" || !Array.isArray(rule.choices) || rule.selection != null) continue;
+        if (Array.isArray(rule.predicate) && rule.predicate.length > 0) continue;
+        const choices = rule.choices.filter((c) => c && "value" in c && passes(c.predicate));
+        if (choices.length === 0) continue;
+        if (choices.length === 1) {
+            rule.selection = choices[0].value;
+            continue;
+        }
+        const prompt = rule.prompt ? game.i18n.localize(rule.prompt) : "Choose one:";
+        const rows = choices.map(
+            (choice, i) =>
+                `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">` +
+                `<input type="radio" name="choice" value="${i}" ${i === 0 ? "checked" : ""}>` +
+                `${esc(game.i18n.localize(String(choice.label ?? choice.value)))}</label>`,
+        );
+        const picked = await foundry.applications.api.DialogV2.wait({
+            window: { title: `${source.name}: ${actor.name}` },
+            content: `<p>${esc(prompt)}</p>${rows.join("")}`,
+            buttons: [
+                {
+                    action: "ok",
+                    label: "Choose",
+                    default: true,
+                    callback: (_event, button) => Number(button.form.elements.choice.value),
+                },
+                { action: "cancel", label: "Cancel" },
+            ],
+            rejectClose: false,
+        });
+        if (typeof picked !== "number" || !choices[picked]) return false;
+        rule.selection = foundry.utils.deepClone(choices[picked].value);
     }
-    return source;
+    return true;
 }
 
 /** Replace the creature's copies of these effects from the caster with the new ones */
@@ -195,11 +256,20 @@ async function applyToActor(actor, sources, deleteIds) {
 
 async function applyChoices(message, spell, choices) {
     const caster = spell.actor;
+    const casterToken = message.token ?? getSceneToken(caster);
+    const rollOptions = message.flags.pf2e?.origin?.rollOptions ?? null;
     const byActor = new Map();
     for (const { effect, actors } of choices) {
         for (const actor of actors) {
-            const source = await buildSource(effect.uuid, { message, spell, target: actor });
+            const source = await buildSpellEffectSource(effect.uuid, {
+                spell,
+                target: actor,
+                casterToken,
+                rollOptions,
+            });
             if (!source) continue;
+            // The GM's client creates it on a creature this user doesn't own, so the choices are made here
+            if (!actor.isOwner && !(await makeChoices(source, actor))) continue;
             if (!byActor.has(actor)) byActor.set(actor, { sources: [], deleteIds: [], names: [] });
             const entry = byActor.get(actor);
             entry.sources.push(source);
@@ -207,7 +277,7 @@ async function applyChoices(message, spell, choices) {
             entry.names.push(effect.name);
         }
     }
-    if (byActor.size === 0) return;
+    if (byActor.size === 0) return false;
 
     const applied = [];
     const asked = [];
@@ -228,7 +298,7 @@ async function applyChoices(message, spell, choices) {
         const names = answers.filter((a) => !a.answer.ok).map((a) => a.actor.name);
         warnGM(failed.answer, spell.name, `apply its effects to ${names.join(", ")}`);
     }
-    if (applied.length === 0) return;
+    if (applied.length === 0) return false;
 
     // One line per set of effects, listing the creatures that got it
     const esc = Handlebars.escapeExpression;
@@ -244,6 +314,23 @@ async function applyChoices(message, spell, choices) {
         )
         .join("");
     await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: caster, token: message.token }), content });
+    return true;
+}
+
+/** Whether the card's effects were applied */
+function isApplied(message) {
+    return !!message.flags[MODULE_ID]?.spellTargetEffects?.applied;
+}
+
+/** Mark the card as applied: by this user when they can update it (its author, or a GM), otherwise by the GM */
+async function markApplied(message) {
+    if (isApplied(message)) return;
+    if (message.canUserModify(game.user, "update")) {
+        await message.update({ [`flags.${MODULE_ID}.spellTargetEffects.applied`]: true });
+        return;
+    }
+    const answer = await askGM("spellTargetEffectsApplied", { messageId: message.id });
+    if (!answer.ok) log(new Error(`the card wasn't marked as applied (${answer.reason})`));
 }
 
 async function onApply(message) {
@@ -252,10 +339,22 @@ async function onApply(message) {
     if (!spell) return;
     const effects = getLinkedEffects(spell);
     if (effects.length === 0) return;
+    // Auras by their rules, which a compendium's index doesn't have
+    for (const effect of effects) effect.aura = isAuraEffect(await fromUuid(effect.uuid)) || effect.aura;
+    const wasApplied = isApplied(message);
     const creatures = getCandidates(message, spell, effects);
-    const choices = await confirmEffects(spell, effects, creatures);
+    const choices = await confirmEffects(spell, effects, creatures, { applied: wasApplied });
     if (!Array.isArray(choices)) return;
-    await applyChoices(message, spell, choices);
+    // Someone else applied them while the dialog was open
+    if (!wasApplied && isApplied(message)) {
+        const again = await foundry.applications.api.DialogV2.confirm({
+            window: { title: `${spell.name}: Apply Spell Effects` },
+            content: "<p>These effects were applied from this card while the dialog was open. Apply them again?</p>",
+            rejectClose: false,
+        });
+        if (!again) return;
+    }
+    if (await applyChoices(message, spell, choices)) await markApplied(message);
 }
 
 function addApplyButton(message, html) {
@@ -269,15 +368,24 @@ function addApplyButton(message, html) {
     const button = document.createElement("button");
     button.type = "button";
     button.style.marginTop = "0.25em";
-    button.textContent = selected.length > 0 ? `Apply: ${selected.join(", ")}` : "Apply Spell Effects";
-    button.dataset.tooltip = "Apply the spell's effects to your targets, or to you";
+    const applied = isApplied(message);
+    const label = selected.length > 0 ? `: ${selected.join(", ")}` : " Spell Effects";
+    button.textContent = `${applied ? "Applied" : "Apply"}${label}`;
+    button.dataset.tooltip = applied
+        ? "Already applied from this card: apply the spell's effects again"
+        : "Apply the spell's effects to your targets, or to you";
     button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        onApply(message).catch((error) => {
-            log(error);
-            ui.notifications.error(`Applying ${spell.name}'s effects failed: ${error.message}`);
-        });
+        // One dialog at a time, so a double-click doesn't apply twice
+        if (button.disabled) return;
+        button.disabled = true;
+        onApply(message)
+            .catch((error) => {
+                log(error);
+                ui.notifications.error(`Applying ${spell.name}'s effects failed: ${error.message}`);
+            })
+            .finally(() => (button.disabled = false));
     });
     content.append(button);
 }
@@ -288,6 +396,13 @@ hooks.on("renderChatMessageHTML", (message, html) => {
     } catch (error) {
         log(error);
     }
+});
+
+onGMRequest("spellTargetEffectsApplied", async ({ messageId }) => {
+    const message = game.messages.get(messageId);
+    if (!message) throw new Error("the card is gone");
+    if (!getCastSpell(message)) throw new Error("the card isn't a spell's");
+    await message.update({ [`flags.${MODULE_ID}.spellTargetEffects.applied`]: true });
 });
 
 onGMRequest("applySpellTargetEffects", async (data) => {

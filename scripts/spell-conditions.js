@@ -3,11 +3,17 @@
  * and offer to apply what it says: linked spell effects, and conditions with their values and timers. A condition
  * that lasts as long as another ("Slowed 1 as long as it's sickened") is granted by that condition, so pf2e shows it
  * as linked and removes it along with it, as it does for dying and unconscious.
+ *
+ * What's applied from a message is recorded on it (the creatures it was applied to), so its button says so and the
+ * dialog checks nothing for them when it's used again.
  */
 
 import { getGrantedConditions, OUTCOMES, parseSpellOutcome, preselectDegree } from "./lib/spell-condition-parser.js";
+import { buildSpellEffectSource, getSceneToken } from "./lib/spell-effect-source.js";
+import { askGM, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
+const log = (error) => console.error(`${MODULE_ID} | Spell conditions`, error);
 const UNIT_LABELS = {
     rounds: ["round", "rounds"],
     minutes: ["minute", "minutes"],
@@ -23,6 +29,8 @@ function getConditions() {
             name: condition.name,
             id: condition.id,
             uuid: condition.uuid,
+            // Conditions with a value, like drained or frightened
+            valued: !!condition.system?.value?.isValued,
         });
     }
     return [...conditions.values()];
@@ -82,11 +90,31 @@ function ownTurnRounds(duration, actor) {
     return combat.turns.slice(now, turn).every((c) => c.actor) ? 0 : 1;
 }
 
+/**
+ * The spell of a save against a spell cast from a scroll or wand. pf2e makes such a spell from the consumable when
+ * it's cast, with an ID that isn't on the actor, so the save's message (whose origin is that spell) can't find it
+ * (ChatMessagePF2e#item in src/module/chat-message/document.ts). The cast's card has the spell (`flags.pf2e.casting.
+ * embeddedSpell`): the latest card whose origin is the save's.
+ */
+function findEmbeddedSpell(message) {
+    const origin = message.flags.pf2e?.origin;
+    if (origin?.type !== "spell" || typeof origin.uuid !== "string") return null;
+    const messages = game.messages.contents;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const card = messages[i];
+        if (card === message || !card.flags.pf2e?.casting?.embeddedSpell) continue;
+        if (card.flags.pf2e.origin?.uuid !== origin.uuid) continue;
+        const spell = card.item;
+        if (spell?.type === "spell") return spell;
+    }
+    return null;
+}
+
 /** The save message's spell, outcome, and the creature that rolled it, if it's a save against a spell */
 function getSave(message) {
     const context = message.flags.pf2e?.context;
     if (context?.type !== "saving-throw" || !OUTCOMES.includes(context.outcome)) return null;
-    const spell = message.item;
+    const spell = message.item ?? findEmbeddedSpell(message);
     const target = message.actor;
     if (spell?.type !== "spell" || !target) return null;
     // Another save rolled from the spell's card, like the Fortitude save a witch's patron adds to hexes, isn't this one
@@ -94,7 +122,19 @@ function getSave(message) {
     const domains = context.domains ?? [];
     if (statistic && domains.length > 0 && !domains.includes(statistic)) return null;
     const dc = Number(context.dc?.value) || null;
-    return { spell, target, outcome: context.outcome, casterUuid: context.origin?.actor ?? spell.actor?.uuid, dc };
+    const roll = message.rolls?.at(-1);
+    return {
+        spell,
+        target,
+        outcome: context.outcome,
+        casterUuid: context.origin?.actor ?? spell.actor?.uuid,
+        dc,
+        rollOptions: message.flags.pf2e?.origin?.rollOptions ?? null,
+        // As pf2e's drag from the message has it: 0 a critical failure to 3 a critical success
+        roll: roll
+            ? { total: roll.total, degreeOfSuccess: roll.degreeOfSuccess ?? 3 - OUTCOMES.indexOf(context.outcome) }
+            : null,
+    };
 }
 
 /** Effect UUIDs that the module's other scripts register for a spell's degree of success, on `spellEffects` */
@@ -133,10 +173,10 @@ async function buildProposal({ spell, outcome }) {
         if (effect) effects.push({ uuid: effect.uuid, name: effect.name });
     }
 
-    const names = new Map(conditions.map((c) => [c.slug, c.name]));
+    const known = new Map(conditions.map((c) => [c.slug, c]));
     const proposed = parsed.conditions
         .filter((c) => !granted.has(c.slug))
-        .map((c) => ({ ...c, name: names.get(c.slug) ?? c.slug }));
+        .map((c) => ({ ...c, name: known.get(c.slug)?.name ?? c.slug, valued: !!known.get(c.slug)?.valued }));
     return { effects, conditions: proposed };
 }
 
@@ -185,16 +225,24 @@ async function confirmProposals(entries) {
             )
             .join("");
 
-    const sections = entries.map(({ save, proposal }, t) => {
+    const sections = entries.map(({ save, proposal, applied }, t) => {
         const names = new Map(proposal.conditions.map((c) => [c.slug, c.name]));
+        // Once applied to the creature from this message, nothing is checked for it
+        const check = (on) => (on && !applied ? "checked" : "");
         const effectRows = proposal.effects.map((effect, index) =>
-            row(`<label><input type="checkbox" name="t${t}-effect-${index}" checked> ${esc(effect.name)}</label>`),
+            row(
+                `<label><input type="checkbox" name="t${t}-effect-${index}" ${check(true)}> ${esc(effect.name)}</label>`,
+            ),
         );
         const conditionRows = proposal.conditions.map((condition, index) => {
             const field = `t${t}-${index}`;
-            const value = condition.value
-                ? `<input type="number" name="value-${field}" value="${condition.value}" min="1" style="width: 3.5em">`
-                : "";
+            // A condition with a value the text doesn't give as a number ("drained [[/r 1d4]]") asks for it
+            const value =
+                condition.value || condition.valued
+                    ? `<input type="number" name="value-${field}" value="${condition.value ?? ""}" min="1"` +
+                      ` placeholder="?" style="width: 3.5em">` +
+                      (condition.value ? "" : ` <em>(value: not a number in the text)</em>`)
+                    : "";
             let timing;
             if (condition.linkedTo) {
                 timing = `<em>while ${esc(names.get(condition.linkedTo) ?? condition.linkedTo)}</em>`;
@@ -212,13 +260,14 @@ async function confirmProposals(entries) {
                 ].join("");
             }
             // What the text gives later, or only if something happens, is offered but not checked
-            const checkbox = `<input type="checkbox" name="condition-${field}" ${condition.later ? "" : "checked"}>`;
+            const checkbox = `<input type="checkbox" name="condition-${field}" ${check(!condition.later)}>`;
             const later = condition.later ? ` <em>(later, or only if)</em>` : "";
             return row(`<label>${checkbox} ${esc(condition.name)}</label>${value} ${timing}${later}`);
         });
         const heading = `${esc(save.target.name)}</strong>'s save against ${esc(save.spell.name)}`;
+        const again = applied ? ` <em>Already applied from this message: check what to apply again.</em>` : "";
         return [
-            `<p><strong>${heading}: ${esc(getOutcomeLabel(save.outcome))}.</p>`,
+            `<p><strong>${heading}: ${esc(getOutcomeLabel(save.outcome))}.${again}</p>`,
             ...effectRows,
             ...conditionRows,
         ].join("");
@@ -245,7 +294,7 @@ async function confirmProposals(entries) {
                             const field = `t${t}-${i}`;
                             if (!form[`condition-${field}`]?.checked) return [];
                             const valueInput = form[`value-${field}`];
-                            const value = valueInput ? Number(valueInput.value) || condition.value : null;
+                            const value = valueInput ? Number(valueInput.value) || condition.value || null : null;
                             const durationInput = form[`duration-${field}`];
                             if (!durationInput) return [{ ...condition, value }];
                             const amount = Number(durationInput.value);
@@ -268,30 +317,78 @@ async function confirmProposals(entries) {
     });
 }
 
-/** Roll timers, let the user check the proposals, then apply them */
-async function confirmAndApply(entries) {
-    const rolled = [];
-    for (const { save, proposal } of entries) rolled.push({ save, proposal: await rollDurations(proposal) });
-    const confirmed = await confirmProposals(rolled);
-    if (!Array.isArray(confirmed)) return;
-    for (const { save, effects, conditions } of confirmed) {
-        if (effects.length || conditions.length) await applyProposal(save, { effects, conditions });
-    }
+/** The creatures (actor UUIDs) the message's spell conditions were applied to */
+function getApplied(message) {
+    const applied = message.flags[MODULE_ID]?.spellConditions?.applied;
+    return Array.isArray(applied) ? applied : [];
 }
 
-function createApplyButton(label, entries) {
+/** Record on the message whom it was applied to: by this user when they can update it, otherwise by the GM */
+async function markApplied(message, actorUuids) {
+    const applied = [...new Set([...getApplied(message), ...actorUuids])];
+    if (applied.length === getApplied(message).length) return;
+    if (message.canUserModify(game.user, "update")) {
+        await message.update({ [`flags.${MODULE_ID}.spellConditions.applied`]: applied });
+        return;
+    }
+    const answer = await askGM("spellConditionsApplied", { messageId: message.id, actorUuids });
+    if (!answer.ok) log(new Error(`the message wasn't marked as applied (${answer.reason})`));
+}
+
+/** Roll timers, let the user check the proposals, then apply them */
+async function confirmAndApply(message, entries) {
+    const before = getApplied(message);
+    const rolled = [];
+    for (const { save, proposal } of entries) {
+        const applied = before.includes(save.target.uuid);
+        rolled.push({ save, proposal: await rollDurations(proposal), applied });
+    }
+    const confirmed = await confirmProposals(rolled);
+    if (!Array.isArray(confirmed)) return;
+    const chosen = confirmed.filter(({ effects, conditions }) => effects.length || conditions.length);
+    // Someone else applied them while the dialog was open
+    const meanwhile = chosen.filter(({ save }) => !before.includes(save.target.uuid) && isAppliedTo(message, save));
+    if (meanwhile.length > 0) {
+        const names = meanwhile.map(({ save }) => save.target.name).join(", ");
+        const again = await foundry.applications.api.DialogV2.confirm({
+            window: { title: `${entries[0].save.spell.name}: Apply Conditions` },
+            content: `<p>This was applied to ${Handlebars.escapeExpression(names)} while the dialog was open. Apply it again?</p>`,
+            rejectClose: false,
+        });
+        if (!again) return;
+    }
+    const done = [];
+    for (const { save, effects, conditions } of chosen) {
+        await applyProposal(save, { effects, conditions });
+        done.push(save.target.uuid);
+    }
+    if (done.length > 0) await markApplied(message, done);
+}
+
+function isAppliedTo(message, save) {
+    return getApplied(message).includes(save.target.uuid);
+}
+
+function createApplyButton(message, label, entries) {
     const button = document.createElement("button");
     button.type = "button";
     button.style.marginTop = "0.25em";
-    button.textContent = label;
+    const applied = entries.every(({ save }) => isAppliedTo(message, save));
+    button.textContent = applied ? label.replace(/^Apply\b/, "Applied") : label;
+    if (applied) button.dataset.tooltip = "Already applied from this message: apply again";
     button.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
+        // One dialog at a time, so a double-click doesn't apply twice
+        if (button.disabled) return;
+        button.disabled = true;
         try {
-            await confirmAndApply(entries);
+            await confirmAndApply(message, entries);
         } catch (error) {
-            console.error(`${MODULE_ID} | Spell conditions`, error);
+            log(error);
             ui.notifications.error(`Applying ${entries[0].save.spell.name}'s conditions failed: ${error.message}`);
+        } finally {
+            button.disabled = false;
         }
     });
     return button;
@@ -301,8 +398,8 @@ function createApplyButton(label, entries) {
 async function applyProposal(save, { effects, conditions }) {
     const { spell, target, outcome } = save;
     const caster = save.casterUuid ? await fromUuid(save.casterUuid) : null;
-    const casterToken = caster?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
-    const targetToken = target.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
+    const casterToken = getSceneToken(caster);
+    const targetToken = getSceneToken(target);
     const conditionUuids = new Map(getConditions().map((c) => [c.slug, c.uuid]));
     const context = (relativeTo) => ({
         origin:
@@ -312,7 +409,9 @@ async function applyProposal(save, { effects, conditions }) {
         target: { actor: target.uuid, token: targetToken?.uuid ?? null },
         roll: null,
     });
-    const applicable = conditions.filter((c) => !target.isImmuneTo?.(c.slug));
+    // A condition with a value needs one: one the text doesn't give as a number is asked for, and left out without it
+    const unvalued = conditions.filter((c) => c.valued && !c.value);
+    const applicable = conditions.filter((c) => !unvalued.includes(c) && !target.isImmuneTo?.(c.slug));
     // The spell, its caster, rank and DC, for Counteract, which ends what a spell did at its rank and against its DC
     const statistic = spell.spellcasting?.statistic;
     const spellDC = statistic?.withRollOptions?.({ item: spell })?.dc.value ?? statistic?.dc?.value ?? null;
@@ -324,14 +423,18 @@ async function applyProposal(save, { effects, conditions }) {
         dc: save.dc ?? spellDC,
     };
 
+    // Spell effects, as pf2e makes them when they're dragged from the save's message
     const toCreate = [];
     for (const { uuid } of effects) {
-        const effect = await fromUuid(uuid);
-        if (!effect) continue;
-        const source = effect.toObject();
-        source._stats = { ...source._stats, compendiumSource: uuid };
-        source.system.level = { value: spell.rank };
-        source.system.context = context("caster");
+        const source = await buildSpellEffectSource(uuid, {
+            spell,
+            target,
+            caster: caster ?? spell.actor,
+            casterToken,
+            rollOptions: save.rollOptions ?? null,
+            roll: save.roll ?? null,
+        });
+        if (!source) continue;
         source.flags = { ...source.flags, [MODULE_ID]: { ...source.flags?.[MODULE_ID], spellSource } };
         preselectDegree(source, outcome);
         toCreate.push(source);
@@ -376,7 +479,10 @@ async function applyProposal(save, { effects, conditions }) {
     }
     if (toCreate.length > 0) await target.createEmbeddedDocuments("Item", toCreate);
 
-    // Conditions with no timer: raise an existing one to the new value rather than adding a second
+    // Conditions with no timer: raise an existing one to the new value rather than adding a second. pf2e's
+    // increaseCondition, given a value, adds a condition of its own beside one granted by an effect (locked), and with
+    // none, raises whichever is active (src/module/actor/base.ts, the same in pf2e 7.x and 8.x).
+    const unchanged = [];
     for (const condition of applicable.filter((c) => !c.duration?.value && !c.linkedTo)) {
         const existing = target.itemTypes.condition.find((c) => c.slug === condition.slug && !c.isLocked);
         let applied = null;
@@ -387,6 +493,7 @@ async function applyProposal(save, { effects, conditions }) {
             applied = target.items.get(existing.id) ?? null;
         }
         if (applied?.update) await applied.update({ [`flags.${MODULE_ID}.spellSource`]: spellSource });
+        else if (!applied) unchanged.push(condition);
     }
 
     // Linked conditions are granted by the condition they depend on, like dying grants unconscious
@@ -409,10 +516,12 @@ async function applyProposal(save, { effects, conditions }) {
     }
 
     const esc = Handlebars.escapeExpression;
-    const appliedConditions = conditions.filter((c) => !skipped.includes(c));
+    const appliedConditions = conditions.filter((c) => !skipped.includes(c) && !unchanged.includes(c));
     const summary = summarize({ effects, conditions: appliedConditions });
-    const notApplied = skipped.length ? ` Not applied: ${esc(skipped.map((c) => c.name).join(", "))}.` : "";
-    const applied = `${esc(target.name)}: ${esc(summary || "nothing")}.${notApplied}`;
+    const label = (c) => (unvalued.includes(c) ? `${c.name} (no value given)` : c.name);
+    const notApplied = skipped.length ? ` Not applied: ${esc(skipped.map(label).join(", "))}.` : "";
+    const had = unchanged.length ? ` Already had: ${esc(summarize({ effects: [], conditions: unchanged }))}.` : "";
+    const applied = `${esc(target.name)}: ${esc(summary || "nothing")}.${notApplied}${had}`;
     await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: target }),
         content: `<p><strong>${esc(spell.name)}</strong> ${applied}</p>`,
@@ -427,7 +536,8 @@ async function addApplyButton(message, html) {
 
     const proposal = await buildProposal(save);
     if (proposal.effects.length === 0 && proposal.conditions.length === 0) return;
-    content.append(createApplyButton(`Apply: ${summarize(proposal, { proposed: true })}`, [{ save, proposal }]));
+    const label = `Apply: ${summarize(proposal, { proposed: true })}`;
+    content.append(createApplyButton(message, label, [{ save, proposal }]));
 }
 
 /*
@@ -452,7 +562,14 @@ function getToolbeltSaves(message) {
             .map((variant) => variant?.saves?.[token.id])
             .findLast((s) => OUTCOMES.includes(s?.success));
         if (!result || !token.actor.isOwner) continue;
-        saves.push({ spell, target: token.actor, outcome: result.success, casterUuid: message.actor?.uuid });
+        const rollOptions = message.flags.pf2e?.origin?.rollOptions ?? null;
+        saves.push({
+            spell,
+            target: token.actor,
+            outcome: result.success,
+            casterUuid: message.actor?.uuid,
+            rollOptions,
+        });
     }
     return saves;
 }
@@ -471,7 +588,7 @@ async function addToolbeltApplyButton(message, html) {
     if (entries.length === 0) return;
     const label =
         entries.length === 1 ? `Apply to ${entries[0].save.target.name}` : `Apply to ${entries.length} targets`;
-    content.append(createApplyButton(`${label}: conditions from saves`, entries));
+    content.append(createApplyButton(message, `${label}: conditions from saves`, entries));
 }
 
 Hooks.once("init", () => {
@@ -488,9 +605,19 @@ Hooks.once("init", () => {
 
     const render = (message, html) => {
         if (!game.settings.get(MODULE_ID, "spellConditions")) return;
-        const log = (error) => console.error(`${MODULE_ID} | Spell conditions`, error);
         addApplyButton(message, html).catch(log);
         addToolbeltApplyButton(message, html).catch(log);
     };
     Hooks.on("renderChatMessageHTML", render);
+});
+
+/** A player who can't update the message (it's someone else's) has the GM record whom it was applied to */
+onGMRequest("spellConditionsApplied", async ({ messageId, actorUuids }) => {
+    const message = game.messages.get(messageId);
+    if (!message) throw new Error("the message is gone");
+    const saves = getSave(message) ? [getSave(message)] : getToolbeltSaves(message);
+    if (saves.length === 0) throw new Error("the message isn't a save against a spell");
+    const uuids = (Array.isArray(actorUuids) ? actorUuids : []).filter((uuid) => typeof uuid === "string");
+    const applied = [...new Set([...getApplied(message), ...uuids])];
+    await message.update({ [`flags.${MODULE_ID}.spellConditions.applied`]: applied });
 });
