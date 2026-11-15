@@ -19,6 +19,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import * as prettier from "prettier";
+
 import { OUTCOMES, getGrantedConditions, parseSpellOutcome } from "../scripts/lib/spell-condition-parser.js";
 import { defaultEffects, parseLinks } from "../scripts/lib/spell-effect-links.js";
 import { PINS, hasData, loadData } from "./pf2e-data.mjs";
@@ -128,7 +130,11 @@ export function runParsers(version) {
     return { "spell-conditions": conditions, "spell-effect-links": links };
 }
 
-export const serialize = (output) => `${JSON.stringify(output, null, 4)}\n`;
+/** The baseline's JSON as Prettier formats it (as the committed baselines are), so an update shows only what changed */
+export async function serialize(output, file) {
+    const options = (await prettier.resolveConfig(file)) ?? {};
+    return prettier.format(JSON.stringify(output), { ...options, filepath: file });
+}
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const update = process.argv.includes("--update");
@@ -144,7 +150,10 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
             const count = Object.keys(output[kind]).length;
             if (update) {
                 fs.mkdirSync(BASELINES, { recursive: true });
-                fs.writeFileSync(baselineFile(kind, version), serialize(output[kind]));
+                fs.writeFileSync(
+                    baselineFile(kind, version),
+                    await serialize(output[kind], baselineFile(kind, version)),
+                );
                 console.log(`Wrote ${path.relative(ROOT, baselineFile(kind, version))} (${count} spells)`);
             } else {
                 console.log(`pf2e ${version}: ${kind}, ${count} spells`);
