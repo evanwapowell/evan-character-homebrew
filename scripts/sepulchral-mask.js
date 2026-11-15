@@ -2,7 +2,7 @@
  * Sepulchral Mask (psychopomp sorcerer): "You manifest a supernatural funerary mask, granting you a +1 status bonus to
  * Will saving throws against emotion effects for 1 minute. [...] Each enemy in the area when you Cast the Spell or that
  * starts its turn in the area takes 1d4 mental damage and must attempt a Will save." pf2e's spell effect only gives
- * the bonus. This module's Aura: Sepulchral Mask adds the emanation, applied on casting (pf2e 8.x) or when the spell's
+ * the bonus. This module's Aura: Sepulchral Mask adds the emanation, applied on casting (pf2e 8.5) or when the spell's
  * effect is dragged from its card. At the start of each enemy's turn in the emanation, a card is posted with buttons for
  * the caster to roll the damage and for the creature to roll its Will save. Once both are rolled, the result is applied:
  * the damage for the degree of success, and on a failure the –1 status penalty to Will saves against emotion effects
@@ -10,6 +10,7 @@
  * from the card for every creature in the area, as usual.
  */
 
+import { isSpellCast } from "./lib/casting.js";
 import { askGM, canAnimate, createdHere, featureHooks, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -23,8 +24,6 @@ const PENALTY_UUID = `${PACK}.GOsDZYg9DXFPhzwg`;
 const SPELL_ID = "3mINzPzup2m9qzFU";
 const SYSTEM_EFFECT_ID = "TER4qOsYPTszhhDG";
 const AURA_SLUG = "sepulchral-mask";
-/** pf2e 8.x adds this roll option to a spell's card when it's cast, rather than only posted to chat */
-const CAST_OPTION = "origin:action:slug:cast-a-spell";
 /** Saves rolled from this module's turn-start card carry this identifier, followed by the card's ID */
 const SAVE_IDENTIFIER = "sepulchral-mask:";
 /** "Visual" and "mental": a creature immune to either is unaffected. Blinded creatures are immune to visual effects. */
@@ -517,10 +516,9 @@ function getSave(message) {
 hooks.on("createChatMessage", (message, options, userId) => {
     if (!createdHere(message, options, userId)) return;
 
-    // pf2e 8.x marks a spell that was cast, rather than posted to chat: put the mask on the caster
-    const origin = message.flags.pf2e?.origin;
-    if (isMaskCard(message) && message.actor && origin?.rollOptions?.includes(CAST_OPTION)) {
-        const rank = origin.castRank ?? message.item.rank;
+    // pf2e 8.5 marks a spell that was cast, rather than posted to chat: put the mask on the caster
+    if (isMaskCard(message) && message.actor && isSpellCast(message)) {
+        const rank = message.flags.pf2e.origin?.castRank ?? message.item.rank;
         const options = { rank, spellUuid: message.item.uuid, tokenUuid: message.token?.uuid ?? null };
         return void applyAura(message.actor, options).catch(log);
     }

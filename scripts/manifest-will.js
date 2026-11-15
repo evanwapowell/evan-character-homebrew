@@ -29,6 +29,8 @@ const EFFECTS = {
     primal: `${PACK}.DJJvRoc5yfNaraKe`,
 };
 
+const esc = (text) => Handlebars.escapeExpression(text);
+
 /** The tradition chosen on an Aura: Manifest Will effect */
 function getTradition(auraEffect) {
     const choiceSet = auraEffect._source.system.rules.find((r) => r.key === "ChoiceSet");
@@ -141,11 +143,14 @@ function playFinchAura(auraEffect) {
 }
 
 // The Finch version swaps the aura's texture for its own loop, or, when Sequencer plays the loop after the intro,
-// removes it, and drops pf2e's border ring, since the loop marks the edge. Every tradition's rule is changed (the tradition may not be chosen yet), so re-centering, which copies
-// the effect, keeps it.
+// removes it, and drops pf2e's border ring, since the loop marks the edge. Every tradition's rule is changed (the
+// tradition may not be chosen yet), so re-centering, which copies the effect, keeps it. The session creating the effect
+// plays the loop (createItem below), and only on the scene it views: on any other, the aura keeps the loop as its
+// texture, or it would have no visible edge.
 hooks.on("preCreateItem", (item) => {
     if (item.type !== "effect" || item.slug !== "aura-manifest-will" || !isFinchVersion()) return;
-    const rules = finchAuraRules(item._source.system.rules ?? [], { sequencer: canAnimateFinch() });
+    const sequencer = canAnimateFinch() && !!getSceneToken(item.actor)?.object;
+    const rules = finchAuraRules(item._source.system.rules ?? [], { sequencer });
     if (rules) item.updateSource({ "system.rules": rules });
 });
 
@@ -201,6 +206,16 @@ async function moveAuraEffect(effectUuid, centerActorUuid) {
 
     const source = effect.toObject();
     delete source._id;
+    // Without an origin, pf2e takes the effect's holder as its origin (AbstractEffectPF2e#origin): an aura dragged from
+    // the compendium is the caster's own, so the copy on the charge names the caster
+    if (!source.system.context?.origin?.actor) {
+        const token = effect.actor.getActiveTokens(true, true)[0] ?? null;
+        source.system.context = {
+            origin: { actor: effect.actor.uuid, token: token?.uuid ?? null, item: null, spellcasting: null },
+            target: null,
+            roll: null,
+        };
+    }
     const [created] = await center.createEmbeddedDocuments("Item", [source]);
     // pf2e sets a new start time on creation; keep counting the spell's duration from when it was cast
     await created?.update({ "system.start": effect._source.system.start });
@@ -217,7 +232,6 @@ async function offerRecenter(caster, { spell, effect }) {
     const chargeTokens = getChargeTokens(caster, casterToken);
     if (chargeTokens.length === 0) return;
 
-    const esc = Handlebars.escapeExpression;
     const centers = [casterToken, ...chargeTokens];
     const content = centers
         .map((token, index) => {
@@ -264,15 +278,20 @@ async function offerRecenter(caster, { spell, effect }) {
 const CONCEALMENT_RANGE = 10;
 const FLAT_CHECK_DC = 5;
 
-/** Roll the DC 5 flat check for concealment, as privately as the roll that prompted it */
+/** Roll the DC 5 flat check for concealment, as privately as the roll that prompted it. `consequence` is HTML. */
 async function rollFlatCheck(message, { speaker, consequence }) {
     const roll = await new Roll("1d20").evaluate();
     const success = roll.total >= FLAT_CHECK_DC;
     const result = success ? "Success" : `Failure: ${consequence}`;
-    const rollMode = message.blind ? "blindroll" : message.whisper?.length ? "gmroll" : "publicroll";
+    // pf2e 7.x (Foundry v13) reads rollMode, 8.x (Foundry v14) messageMode
+    const [rollMode, messageMode] = message.blind
+        ? ["blindroll", "blind"]
+        : message.whisper?.length
+          ? ["gmroll", "gm"]
+          : ["publicroll", "public"];
     await roll.toMessage(
         { speaker, flavor: `<strong>Manifest Will: Flat Check DC ${FLAT_CHECK_DC} (concealed)</strong><br>${result}` },
-        { rollMode },
+        { rollMode, messageMode },
     );
 }
 
@@ -286,14 +305,15 @@ function getConcealment(centerToken, otherToken) {
 
 async function checkConcealment(message) {
     const context = message.flags.pf2e?.context;
-    if (!context) return;
+    // A reroll replaces the check's message with one of the same context: its flat check was rolled the first time
+    if (!context || context.isReroll) return;
 
     if (context.type === "attack-roll" && context.target?.token) {
         const centerToken = fromUuidSync(context.target.token);
         const attackerToken = (context.origin?.token && fromUuidSync(context.origin.token)) ?? message.token;
         const center = getConcealment(centerToken, attackerToken);
         if (!center) return;
-        const consequence = `the attack against ${center.name} fails`;
+        const consequence = `the attack against ${esc(center.name)} fails`;
         return rollFlatCheck(message, { speaker: ChatMessage.getSpeaker({ token: attackerToken }), consequence });
     }
 
@@ -303,7 +323,7 @@ async function checkConcealment(message) {
         const casterToken = fromUuidSync(context.origin.token);
         const center = getConcealment(message.token, casterToken);
         if (!center) return;
-        const consequence = `${spell.name} doesn't affect ${center.name}`;
+        const consequence = `${esc(spell.name)} doesn't affect ${esc(center.name)}`;
         return rollFlatCheck(message, { speaker: ChatMessage.getSpeaker({ token: casterToken }), consequence });
     }
 }
@@ -320,7 +340,7 @@ hooks.on("pf2e-toolbelt.rollSave", ({ message, rollMessage, target }) => {
     if (spell?.type !== "spell" || spell.system.area) return;
     const center = getConcealment(target, message.token);
     if (!center) return;
-    const consequence = `${spell.name} doesn't affect ${center.name}`;
+    const consequence = `${esc(spell.name)} doesn't affect ${esc(center.name)}`;
     rollFlatCheck(rollMessage ?? message, {
         speaker: ChatMessage.getSpeaker({ token: message.token }),
         consequence,

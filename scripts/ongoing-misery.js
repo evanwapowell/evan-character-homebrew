@@ -5,6 +5,7 @@
  * extended. The errata's "only once to a given case of a condition" is a world setting, off by default.
  */
 
+import { isSpellCast } from "./lib/casting.js";
 import { playCurse } from "./lib/finch.js";
 import {
     askGM,
@@ -72,20 +73,14 @@ function warnOnce(message) {
     ui.notifications.warn(`Familiar of Ongoing Misery: ${message}`);
 }
 
-/** Whether a chat message is the card of a hex being cast */
+/**
+ * Whether a chat message is the card of a hex being cast. pf2e 8.5 marks a cast; before it, a hex's card sent to chat
+ * can't be told from one cast, so both count.
+ */
 function isHexCast(message) {
     // Sustaining reposts the spell's card: the Sustain handler below covers it
     if (message.flags[MODULE_ID]?.sustain) return false;
-    const flags = message.flags.pf2e ?? {};
-    const item = message.item;
-    // Attack and damage rolls from the spell also carry it: only the cast card has no other roll context
-    const contextType = flags.context?.type;
-    return (
-        item?.type === "spell" &&
-        item.traits.has("hex") &&
-        !!flags.casting &&
-        (!contextType || contextType === "spell-cast")
-    );
+    return isSpellCast(message, { unmarked: true }) && message.item.traits.has("hex");
 }
 
 /** Timed effects granting a negative condition to creatures within 15 feet of the familiar */
@@ -116,12 +111,14 @@ function getEligibleEffects(familiarToken) {
 
 /** Add 1 round to an effect's duration, mark it as extended, and announce it from the familiar */
 async function extendEffect(effect, { familiarTokenUuid, announcement }) {
-    const { value, unit } = effect._source.system.duration;
+    const { value, unit, expiry } = effect._source.system.duration;
     const perUnit = ROUNDS_PER_UNIT[unit];
     if (!perUnit || (isOncePerCase() && effect.flags[MODULE_ID]?.ongoingMisery)) return;
     await effect.update({
         "system.duration.value": value * perUnit + 1,
         "system.duration.unit": "rounds",
+        // pf2e sets an expiry left out of a duration update to the start of the turn (EffectPF2e#_preUpdate)
+        "system.duration.expiry": expiry,
         [`flags.${MODULE_ID}.ongoingMisery`]: true,
     });
     // Posted by whoever extended it, so it only appears once the extension is applied

@@ -6,7 +6,7 @@
  * interposes its branches and takes the damage first. Any additional damage beyond what it takes to reduce the tree to
  * 0 Hit Points is dealt to the original target. [...] Heightened (+1) The tree has an additional 10 Hit Points."
  *
- * pf2e only posts the card. Here, using the impulse (or casting the spell, which pf2e 8.x marks) has its user place
+ * pf2e only posts the card. Here, using the impulse (or casting the spell, which pf2e 8.5 marks) has its user place
  * the tree: the squares in range are highlighted, a click places it, and a right-click or Escape cancels (the card
  * keeps a Place Tree button). The active GM makes the tree, a hazard with AC 10 and 10 Hit Points per rank, owned by
  * the caster's players, and gives the caster Effect: Protector Tree, which lasts 1 minute. While it does, damage from
@@ -17,6 +17,7 @@
  * spell says when it's in soil; deleting its token removes it.
  */
 
+import { isSpellCast } from "./lib/casting.js";
 import { askGM, confirmActiveGM, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -31,8 +32,6 @@ const IMPULSE_ID = "aHlcMMNQ85VLK7QT";
 const IMPULSE_SLUG = "timber-sentinel";
 const SPELL_ID = "K9gI08enGtmih5X1";
 const SPELL_SLUG = "protector-tree";
-/** pf2e 8.x adds this roll option to a spell's card when it's cast, rather than only posted to chat */
-const CAST_OPTION = "origin:action:slug:cast-a-spell";
 const TITLE = "Protector Tree";
 const RANGE = 30;
 const AC = 10;
@@ -670,9 +669,9 @@ hooks.on("createChatMessage", (message, options, userId) => {
     if (!createdHere(message, options, userId)) return;
     const card = getCard(message);
     if (!card) return;
-    // Using the impulse posts its card. A spell's card is posted when it's cast, but pf2e 7.x doesn't mark casts, so
-    // there it's placed from the card's button.
-    const cast = card.kind === "impulse" || message.flags.pf2e?.origin?.rollOptions?.includes(CAST_OPTION);
+    // Using the impulse posts its card. A spell's card is posted when it's cast, but pf2e before 8.5 doesn't mark casts,
+    // so there it's placed from the card's button.
+    const cast = card.kind === "impulse" || isSpellCast(message);
     if (cast) startFromCard(message).catch(log);
 });
 

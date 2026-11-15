@@ -7,6 +7,7 @@
  * sickened 1. A Fortitude save rolled from the box pf2e adds to the hex's card is handled too.
  */
 
+import { isSpellCast } from "./lib/casting.js";
 import { askGM, canAnimate, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -53,20 +54,14 @@ function warnOnce(message) {
     ui.notifications.warn(`${TITLE}: ${message}`);
 }
 
-/** Whether a chat message is the card of a hex being cast */
+/**
+ * Whether a chat message is the card of a hex being cast. pf2e 8.5 marks a cast; before it, a hex's card sent to chat
+ * can't be told from one cast, so both count.
+ */
 function isHexCast(message) {
     // Sustaining reposts the spell's card: the Sustain handler below covers it
     if (message.flags[MODULE_ID]?.sustain) return false;
-    const flags = message.flags.pf2e ?? {};
-    const item = message.item;
-    // Attack and damage rolls from the spell also carry it: only the cast card has no other roll context
-    const contextType = flags.context?.type;
-    return (
-        item?.type === "spell" &&
-        item.traits.has("hex") &&
-        !!flags.casting &&
-        (!contextType || contextType === "spell-cast")
-    );
+    return isSpellCast(message, { unmarked: true }) && message.item.traits.has("hex");
 }
 
 /** The witch's spell DC: the hex's, or that of another hex they have */

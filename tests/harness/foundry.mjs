@@ -233,8 +233,18 @@ function mergeObject(target, source) {
     return target;
 }
 
+/** Foundry's foundry.utils.isNewerVersion, for versions of numbers and dots */
+export function isNewerVersion(version, other) {
+    const [a, b] = [version, other].map((v) => String(v).split(".").map(Number));
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+    }
+    return false;
+}
+
 const FOUNDRY_UTILS = {
     deepClone: (value) => structuredClone(value),
+    isNewerVersion,
     duplicate: (value) => structuredClone(value),
     getProperty,
     setProperty,
@@ -337,8 +347,21 @@ class FakeChatMessage {
 }
 
 /**
+ * Who sees a message posted in a mode: Foundry v13's roll modes (ChatMessage.applyRollMode) and v14's message modes
+ * (types/foundry/client/config.d.mts on pf2e's v14-dev), as whispers and the blind flag
+ */
+const MESSAGE_MODES = {
+    publicroll: "public",
+    gmroll: "gm",
+    blindroll: "blind",
+    selfroll: "self",
+};
+
+/**
  * A roll (Foundry's Roll): only dice terms ("2d4", "1d6 + 2"), and each die rolls its middle (rounded up), so totals
- * are known. `toMessage` posts it with ChatMessage.create.
+ * are known. `toMessage` posts it with ChatMessage.create, in the mode given: on Foundry v13 its `rollMode`, on v14
+ * its `messageMode` (Roll#toMessage in types/foundry/client/dice/roll.d.mts on pf2e's v13-dev and v14-dev). Either way
+ * the other is ignored, and none is public.
  */
 class FakeRoll {
     constructor(formula, data = {}) {
@@ -356,9 +379,12 @@ class FakeRoll {
         return this;
     }
 
-    async toMessage(data = {}) {
+    async toMessage(data = {}, { rollMode, messageMode } = {}) {
         if (this.total === undefined) await this.evaluate();
-        return ChatMessage.create({ ...data, rolls: [this] });
+        const mode = (game.release.generation >= 14 ? messageMode : MESSAGE_MODES[rollMode]) ?? "public";
+        const gms = game.users.filter((u) => u.isGM).map((u) => u.id);
+        const whisper = { public: [], gm: gms, blind: gms, self: [game.user.id] }[mode] ?? [];
+        return ChatMessage.create({ ...data, whisper, blind: mode === "blind", rolls: [this] });
     }
 }
 
@@ -442,7 +468,13 @@ class Session {
             static get implementation() {
                 return ChatMessage;
             }
-            static getSpeaker({ actor } = {}) {
+            static getSpeaker({ actor, token } = {}) {
+                // A token (its document or placeable): its scene, itself and its actor
+                const document = token?.document ?? token;
+                if (document?.parent) {
+                    const { parent, id, name } = document;
+                    return { scene: parent.id, token: id, actor: document.actor?.id ?? null, alias: name };
+                }
                 return actor ? { actor: actor.id, alias: actor.name } : { alias: session.user.name };
             }
             static getWhisperRecipients(name) {
@@ -573,10 +605,11 @@ class World {
     time = 0;
     #pending = 0;
 
-    constructor({ users = [], modules = {}, version = "v14" } = {}) {
+    /** `version`: Foundry's and pf2e's, "v13" (pf2e 7.x) or "v14" (8.x); `systemVersion`: pf2e's exact version */
+    constructor({ users = [], modules = {}, version = "v14", systemVersion = null } = {}) {
         this.version = version;
         this.foundryGeneration = version === "v13" ? 13 : 14;
-        this.systemVersion = version === "v13" ? "7.7.0" : "8.0.0";
+        this.systemVersion = systemVersion ?? (version === "v13" ? "7.7.0" : "8.0.0");
         this.modules = modules;
         const world = this;
         const list = users.map((data) => ({
