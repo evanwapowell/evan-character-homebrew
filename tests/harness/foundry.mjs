@@ -370,6 +370,20 @@ class FakePredicate extends Array {
     }
 }
 
+/**
+ * pf2e's StatisticModifier (src/module/actor/modifiers.ts, the same in v13-dev and v14-dev): the modifiers, each tested
+ * against the roll options, and the total of those enabled. Stacking rules aren't modelled.
+ */
+class FakeStatisticModifier {
+    constructor(slug, modifiers = [], rollOptions = new Set()) {
+        this.slug = slug;
+        this.modifiers = [...modifiers];
+        const options = rollOptions instanceof Set ? rollOptions : new Set(rollOptions);
+        for (const modifier of this.modifiers) modifier.test?.(options);
+        this.totalModifier = this.modifiers.filter((m) => m.enabled).reduce((total, m) => total + m.modifier, 0);
+    }
+}
+
 /** Foundry's Actor, for `instanceof` tests: an actor made by pf2e.mjs's makeActor is one */
 class FakeActor {
     static [Symbol.hasInstance](value) {
@@ -547,7 +561,12 @@ class Session {
                     return world.time;
                 },
             },
-            pf2e: { ConditionManager: { conditions: new Map() }, actions: {}, Predicate: FakePredicate },
+            pf2e: {
+                ConditionManager: { conditions: new Map() },
+                actions: {},
+                Predicate: FakePredicate,
+                StatisticModifier: FakeStatisticModifier,
+            },
             ready: false,
         };
         return {

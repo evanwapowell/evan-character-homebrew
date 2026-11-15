@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { degreeOfSuccess, draft, exploitResult, QUESTIONS } from "../scripts/lib/recall-knowledge-facts.js";
+import {
+    answer,
+    degreeOfSuccess,
+    draft,
+    exploitResult,
+    lie,
+    QUESTIONS,
+    trimReveal,
+} from "../scripts/lib/recall-knowledge-facts.js";
 
 /** A repeatable stand-in for Math.random */
 function sequence(...values) {
@@ -147,7 +155,48 @@ describe("draft", () => {
         assert.deepEqual(lie.reveal, {});
     });
 
-    it("on a failure with Dubious Knowledge, gives one true and one false answer about different things", () => {
+    it("on a critical failure with no false name to give, gives the true name: only the answer is a lie (#56)", () => {
+        // No candidates (the setting is off), and a creature with no creature type
+        for (const [profile, names] of [
+            [GHOUL, []],
+            [{ ...GHOUL, traits: [] }, NAMES],
+        ]) {
+            const result = draft({ profile, degree: "criticalFailure", question: "weaknesses", names });
+            assert.deepEqual(result.name, { text: profile.name, false: false });
+            assert.equal(result.answers[0].false, true);
+        }
+    });
+
+    it("on a critical failure, keeps the name the character already knows, true or not (#56)", () => {
+        const known = draft({
+            profile: GHOUL,
+            degree: "criticalFailure",
+            question: "weaknesses",
+            names: NAMES,
+            knownName: "Ghoul",
+        });
+        assert.deepEqual(known.name, { text: "Ghoul", false: false });
+        const told = draft({
+            profile: GHOUL,
+            degree: "criticalFailure",
+            question: "saves",
+            names: NAMES,
+            knownName: "Ghoul Stalker",
+        });
+        assert.deepEqual(told.name, { text: "Ghoul Stalker", false: true });
+    });
+
+    it("tells a name on a success and a critical failure alike, so the two can't be told apart (#56)", () => {
+        for (const names of [[], NAMES]) {
+            for (const degree of ["success", "criticalFailure"]) {
+                const result = draft({ profile: GHOUL, degree, question: "weaknesses", names });
+                assert.ok(result.name?.text, `${degree}, ${names.length} names`);
+                assert.equal(result.answers.length, 1);
+            }
+        }
+    });
+
+    it("on a failure with Dubious Knowledge, gives the true answer and a wrong one to the same question (#56)", () => {
         for (const order of [0.1, 0.9]) {
             const result = draft({
                 profile: GHOUL,
@@ -160,12 +209,28 @@ describe("draft", () => {
             assert.equal(result.lore, false);
             assert.equal(result.answers.length, 2);
             const truth = result.answers.find((a) => !a.false);
-            const lie = result.answers.find((a) => a.false);
+            const wrong = result.answers.find((a) => a.false);
             assert.equal(truth.question, "weaknesses");
             assert.equal(truth.text, "It's weak to vitality.");
-            assert.notEqual(lie.question, "weaknesses");
-            assert.notEqual(lie.question, "other");
+            assert.equal(wrong.question, "weaknesses");
+            assert.match(wrong.text, /^It's weak to /);
+            assert.notEqual(wrong.text, truth.text);
+            // In either order
+            assert.equal(result.answers[0] === truth, order < 0.5);
         }
+    });
+
+    it("on a failure with Dubious Knowledge, answers wrongly about something else when the question has no wrong answer", () => {
+        const result = draft({
+            profile: GHOUL,
+            degree: "failure",
+            question: "other",
+            dubious: true,
+            random: sequence(0),
+        });
+        const wrong = result.answers.find((a) => a.false);
+        assert.notEqual(wrong.question, "other");
+        assert.notEqual(wrong.text, "");
     });
 
     it("on a plain failure, tells nothing", () => {
@@ -187,6 +252,47 @@ describe("draft", () => {
         }
         const answer = draft({ profile: EMPTY, degree: "success", question: "weaknesses" }).answers[0];
         assert.equal(answer.text, "It has no weaknesses.");
+    });
+});
+
+describe("trimReveal", () => {
+    const SKELETON = {
+        ...GHOUL,
+        name: "Skeleton",
+        weaknesses: [
+            { type: "vitality", label: "Vitality", fullLabel: "Vitality 5", value: 5 },
+            { type: "cold-iron", label: "Cold Iron", fullLabel: "Cold Iron 5", value: 5 },
+        ],
+        resistances: [{ type: "slashing", label: "Slashing", fullLabel: "Slashing 5", value: 5 }],
+        lieTypes: [...GHOUL.lieTypes, { type: "cold-iron", label: "Cold Iron" }],
+    };
+
+    it("keeps only what an edited answer still names (#56)", () => {
+        const told = answer(SKELETON, "weaknesses");
+        assert.deepEqual(told.reveal, { weaknesses: ["vitality", "cold-iron"] });
+        assert.deepEqual(trimReveal(SKELETON, told, "It's weak to vitality."), {
+            reveal: { weaknesses: ["vitality"] },
+            fake: {},
+        });
+        assert.deepEqual(trimReveal(SKELETON, told, "Something about bones."), { reveal: {}, fake: {} });
+    });
+
+    it("keeps a lie's fake entries the text still names", () => {
+        const told = lie(SKELETON, "weaknesses", () => 0);
+        const [type] = told.fake.weaknesses;
+        const label = SKELETON.lieTypes.find((t) => t.type === type).label;
+        assert.deepEqual(
+            trimReveal(SKELETON, { reveal: {}, fake: told.fake }, `It's weak to ${label}!`).fake,
+            told.fake,
+        );
+        assert.deepEqual(trimReveal(SKELETON, { reveal: {}, fake: told.fake }, "It's weak to nothing.").fake, {});
+    });
+
+    it('keeps "none" while the text still says so', () => {
+        const told = answer({ ...SKELETON, weaknesses: [] }, "weaknesses");
+        assert.deepEqual(told.reveal, { weaknesses: ["*"] });
+        assert.deepEqual(trimReveal(SKELETON, told, "It has no weaknesses you know of.").reveal, { weaknesses: ["*"] });
+        assert.deepEqual(trimReveal(SKELETON, told, "You're unsure.").reveal, {});
     });
 });
 
