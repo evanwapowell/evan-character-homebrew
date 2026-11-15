@@ -473,7 +473,8 @@ export function addEffect(
  * #_onStartTurn, on conditions of its own that aren't modelled. The records are written after updateCombat has run, as
  * the real ones are.
  *
- * `combatants`: `{ actor, token, initiative }`, the token on the encounter's scene. It becomes every connected
+ * `combatants`: `{ actor, token, initiative }`, the token on the encounter's scene (`initiative: null`: none rolled, so
+ * it acts last; no actor: a combatant whose creature is gone). It becomes every connected
  * session's `game.combat`.
  */
 export function makeCombat(world, { id = makeId("combat"), scene = null, combatants = [] } = {}) {
@@ -556,7 +557,12 @@ export function makeCombat(world, { id = makeId("combat"), scene = null, combata
             return this.round > 0;
         },
         get turns() {
-            return this.combatants.contents.sort((a, b) => b.initiative - a.initiative || (a.id < b.id ? -1 : 1));
+            // Combat#_sortCombatants: by initiative, a combatant with none rolled after the others
+            const initiative = (c) => (typeof c.initiative === "number" ? c.initiative : -Infinity);
+            return this.combatants.contents.sort(
+                (a, b) =>
+                    (initiative(b) === initiative(a) ? 0 : initiative(b) - initiative(a)) || (a.id < b.id ? -1 : 1),
+            );
         },
         get combatant() {
             return this.turn === null ? null : (this.turns[this.turn] ?? null);
@@ -595,7 +601,7 @@ export function makeCombat(world, { id = makeId("combat"), scene = null, combata
         },
     };
 
-    for (const { actor, token = null, initiative = 0 } of combatants) {
+    for (const { actor = null, token = null, initiative = 0 } of combatants) {
         const combatantId = makeId("combatant");
         combat.combatants.set(combatantId, {
             documentName: "Combatant",
@@ -603,7 +609,7 @@ export function makeCombat(world, { id = makeId("combat"), scene = null, combata
             _id: combatantId,
             uuid: `${combat.uuid}.Combatant.${combatantId}`,
             parent: combat,
-            actorId: actor.id,
+            actorId: actor?.id ?? null,
             tokenId: token?.id ?? null,
             sceneId: token?.parent.id ?? null,
             initiative,

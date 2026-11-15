@@ -102,6 +102,8 @@ async function setup(t, version, { order = null, turn = null } = {}) {
     actors.goblin.increaseCondition = async () => null;
 
     const dialogs = [];
+    /** What a test changes in the dialog before Apply */
+    let edit = null;
     gm.run(() => {
         for (const [slug, id] of Object.entries(CONDITIONS)) {
             const name = slug[0].toUpperCase() + slug.slice(1);
@@ -113,6 +115,7 @@ async function setup(t, version, { order = null, turn = null } = {}) {
             const form = document.createElement("form");
             form.innerHTML = content;
             dialogs.push(form);
+            edit?.(form);
             return buttons.find((b) => b.action === "apply").callback(null, { form });
         };
     });
@@ -127,8 +130,12 @@ async function setup(t, version, { order = null, turn = null } = {}) {
         }
     }
 
-    /** The goblin's save against the spell, with that result: the Apply button on its message, pressed */
-    async function apply(timer) {
+    /**
+     * The goblin's save against the spell, with that result: the Apply button on its message, pressed, and Apply in
+     * its dialog, once `change(form)` has made its changes
+     */
+    async function apply(timer, change = null) {
+        edit = change;
         const { spell: key, outcome } = TIMERS[timer];
         const data = SPELLS[key];
         const spell = addItem(world, actors.witch, {
@@ -370,6 +377,36 @@ for (const version of ["v13", "v14"]) {
                 assert.equal((await apply("until its next turn begins")).effect.system.duration.value, 1);
             });
 
+            it("no initiative rolled for the target, which acts last: 1 round", async (t) => {
+                // pf2e would count the timer from the witch's initiative, and end it at the fighter's turn
+                const order = [
+                    ["witch", 20],
+                    ["fighter", 12],
+                    ["goblin", null],
+                ];
+                const { apply, expired, until, combat, actors } = await setup(t, version, { order, turn: "witch" });
+                assert.equal(combat.turns.at(-1).actor, actors.goblin);
+                const { effect } = await apply("until the end of its next turn");
+                assert.equal(effect.system.duration.value, 1);
+                await until("goblin");
+                assert.equal(expired(effect), false, "it lasts through the goblin's turn");
+            });
+
+            it("a combatant with no creature acts before the target: 1 round", async (t) => {
+                // On that combatant's turn, pf2e takes an effect whose rounds are up for expired
+                const order = [
+                    ["witch", 20],
+                    ["nobody", 15],
+                    ["goblin", 10],
+                ];
+                const { apply, expired, combat, gm } = await setup(t, version, { order, turn: "witch" });
+                const { effect } = await apply("until its next turn begins");
+                assert.equal(effect.system.duration.value, 1);
+                await gm.run(() => combat.nextTurn());
+                assert.equal(combat.combatant.actor, null);
+                assert.equal(expired(effect), false, "it lasts through the turn of the combatant with no creature");
+            });
+
             it("a world where time passes with each turn: 1 round, which 0 rounds wouldn't outlast", async (t) => {
                 const order = [
                     ["witch", 20],
@@ -390,8 +427,8 @@ for (const version of ["v13", "v14"]) {
             const { apply, actors, world } = await setup(t, version, { order, turn: "witch" });
             const { effect, button, dialog } = await apply("until its next turn begins");
             assert.equal(button.textContent, "Apply: Blinded (until the start of its next turn)");
-            assert.match(dialog.textContent, /Blinded\s+until the start of its next turn/);
-            assert.equal(dialog.querySelector("input[type=number]"), null, "the timer isn't one to edit");
+            assert.equal(dialog.querySelector("input[type=number]").value, "1", "the timer can still be changed");
+            assert.match(dialog.textContent, /\(until the start of its next turn\)/);
             assert.equal(effect.system.context.origin.actor, actors.goblin.uuid);
             assert.equal(effect.system.start.initiative, 10);
             assert.deepEqual(effect.system.rules, [
@@ -399,6 +436,34 @@ for (const version of ["v13", "v14"]) {
             ]);
             const summary = world.messages.contents.at(-1);
             assert.match(summary.content, /Goblin: Blinded \(until the start of its next turn\)\./);
+        });
+
+        it("a timer changed in the dialog is the rounds it says, from the target's turn", async (t) => {
+            const order = [
+                ["witch", 20],
+                ["goblin", 10],
+            ];
+            const { apply, expired, until, combat, world } = await setup(t, version, { order, turn: "witch" });
+            const { effect } = await apply("until its next turn begins", (form) => {
+                form.querySelector("input[type=number]").value = "2";
+            });
+            assert.equal(effect.system.duration.value, 2);
+            assert.equal(effect.system.duration.unit, "rounds");
+            assert.match(world.messages.contents.at(-1).content, /Goblin: Blinded \(2 rounds\)\./);
+            await until("goblin");
+            await until("goblin");
+            assert.equal(combat.round, 2);
+            assert.equal(expired(effect), false);
+            await until("goblin");
+            assert.equal(expired(effect), true);
+        });
+
+        it("until the end of its next turn is shown as written, not as a timer to change", async (t) => {
+            const { apply } = await setup(t, version);
+            const { button, dialog } = await apply("until the end of its next turn");
+            assert.equal(button.textContent, "Apply: Fleeing (until the end of its next turn), Frightened 4");
+            assert.match(dialog.textContent, /Fleeing\s+until the end of its next turn/);
+            assert.equal(dialog.querySelectorAll("[name^=duration-]").length, 1, "only frightened has a timer to set");
         });
 
         it("a timer counted on the caster's turns is as it was: for 1 minute", async (t) => {

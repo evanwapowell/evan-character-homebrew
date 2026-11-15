@@ -179,9 +179,10 @@ function findDurations(sentence, spellDuration) {
     for (const match of sentence.matchAll(/\bfor (?:that|this|the rest of (?:its|that|the)) turn\b/g)) {
         add(match, { ...turnEnd("its"), thisTurn: true });
     }
-    // Shorter than a turn, but a turn is the closest timer pf2e has
+    // Shorter than a turn, but a turn is the closest timer pf2e has. A save at the end of the creature's turn (Scouring
+    // Sand) leaves its next action for its next turn, so this isn't the turn it's taking.
     for (const match of sentence.matchAll(new RegExp(String.raw`\bfor ${WHOSE} next action\b`, "g"))) {
-        add(match, { ...turnEnd(match[1]), thisTurn: true });
+        add(match, turnEnd(match[1]));
     }
     if (spellDuration) {
         for (const match of sentence.matchAll(/\bfor the (?:spell's )?duration(?: of the spell)?\b/g)) {

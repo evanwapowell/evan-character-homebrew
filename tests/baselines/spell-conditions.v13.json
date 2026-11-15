@@ -248,7 +248,7 @@
         "criticalFailure": ["frightened 4"]
     },
     "Captivating Adoration": {
-        "success": ["fascinated for 1 round (its turn end, counting its current turn)"],
+        "success": ["fascinated for 1 round (its turn end)"],
         "failure": ["fascinated for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["fascinated for 1 minute (caster's turn start) [spell's duration]"]
     },
@@ -1367,10 +1367,7 @@
     "Scouring Pulse": {},
     "Scouring Sand": {
         "failure": ["dazzled for 1 minute (caster's turn start)"],
-        "criticalFailure": [
-            "dazzled for 1 minute (caster's turn start)",
-            "blinded for 1 round (its turn end, counting its current turn)"
-        ]
+        "criticalFailure": ["dazzled for 1 minute (caster's turn start)", "blinded for 1 round (its turn end)"]
     },
     "Scramble Body": {
         "failure": ["sickened 1"],

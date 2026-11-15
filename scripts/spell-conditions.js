@@ -46,18 +46,14 @@ function getLabels() {
 const isOwnTurnTimer = (duration) =>
     duration?.value === 1 && duration.unit === "rounds" && duration.relativeTo === "target";
 
-/** A timer named by the turn it ends at, which the dialog shows as it is: 1 round, on the creature's or caster's turn */
-const isTurnTimer = (duration) =>
-    duration?.value === 1 && duration.unit === "rounds" && (duration.expiry === "turn-end" || isOwnTurnTimer(duration));
-
 function describeDuration(duration) {
     if (duration?.dice) return `${duration.dice} ${duration.unit}`;
     if (!duration?.value) return null;
-    if (isTurnTimer(duration)) {
+    if (duration.value === 1 && duration.unit === "rounds" && duration.expiry === "turn-end") {
         if (duration.relativeTo === "caster") return "until the end of the caster's next turn";
-        if (duration.expiry !== "turn-end") return "until the start of its next turn";
         return duration.thisTurn ? "until the end of its turn" : "until the end of its next turn";
     }
+    if (isOwnTurnTimer(duration)) return "until the start of its next turn";
     const [one, many] = UNIT_LABELS[duration.unit] ?? [duration.unit, duration.unit];
     return `${duration.value} ${duration.value === 1 ? one : many}`;
 }
@@ -73,15 +69,17 @@ function describeDuration(duration) {
  */
 function ownTurnRounds(duration, actor) {
     const combat = game.combat;
-    const current = combat?.started ? combat.combatant : null;
     // pf2e reads the turn the timer counts from as the creature's in the encounter being viewed (ActorPF2e#combatant)
-    const combatant = current?.actor ? combat.combatants.find((c) => c.actor?.uuid === actor.uuid) : null;
-    // Where time also passes with each turn, 0 rounds would be up at the next turn, whoever's it is
-    if (!combatant || CONFIG.time.turnTime) return 1;
+    const combatant = combat?.started ? combat.combatants.find((c) => c.actor?.uuid === actor.uuid) : null;
+    // Where time also passes with each turn, 0 rounds would be up at the next turn, whoever's it is. pf2e compares
+    // initiatives, and with none rolled it takes the current turn's for the creature's.
+    if (typeof combatant?.initiative !== "number" || CONFIG.time.turnTime) return 1;
     const turn = combat.turns.indexOf(combatant);
-    const now = combat.turns.indexOf(current);
-    if (turn > now) return 0;
-    return turn === now && duration.thisTurn ? 0 : 1;
+    const now = combat.turns.indexOf(combat.combatant);
+    if (now === -1 || turn < now) return 1;
+    if (turn === now) return duration.thisTurn ? 0 : 1;
+    // On the turn of a combatant with no creature, pf2e takes an effect whose rounds are up for expired
+    return combat.turns.slice(now, turn).every((c) => c.actor) ? 0 : 1;
 }
 
 /** The save message's spell, outcome, and the creature that rolled it, if it's a save against a spell */
@@ -197,10 +195,12 @@ async function confirmProposals(entries) {
             let timing;
             if (condition.linkedTo) {
                 timing = `<em>while ${esc(names.get(condition.linkedTo) ?? condition.linkedTo)}</em>`;
-            } else if (isTurnTimer(condition.duration)) {
+            } else if (condition.duration?.expiry === "turn-end" && condition.duration.value === 1) {
                 timing = `<em>${esc(describeDuration(condition.duration))}</em>`;
             } else {
-                const note = condition.duration?.rolled ?? (condition.fromSpellDuration ? "spell's duration" : "");
+                // 1 round counted on the creature's own turns, which is what's applied unless it's changed
+                const ownTurn = isOwnTurnTimer(condition.duration) ? describeDuration(condition.duration) : "";
+                const note = condition.duration?.rolled ?? (condition.fromSpellDuration ? "spell's duration" : ownTurn);
                 timing = [
                     `for <input type="number" name="duration-${field}" value="${condition.duration?.value ?? ""}"`,
                     ` min="1" placeholder="no timer" style="width: 5.5em">`,
