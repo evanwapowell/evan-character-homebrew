@@ -146,6 +146,19 @@ describe("parseSpellOutcome on other phrasings", () => {
         assert.deepEqual(parse(html, "failure").conditions, [condition("dazzled", null)]);
     });
 
+    it("follows 'it then takes the effects of a failure', but not a conditional one", () => {
+        const html = [
+            "<p><strong>Failure</strong> The target is slowed 1.</p>",
+            "<p><strong>Critical Failure</strong> The target is dazzled for 1 round. It then takes the effects of a failure.</p>",
+            "<p><strong>Success</strong> If it was flying, it takes the effects of critical failure instead.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("dazzled", null, rounds(1)),
+            condition("slowed", 1),
+        ]);
+        assert.deepEqual(parse(html, "success").conditions, []);
+    });
+
     it("uses the spell's duration for a condition with no timer of its own, but not for self-ending ones", () => {
         const html = "<p><strong>Failure</strong> The target is dazzled and frightened 1.</p>";
         assert.deepEqual(parse(html, "failure", "1 minute").conditions, [

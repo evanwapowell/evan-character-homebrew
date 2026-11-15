@@ -442,11 +442,17 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
             inherited = read(otherKey, seen);
             text = text.slice(asOther[0].length);
         }
-        // "It then suffers the failure effect"
-        const suffers = text.match(/\bsuffers? the (critical success|success|critical failure|failure) effects?\b/);
+        // "It then suffers the failure effect", "It then takes the effects of a failure" (not "if it was flying, it
+        // takes the effects of critical failure instead")
+        const degree = "(critical success|success|critical failure|failure)";
+        const suffers = text.match(
+            new RegExp(
+                String.raw`\bsuffers? the ${degree} effects?\b|\bthen takes? the effects? of (?:a |the )?${degree}\b`,
+            ),
+        );
         if (suffers && !asOther) {
             const other = { "critical success": "criticalSuccess", success: "success", failure: "failure" };
-            const later = read(other[suffers[1]] ?? "criticalFailure", seen);
+            const later = read(other[suffers[1] ?? suffers[2]] ?? "criticalFailure", seen);
             inherited = { effects: later.effects, conditions: later.conditions };
             text = text.replace(suffers[0], "");
         }

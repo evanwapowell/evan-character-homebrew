@@ -1981,7 +1981,8 @@
             "slowed 1"
         ],
         "criticalFailure": [
-            "prone"
+            "prone",
+            "slowed 1"
         ]
     },
     "Leaden Steps": {

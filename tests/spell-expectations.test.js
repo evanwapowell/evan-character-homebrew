@@ -63,6 +63,8 @@ const CONDITIONS = {
     "Divine Wrath": { failure: ["sickened 1"], criticalFailure: ["sickened 2", "slowed 1 while sickened"] },
     // "You are Stunned 1 and the spell ends": the caster's
     "Mind Games": { failure: ["stunned 1"], criticalFailure: ["stunned 2"] },
+    // "It then takes the effects of a failure"
+    "Laughing Fit": { failure: ["slowed 1"], criticalFailure: ["prone", "slowed 1"] },
     // pf2e 8.x links an effect for each degree, which grants the critical failure's stunned 2; 7.x links none
     Synesthesia: {
         v13: { criticalFailure: ["stunned 2"] },
