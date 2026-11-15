@@ -329,6 +329,26 @@ describe("parseSpellOutcome on other phrasings", () => {
         assert.deepEqual(parse(html, "failure").conditions, [condition("frightened", 1)]);
     });
 
+    it("reads 'until the beginning of its next turn' as its start", () => {
+        const html = "<p><strong>Failure</strong> The target is dazzled until the beginning of their next turn.</p>";
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("dazzled", null, rounds(1, "target", "turn-start")),
+        ]);
+    });
+
+    it("reads 'when it returns' as what always happens, and keeps a later condition's own timer", () => {
+        const returns =
+            "<p><strong>Failure</strong> The creature falls into time. When it returns, it takes full damage and is sickened 1.</p>";
+        assert.deepEqual(parse(returns, "failure").conditions, [condition("sickened", 1)]);
+        const urge = [
+            "<p><strong>Failure</strong> The target gives an item, or it can choose to be stunned for 1 round instead.</p>",
+            "<p><strong>Critical Failure</strong> As failure, except the duration is 4 rounds.</p>",
+        ].join("");
+        assert.deepEqual(parse(urge, "criticalFailure").conditions, [
+            condition("stunned", null, rounds(1), { later: true }),
+        ]);
+    });
+
     it("leaves out negated, ignored and heightened conditions", () => {
         const html = [
             "<p><strong>Failure</strong> The target is no longer frightened, and it's hidden. It is dazzled for 1 round.</p>",

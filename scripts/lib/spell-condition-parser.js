@@ -185,7 +185,7 @@ function findDurations(sentence, spellDuration) {
         durations.at(-1).duration.relativeTo = "caster";
     }
     for (const match of sentence.matchAll(
-        new RegExp(String.raw`\buntil the (start|end) of ${WHOSE} next turn\b`, "g"),
+        new RegExp(String.raw`\buntil the (start|beginning|end) of ${WHOSE} next turn\b`, "g"),
     )) {
         add(match, match[1] === "end" ? turnEnd(match[2]) : { ...turnEnd(match[2]), expiry: "turn-start" });
     }
@@ -267,7 +267,12 @@ const LATER_BEFORE = new RegExp(
 );
 function isLater(sentence, start, end) {
     // Not an aside ("falls off the stone (if applicable) and lands Prone")
-    const before = sentence.slice(0, start).replace(/\([^)]*\)/g, "");
+    // nor what always happens ("When it returns, it takes full damage and is Sickened 1": a creature cast into time
+    // always returns, at the end of the caster's turn)
+    const before = sentence
+        .slice(0, start)
+        .replace(/\([^)]*\)/g, "")
+        .replace(/\bwhen (?:it|they) (?:returns?|reappears?)\b/g, "");
     return (
         LATER_BEFORE.test(before) ||
         /^\s*(?:each time|every time|whenever)\b/.test(sentence.slice(end)) ||
@@ -594,9 +599,15 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
             const duration = value
                 ? { value, dice: null, unit: UNITS[restated[2]], expiry: "turn-start", relativeTo: "caster" }
                 : null;
-            // Not a timer tied to the creature's turn ("slowed 1 for that turn")
+            // Not a timer tied to the creature's turn ("slowed 1 for that turn"), nor the own timer of what comes later
+            // or only if something happens ("it can choose to be stunned for 1 round instead", in Charitable Urge,
+            // where "As failure, except the duration is 4 rounds" is the spell's)
             const retime = (c) =>
-                c.linkedTo || c.permanent || isTimeless(c) || c.duration?.relativeTo === "target"
+                c.linkedTo ||
+                c.permanent ||
+                isTimeless(c) ||
+                c.duration?.relativeTo === "target" ||
+                (c.later && c.duration && !c.fromSpellDuration)
                     ? c
                     : { ...c, duration: duration && { ...duration }, fromSpellDuration: false, permanent: !duration };
             inherited = { ...inherited, conditions: inherited.conditions.map(retime) };

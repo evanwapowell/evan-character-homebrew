@@ -289,8 +289,8 @@
         "criticalFailure": ["prone"]
     },
     "Cast into Time": {
-        "failure": ["sickened 1 [later or conditional: unchecked]"],
-        "criticalFailure": ["sickened 2 [later or conditional: unchecked]"]
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
     },
     "Caster's Imposition": {},
     "Cataclysm": {},
@@ -312,7 +312,7 @@
     "Charitable Urge": {
         "success": ["stunned 1"],
         "failure": ["stunned for 1 round (caster's turn start) [later or conditional: unchecked]"],
-        "criticalFailure": ["stunned for 4 rounds (caster's turn start) [later or conditional: unchecked]"]
+        "criticalFailure": ["stunned for 1 round (caster's turn start) [later or conditional: unchecked]"]
     },
     "Charm": {},
     "Charming Push": {
@@ -461,11 +461,8 @@
     },
     "Curse of Malicious Animation": {},
     "Curse of Recoil": {
-        "success": ["off-guard for 1 round (caster's turn start) [spell's duration]"],
-        "failure": [
-            "effect: Spell Effect: Curse of Recoil (Failure)",
-            "off-guard for 1 round (caster's turn start) [spell's duration]"
-        ],
+        "success": ["off-guard for 1 round (its turn start)"],
+        "failure": ["effect: Spell Effect: Curse of Recoil (Failure)", "off-guard for 1 round (its turn start)"],
         "criticalFailure": ["effect: Spell Effect: Curse of Recoil (Critical Failure)"]
     },
     "Curse of Slippery Steps": {},
@@ -908,7 +905,7 @@
     "Glimpse the Netherworld": {},
     "Glossolalia": {},
     "Gluttonous Growth": {
-        "success": ["grabbed"],
+        "success": ["grabbed for 1 round (its turn start)"],
         "failure": ["grabbed"],
         "criticalFailure": ["restrained"]
     },
@@ -1208,9 +1205,9 @@
         "criticalFailure": ["prone"]
     },
     "Living Terrain": {
-        "success": ["clumsy 1 for 1 minute (caster's turn start) [spell's duration]"],
-        "failure": ["prone", "clumsy 1 for 1 minute (caster's turn start) [spell's duration]"],
-        "criticalFailure": ["prone", "clumsy 2 for 1 minute (caster's turn start) [spell's duration]"]
+        "success": ["clumsy 1 for 1 round (caster's turn start)"],
+        "failure": ["prone", "clumsy 1 for 1 round (caster's turn start)"],
+        "criticalFailure": ["prone", "clumsy 2 for 1 round (caster's turn start)"]
     },
     "Living Thunderbolt": {
         "failure": ["dazzled for 1 round (caster's turn start)"],
