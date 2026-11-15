@@ -355,8 +355,9 @@ hooks.onTurnStart(({ combatant }) => onTurnStart(combatant));
 // A creature removed from the encounter has no next turn to end its effects at
 Hooks.on("deleteCombatant", async (combatant) => {
     const actor = combatant.actor;
-    if (!actor || getManifestWillEffects(actor).length === 0) return;
-    if (combatant.parent?.combatants.some((c) => c !== combatant && c.actor === actor)) return;
+    const combat = combatant.parent;
+    if (!actor || !combat?.started || getManifestWillEffects(actor).length === 0) return;
+    if (combat.combatants.some((c) => c !== combatant && c.actor === actor)) return;
     if (!(await confirmActiveGM())) return;
     const ids = getManifestWillEffects(actor).map((e) => e.id);
     if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);

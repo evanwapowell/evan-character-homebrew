@@ -31,10 +31,12 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       action's payload, so a GM session on an earlier version still does the work during an update.
     - `lib/turns.js`: the turns of an encounter. A combat update also arrives when the turn order goes back, and when
       the turn's index shifts under the creature whose turn it is (a combatant added, removed or moved in the order),
-      so `turnChange` reads what an update did, once for every script: the turn that ended and the turn that started,
-      only going forward, and once per creature per round by pf2e's own records on the combatant (`roundOfLastTurn`,
-      `roundOfLastTurnEnd`), read as the update arrives. The active GM's work registered with `onTurnEnd` runs first,
-      then `onTurnStart`'s, each awaited, one turn change after another, in the session chosen for the turn's scene.
+      so it reads what an update did, once for every script: the turn that ended and the turn that started, only going
+      forward, and once per creature per round by the module's own record on the combatant
+      (`flags.evan-character-homebrew.turn`: the rounds its turn last started and ended in; pf2e's `roundOfLastTurnEnd`
+      is also written when a round goes back, so it isn't used). The active GM's work registered with `onTurnEnd` runs
+      first, then `onTurnStart`'s, each awaited, one turn change after another, in the session chosen for the turn's
+      scene.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects (removed at the creature's next turn start, when
       it leaves the encounter, or when the encounter ends), concealment flat checks, cast animations, and re-centering
       on a seneschal's charge.
@@ -293,8 +295,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   tokens' `auras` have `containsToken`); items have `update` and `delete`, which come back a tick later, as from the
   server. `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
   `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included),
-  and pf2e's turn records are written on the combatants after each. `tests/guards.test.js` checks that pf2e's
-  messages reach the features and the module's own don't, `tests/session.test.js` checks the session helpers,
+  and pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. `tests/guards.test.js`
+  checks that pf2e's messages reach the features and the module's own don't, `tests/session.test.js` the session helpers,
   `tests/gm-requests.test.js` the requests to the GM, and `tests/turns.test.js` the turns of an encounter with
   Manifest Will's and Sustain's work on them. Fix a hook-driven bug with a test here; export what a test needs from a
   script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.

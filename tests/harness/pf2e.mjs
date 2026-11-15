@@ -404,11 +404,12 @@ export function addEffect(
  * EncounterPF2e#setMultipleInitiatives in src/module/encounter/document.ts does the same): between the two, the
  * combatant at the old index is the current one, and that's what `previous` then holds.
  *
- * After an update that moved the turn or round forward, pf2e ends the previous combatant's turn and starts the current
- * one's, each unless its record is already that round's, and records the round on the combatant
- * (`flags.pf2e.roundOfLastTurnEnd` and `roundOfLastTurn`: EncounterPF2e#_onUpdate on v13-dev, #_onEndTurn and
- * #_onStartTurn on v14-dev, and CombatantPF2e in src/module/encounter/combatant.ts). The records are written after
- * updateCombat has run, as the real ones are.
+ * After an update whose round or turn index is higher than before, pf2e ends the previous combatant's turn and starts
+ * the current one's, each unless its record is already that round's, and records the round on the combatant
+ * (`flags.pf2e.roundOfLastTurnEnd` and `roundOfLastTurn`, CombatantPF2e in src/module/encounter/combatant.ts). The
+ * conditions are EncounterPF2e#_onUpdate's on v13-dev, for both versions: on v14-dev Foundry calls #_onEndTurn and
+ * #_onStartTurn, on conditions of its own that aren't modelled. The records are written after updateCombat has run, as
+ * the real ones are.
  *
  * `combatants`: `{ actor, token, initiative }`, the token on the encounter's scene. It becomes every connected
  * session's `game.combat`.
@@ -548,6 +549,14 @@ export function makeCombat(world, { id = makeId("combat"), scene = null, combata
             },
             get roundOfLastTurn() {
                 return this.flags.pf2e.roundOfLastTurn;
+            },
+            async update(changes) {
+                const userId = game.user.id;
+                await serverTrip();
+                if (!combat.combatants.has(combatantId)) throw new Error(`Combatant ${combatantId} does not exist`);
+                foundry.utils.mergeObject(this, changes);
+                world.callAll("updateCombatant", () => [this, foundry.utils.expandObject(changes), {}, userId]);
+                return this;
             },
         });
     }

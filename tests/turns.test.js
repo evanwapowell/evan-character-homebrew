@@ -9,6 +9,9 @@
  * - a creature removed from the encounter kept its effect;
  * - Sustain took the creature that got the current index for the one whose turn had ended when the order changed, and
  *   ended its spells before its turn.
+ *
+ * pf2e's own end-of-turn record can't decide whether a turn ended: pf2e 7.x writes it when the round goes back (the
+ * stand-in's encounter does as pf2e 7.x does), so the cases that go back a round are here too.
  */
 
 import assert from "node:assert/strict";
@@ -84,13 +87,13 @@ async function setup(t, version, { windows = 1 } = {}) {
     const [witchTurn, fighterTurn, goblinTurn] = combat.turns;
     const combatants = { witch: witchTurn, fighter: fighterTurn, goblin: goblinTurn };
 
-    /** What each combat update did, as the module read it */
+    /** The turns' work, as it's done: registered last, so each entry follows the scripts' own work */
     const log = [];
-    const { turnChange } = gm.scripts["lib/turns.js"];
-    const name = (turn) => (turn ? `${turn.combatant.actor.name}, round ${turn.round}` : "none");
-    gm.Hooks.on("updateCombat", (encounter, changed) => {
-        const change = turnChange(encounter, changed);
-        log.push(change ? `ended: ${name(change.ended)}; started: ${name(change.started)}` : "nothing");
+    const turns = gm.scripts["lib/turns.js"];
+    const entry = (what) => (turn) => void log.push(`${what} ${turn.combatant.actor.name}, round ${turn.round}`);
+    gm.run(() => {
+        turns.onTurnEnd(entry("end"));
+        turns.onTurnStart(entry("start"));
     });
 
     /** The witch's Aura: Manifest Will (primal), cast or last Sustained in a round */
@@ -110,7 +113,7 @@ async function setup(t, version, { windows = 1 } = {}) {
         await gm.run(() => combat[step](...args));
         await settle(world);
     };
-    return { world, gm, combat, combatants, witch, fighter, goblin, log, castAura, act };
+    return { world, gm, turns, combat, combatants, witch, fighter, goblin, log, castAura, act };
 }
 
 for (const version of ["v13", "v14"]) {
@@ -122,10 +125,13 @@ for (const version of ["v13", "v14"]) {
             await act("nextTurn");
             await act("nextTurn");
             assert.deepEqual(log, [
-                "ended: none; started: Finch, round 1",
-                "ended: Finch, round 1; started: Ezren, round 1",
-                "ended: Ezren, round 1; started: Goblin, round 1",
-                "ended: Goblin, round 1; started: Finch, round 2",
+                "start Finch, round 1",
+                "end Finch, round 1",
+                "start Ezren, round 1",
+                "end Ezren, round 1",
+                "start Goblin, round 1",
+                "end Goblin, round 1",
+                "start Finch, round 2",
             ]);
         });
 
@@ -136,21 +142,41 @@ for (const version of ["v13", "v14"]) {
             log.length = 0;
             await act("previousTurn");
             await act("nextTurn");
+            assert.deepEqual(log, []);
             await act("nextTurn");
-            assert.deepEqual(log, ["nothing", "nothing", "ended: Ezren, round 1; started: Goblin, round 1"]);
+            assert.deepEqual(log, ["end Ezren, round 1", "start Goblin, round 1"]);
         });
 
         it("a round gone back to and played again doesn't end or start the turns it already had", async (t) => {
             const { log, act } = await setup(t, version);
             await act("startCombat");
             for (let i = 0; i < 4; i++) await act("nextTurn");
-            // Round 2, the fighter's turn
+            // Round 2, the fighter's turn: back to the goblin's in round 1, and forward again
             log.length = 0;
             await act("previousTurn");
             await act("previousTurn");
             await act("nextTurn");
             await act("nextTurn");
-            assert.deepEqual(log, ["nothing", "nothing", "nothing", "nothing"]);
+            assert.deepEqual(log, []);
+            // The fighter's turn, started before going back, still ends
+            await act("nextTurn");
+            assert.deepEqual(log, ["end Ezren, round 2", "start Goblin, round 2"]);
+        });
+
+        it("Next Turn into a new round, undone with Previous Turn: the new round's first turn still ends", async (t) => {
+            const { combat, log, act } = await setup(t, version);
+            await act("startCombat");
+            await act("nextTurn");
+            await act("nextTurn");
+            // The goblin's turn; one Next Turn too many, undone
+            await act("nextTurn");
+            await act("previousTurn");
+            assert.equal(combat.round, 1);
+            log.length = 0;
+            await act("nextTurn");
+            assert.deepEqual(log, []);
+            await act("nextTurn");
+            assert.deepEqual(log, ["end Finch, round 2", "start Ezren, round 2"]);
         });
 
         it("the order changing around the creature whose turn it is ends and starts nothing", async (t) => {
@@ -165,7 +191,7 @@ for (const version of ["v13", "v14"]) {
             await act("removeCombatant", combatants.witch);
             assert.equal(combat.combatant, combatants.fighter);
             assert.equal(combat.turn, 1);
-            assert.deepEqual(log, ["nothing", "nothing"]);
+            assert.deepEqual(log, []);
         });
 
         it("a creature that delayed doesn't start its turn again, and the turn before it still ends", async (t) => {
@@ -177,7 +203,60 @@ for (const version of ["v13", "v14"]) {
             await act("setInitiative", combatants.fighter, 1);
             log.length = 0;
             await act("nextTurn");
-            assert.deepEqual(log, ["ended: Goblin, round 1; started: none"]);
+            assert.deepEqual(log, ["end Goblin, round 1"]);
+        });
+
+        it("a creature moved down the order in its turn: the turns gone back to and played end as they come", async (t) => {
+            const { combat, combatants, log, act } = await setup(t, version);
+            await act("startCombat");
+            for (let i = 0; i < 3; i++) await act("nextTurn");
+            // Round 2, the witch's turn: she is dragged below the goblin, and the GM goes back to the fighter
+            await act("setInitiative", combatants.witch, 1);
+            await act("previousTurn");
+            await act("previousTurn");
+            assert.equal(combat.combatant, combatants.fighter);
+            log.length = 0;
+            await act("nextTurn");
+            await act("nextTurn");
+            assert.equal(combat.combatant, combatants.witch);
+            assert.deepEqual(log, ["start Goblin, round 2", "end Goblin, round 2"]);
+        });
+
+        it("a turn change waits for the work of the one before it", async (t) => {
+            const { gm, turns, combat, log } = await setup(t, version);
+            let slow = 0;
+            gm.run(() =>
+                turns.onTurnStart(async () => {
+                    slow += 1;
+                    for (let i = 0; i < 30; i++) await new Promise((resolve) => setImmediate(resolve));
+                    log.push("slow work done");
+                }),
+            );
+            await gm.run(() => combat.startCombat());
+            await gm.run(() => combat.nextTurn());
+            await gm.run(() => combat.nextTurn());
+            await settle(gm.world, () => slow === 3 && log.at(-1) === "slow work done");
+            assert.deepEqual(log, [
+                "start Finch, round 1",
+                "slow work done",
+                "end Finch, round 1",
+                "start Ezren, round 1",
+                "slow work done",
+                "end Ezren, round 1",
+                "start Goblin, round 1",
+                "slow work done",
+            ]);
+        });
+
+        it("an encounter under way before the module recorded its turns: the current turn still ends", async (t) => {
+            const { combat, log, act } = await setup(t, version);
+            await act("startCombat");
+            await act("nextTurn");
+            // As it was before the update: pf2e's records only
+            for (const combatant of combat.turns) delete combatant.flags[MODULE_ID];
+            log.length = 0;
+            await act("nextTurn");
+            assert.deepEqual(log, ["end Ezren, round 1", "start Goblin, round 1"]);
         });
     });
 
@@ -202,6 +281,24 @@ for (const version of ["v13", "v14"]) {
                 ),
             );
             assert.equal(manifestWill(fighter.actor).length, 0, "the fighter isn't affected by an aura that ended");
+        });
+
+        it("a round entered by mistake and gone back from: an aura that isn't Sustained still ends", async (t) => {
+            const { combat, witch, fighter, castAura, act } = await setup(t, version);
+            await act("startCombat");
+            castAura(combat.round);
+            await act("nextTurn");
+            await act("nextTurn");
+            // The goblin's turn; one Next Turn too many, undone
+            await act("nextTurn");
+            await act("previousTurn");
+            await act("nextTurn");
+            assert.equal(aurasOf(witch.actor).length, 1, "round 2, the witch's turn: the aura is still there");
+            // She doesn't Sustain
+            await act("nextTurn");
+            assert.equal(combat.combatant.actor, fighter.actor);
+            assert.equal(aurasOf(witch.actor).length, 0);
+            assert.equal(manifestWill(fighter.actor).length, 0);
         });
 
         it("with the GM connected twice, a turn's work is done once, in order", async (t) => {

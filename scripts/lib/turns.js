@@ -2,14 +2,16 @@
  * The turns of an encounter. A combat update says only that the turn or the round changed. Going back through the turn
  * order arrives that way, and so does a creature keeping its turn at a new place in the order: Foundry commits the
  * turn's new index when a combatant is added or removed, and pf2e when initiative is set or the tracker is reordered
- * (EncounterPF2e#setMultipleInitiatives, src/module/encounter/document.ts). `turnChange` reads what an update did, once
- * for every script: the turn that ended and the turn that started.
+ * (EncounterPF2e#setMultipleInitiatives, src/module/encounter/document.ts). This reads what an update did, once for
+ * every script: the turn that ended and the turn that started.
  *
  * - Only when the turn order moved forward.
- * - Once per creature per round, by pf2e's own records on the combatant (`roundOfLastTurn` and `roundOfLastTurnEnd`,
- *   src/module/encounter/combatant.ts): pf2e starts or ends a turn only when the record isn't that round's. They're
- *   read as the update arrives, before pf2e writes this turn into them, so the module starts and ends a turn when
- *   pf2e does: Previous Turn and then Next Turn does neither.
+ * - Once per creature per round, by the module's own record on the combatant (`flags.<module>.turn`: the round its
+ *   turn last started in, and the round it last ended in), written by the GM session that does the turn's work. A turn
+ *   starts when the record isn't that round's yet, and ends only when it started and hasn't ended. So Previous Turn
+ *   and then Next Turn does neither, and a creature that got the current index when the order changed has no turn to
+ *   end. pf2e's own end record isn't used: pf2e 7.x also writes it when the round goes back
+ *   (EncounterPF2e#_onUpdate compares the turn's index alone).
  *
  * The work registered with `onTurnEnd` runs first, then `onTurnStart`'s, each awaited, and one turn change after
  * another. So the start of a turn sees what the end of the last one did: an aura that ended for want of a Sustain is
@@ -24,17 +26,11 @@ const MODULE_ID = "evan-character-homebrew";
 const endHandlers = [];
 const startHandlers = [];
 
-/** pf2e's record of a combatant's turns: the round it last started one in, and the round it last ended one in */
-function turnRecord(combatant) {
-    const flags = combatant?.flags?.[game.system.id] ?? {};
-    return { started: flags.roundOfLastTurn ?? null, ended: flags.roundOfLastTurnEnd ?? null };
-}
-
 /**
- * What a combat update did, read when it arrives (in the `updateCombat` hook, before anything is awaited): the turn that
- * ended and the turn that started, each `{ combatant, round }` or null, or null when it did neither.
+ * What a combat update moved, read when it arrives (in the `updateCombat` hook, before anything is awaited): the turn
+ * it left and the turn it came to, each `{ combatant, round }` or null. Null when the turn order didn't move forward.
  */
-function turnChange(combat, changed) {
+function turnMove(combat, changed) {
     if (!combat?.started || !changed || !("turn" in changed || "round" in changed)) return null;
     const { previous, round, turn } = combat;
     const combatant = combat.combatant ?? null;
@@ -46,25 +42,42 @@ function turnChange(combat, changed) {
     const prior = last && last.round >= 1 ? (combat.combatants.get(last.combatantId ?? "") ?? null) : null;
     // The same creature's turn, at a new place in the order
     if (prior && prior === combatant && last.round === round) return null;
-
-    const record = turnRecord(combatant);
-    // Back on a creature in the middle of its turn (after Previous Turn, or when the order changed around it): the
-    // creature that had its index in between didn't have a turn to end
-    const midTurn = record.started === round && record.ended !== round;
-    const ended = prior && !midTurn && turnRecord(prior).ended !== last.round;
-    const started = combatant && record.started !== round;
-    if (!ended && !started) return null;
+    if (!prior && !combatant) return null;
     return {
-        ended: ended ? { combatant: prior, round: last.round } : null,
-        started: started ? { combatant, round } : null,
+        combat,
+        from: prior ? { combatant: prior, round: last.round } : null,
+        to: combatant ? { combatant, round } : null,
     };
 }
 
-/** Run a turn's work in the GM session that acts for its scene, and wait for all of it */
+/** The rounds a combatant's turn last started and ended in, as the module recorded them */
+function turnRecord(combatant) {
+    const own = combatant.flags?.[MODULE_ID]?.turn;
+    return { started: own?.started ?? null, ended: own?.ended ?? null };
+}
+
+/**
+ * Whether a combatant's turn in a round is under way: it started and hasn't ended. Before the module has recorded
+ * anything for the combatant (an encounter under way when the module was loaded or updated), pf2e's record of the round
+ * it last started a turn in says whether it started (CombatantPF2e#roundOfLastTurn, src/module/encounter/combatant.ts).
+ */
+function isUnderWay(combatant, round) {
+    const own = combatant.flags?.[MODULE_ID]?.turn;
+    const started = own ? own.started : combatant.flags?.[game.system.id]?.roundOfLastTurn;
+    return started === round && !(own?.ended >= round);
+}
+
+async function record(combatant, change) {
+    try {
+        const turn = { ...turnRecord(combatant), ...change };
+        await combatant.update({ [`flags.${MODULE_ID}.turn`]: turn }, { render: false });
+    } catch (error) {
+        console.error(`${MODULE_ID} | Turn`, error);
+    }
+}
+
+/** Run a turn's work, and wait for all of it */
 async function run(handlers, combat, { combatant, round }) {
-    if (handlers.length === 0) return;
-    const scene = combatant.token?.parent ?? combat.scene ?? null;
-    if (!(await confirmActiveGM({ scene }))) return;
     await Promise.all(
         handlers.map(async (handler) => {
             try {
@@ -76,18 +89,36 @@ async function run(handlers, combat, { combatant, round }) {
     );
 }
 
+/**
+ * A move's work, in the GM session that acts for its scene: the turn it left ends when it started and hasn't ended,
+ * then the turn it came to starts, unless it already has this round (or a later one, in a round gone back to). Each is
+ * recorded before its work, so it isn't done twice.
+ */
+async function turnWork({ combat, from, to }) {
+    const scene = (to ?? from).combatant.token?.parent ?? combat.scene ?? null;
+    if (!(await confirmActiveGM({ scene }))) return;
+    const present = (turn) => (turn && combat.combatants.get(turn.combatant.id) === turn.combatant ? turn : null);
+
+    const ended = present(from);
+    if (ended && isUnderWay(ended.combatant, ended.round)) {
+        await record(ended.combatant, { started: ended.round, ended: ended.round });
+        await run(endHandlers, combat, ended);
+    }
+
+    const started = present(to);
+    if (started && !(turnRecord(started.combatant).started >= started.round)) {
+        await record(started.combatant, { started: started.round });
+        await run(startHandlers, combat, started);
+    }
+}
+
 /** One turn change at a time, in the order the updates arrived */
 let queue = Promise.resolve();
 
 Hooks.on("updateCombat", (combat, changed) => {
-    const change = turnChange(combat, changed);
-    if (!change) return;
-    queue = queue
-        .then(async () => {
-            if (change.ended) await run(endHandlers, combat, change.ended);
-            if (change.started) await run(startHandlers, combat, change.started);
-        })
-        .catch((error) => console.error(`${MODULE_ID} | Turn`, error));
+    const move = turnMove(combat, changed);
+    if (!move) return;
+    queue = queue.then(() => turnWork(move)).catch((error) => console.error(`${MODULE_ID} | Turn`, error));
 });
 
 /**
@@ -104,4 +135,4 @@ function onTurnStart(handler) {
     startHandlers.push(handler);
 }
 
-export { onTurnEnd, onTurnStart, turnChange };
+export { onTurnEnd, onTurnStart };
