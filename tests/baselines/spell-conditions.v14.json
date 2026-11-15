@@ -37,10 +37,7 @@
     "Airburst": {},
     "Airlift": {},
     "Albatross Curse": {
-        "success": [
-            "effect: Spell Effect: Albatross Curse (Critical Failure)",
-            "stupefied 1 for 1 round (caster's turn start)"
-        ],
+        "success": ["stupefied 1 for 1 round (caster's turn start)"],
         "failure": ["effect: Spell Effect: Albatross Curse (Failure)"],
         "criticalFailure": ["effect: Spell Effect: Albatross Curse (Critical Failure)"]
     },
@@ -154,10 +151,7 @@
     "Beheading Buzz Saw": {},
     "Behold the Weave": {},
     "Bestial Curse": {
-        "success": [
-            "effect: Spell Effect: Bestial Curse (Critical Failure)",
-            "clumsy 1 for 1 round (caster's turn start)"
-        ],
+        "success": ["clumsy 1 for 1 round (caster's turn start)"],
         "failure": ["effect: Spell Effect: Bestial Curse (Failure)", "clumsy 1"],
         "criticalFailure": ["effect: Spell Effect: Bestial Curse (Critical Failure)", "clumsy 1"]
     },
@@ -469,7 +463,7 @@
     },
     "Curse of Malicious Animation": {},
     "Curse of Recoil": {
-        "success": ["effect: Spell Effect: Curse of Recoil (Critical Failure)"],
+        "success": ["off-guard for 1 round (caster's turn start) [spell's duration]"],
         "failure": [
             "effect: Spell Effect: Curse of Recoil (Failure)",
             "off-guard for 1 round (caster's turn start) [spell's duration]"
