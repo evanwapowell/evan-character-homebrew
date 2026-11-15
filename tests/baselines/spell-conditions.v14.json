@@ -25,7 +25,9 @@
     "Acid Grip": {},
     "Acid Storm": {},
     "Acidic Burst": {},
-    "Advanced Scurvy": { "success": ["enfeebled 1 for 1 minute (caster's turn start)"] },
+    "Advanced Scurvy": {
+        "success": ["enfeebled 1 for 1 minute (caster's turn start)"]
+    },
     "Agitate": {},
     "Agonizing Despair": {
         "success": ["frightened 1"],
@@ -43,12 +45,18 @@
         "criticalFailure": ["effect: Spell Effect: Albatross Curse (Critical Failure)"]
     },
     "All-Encompassing Hunger": {},
-    "Amalgamizing Leap": { "success": ["enfeebled 1"], "criticalFailure": ["sickened 1"] },
+    "Amalgamizing Leap": {
+        "success": ["enfeebled 1"],
+        "criticalFailure": ["sickened 1"]
+    },
     "Anathematic Reprisal": {
         "failure": ["stupefied 1 for 1 round (caster's turn start)"],
         "criticalFailure": ["stupefied 1 for 1 round (caster's turn start)"]
     },
-    "Ancestral Touch": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
+    "Ancestral Touch": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Ancestral Winds": {
         "success": ["frightened 1"],
         "failure": ["frightened 2"],
@@ -63,13 +71,18 @@
     "Animal Allies": {},
     "Animal Vision": {},
     "Animated Assault": {},
-    "Animus Mine": { "failure": ["stunned 1"], "criticalFailure": ["stunned 1"] },
+    "Animus Mine": {
+        "failure": ["stunned 1"],
+        "criticalFailure": ["stunned 1"]
+    },
     "Annunciation of the Outer Gate": {
         "success": ["frightened 1"],
         "failure": ["frightened 2"],
         "criticalFailure": ["frightened 3"]
     },
-    "Antlion Trap": { "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"] },
+    "Antlion Trap": {
+        "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"]
+    },
     "Appeal to Authority": {
         "success": ["effect: Spell Effect: Appeal to Authority"],
         "failure": ["effect: Spell Effect: Appeal to Authority"],
@@ -90,14 +103,23 @@
         "failure": ["stupefied 2"],
         "criticalFailure": ["stupefied 4"]
     },
-    "Arrow Salvo": { "criticalFailure": ["prone"] },
+    "Arrow Salvo": {
+        "criticalFailure": ["prone"]
+    },
     "Ash Cloud": {
         "failure": ["dazzled for 1 round (caster's turn start)"],
         "criticalFailure": ["blinded for 1 round (caster's turn start)"]
     },
-    "Ashen Wind": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Ashen Wind": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Asterism": {},
-    "Astral Labyrinth": { "success": ["stunned 1"], "failure": ["stunned 1"], "criticalFailure": ["stunned 3"] },
+    "Astral Labyrinth": {
+        "success": ["stunned 1"],
+        "failure": ["stunned 1"],
+        "criticalFailure": ["stunned 3"]
+    },
     "Astral Rain": {},
     "Attacked from Within": {
         "success": ["frightened 1"],
@@ -106,7 +128,11 @@
     },
     "Aura of the Unremarkable": {},
     "Awaken Entropy": {},
-    "Bandit's Doom": { "success": ["doomed 1"], "failure": ["doomed 2"], "criticalFailure": ["doomed 3"] },
+    "Bandit's Doom": {
+        "success": ["doomed 1"],
+        "failure": ["doomed 2"],
+        "criticalFailure": ["doomed 3"]
+    },
     "Bane": {},
     "Banishment": {},
     "Befuddle": {
@@ -143,7 +169,10 @@
     },
     "Blastback": {},
     "Blazing Dive": {},
-    "Blazing Fissure": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Blazing Fissure": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Blessed Boundary": {},
     "Blightburn Blast": {},
     "Blinding Beauty": {
@@ -159,15 +188,23 @@
         "criticalFailure": ["blinded"]
     },
     "Blister": {},
-    "Blister Bomb": { "success": ["sickened 2"] },
-    "Blistering Invective": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
+    "Blister Bomb": {
+        "success": ["sickened 2"]
+    },
+    "Blistering Invective": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Blood Chestnuts": {},
     "Blood Infusion": {
         "success": ["effect: Spell Effect: Blood Infusion"],
         "failure": ["effect: Spell Effect: Blood Infusion"],
         "criticalFailure": ["effect: Spell Effect: Blood Infusion"]
     },
-    "Blood Runs Cold": { "failure": ["slowed 1 for 1 round (caster's turn start)"], "criticalFailure": ["slowed 1"] },
+    "Blood Runs Cold": {
+        "failure": ["slowed 1 for 1 round (caster's turn start)"],
+        "criticalFailure": ["slowed 1"]
+    },
     "Blood Vendetta": {
         "failure": ["effect: Spell Effect: Blood Vendetta (Failure)"],
         "criticalFailure": ["effect: Spell Effect: Blood Vendetta (Failure)"]
@@ -176,9 +213,18 @@
     "Blood-Feasting Breath": {},
     "Bloodspray Curse": {},
     "Bloody Tendrils": {},
-    "Blossoming Gore": { "success": ["drained 1"], "failure": ["drained 1"], "criticalFailure": ["drained 2"] },
-    "Boil Blood": { "failure": ["drained 2"], "criticalFailure": ["drained 3"] },
-    "Bone Moth's Kiss": { "success": ["sickened 1"] },
+    "Blossoming Gore": {
+        "success": ["drained 1"],
+        "failure": ["drained 1"],
+        "criticalFailure": ["drained 2"]
+    },
+    "Boil Blood": {
+        "failure": ["drained 2"],
+        "criticalFailure": ["drained 3"]
+    },
+    "Bone Moth's Kiss": {
+        "success": ["sickened 1"]
+    },
     "Bone Spear": {},
     "Bone Spray": {},
     "Boneshaker": {
@@ -193,10 +239,18 @@
     "Bralani Referendum": {},
     "Bramble Bush": {},
     "Brand the Impenitent": {},
-    "Breath of Drought": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Breath of Drought": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Breathe Fire": {},
-    "Bridge of Vines": { "failure": ["prone"], "criticalFailure": ["prone", "grabbed"] },
-    "Brimstone Rain": { "criticalFailure": ["sickened 1"] },
+    "Bridge of Vines": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone", "grabbed"]
+    },
+    "Brimstone Rain": {
+        "criticalFailure": ["sickened 1"]
+    },
     "Buffeting Winds": {},
     "Burning Blossoms": {
         "failure": ["fascinated for 1 round (its turn end)"],
@@ -207,7 +261,9 @@
         "failure": ["encumbered for 4 rounds (caster's turn start)"],
         "criticalFailure": ["encumbered for 1 minute (caster's turn start)"]
     },
-    "Buzzing Bites": { "criticalFailure": ["sickened 1"] },
+    "Buzzing Bites": {
+        "criticalFailure": ["sickened 1"]
+    },
     "Calcification": {
         "success": ["effect: Spell Effect: Calcification (Success)"],
         "failure": ["effect: Spell Effect: Calcification (Failure)", "petrified [later or conditional: unchecked]"],
@@ -236,7 +292,10 @@
         "failure": ["fascinated for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["fascinated for 1 minute (caster's turn start) [spell's duration]"]
     },
-    "Carrion Mire": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Carrion Mire": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Cast into Time": {
         "failure": ["sickened 1 [later or conditional: unchecked]"],
         "criticalFailure": ["sickened 2 [later or conditional: unchecked]"]
@@ -247,7 +306,11 @@
     "Caustic Blast": {},
     "Cave Fangs": {},
     "Celestial Accord": {},
-    "Censure Falsehoods": { "success": ["sickened 1"], "failure": ["sickened 2"], "criticalFailure": ["sickened 2"] },
+    "Censure Falsehoods": {
+        "success": ["sickened 1"],
+        "failure": ["sickened 2"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Chain Lightning": {},
     "Channel Arrogance": {
         "success": ["fascinated for 1 round (caster's turn start)"],
@@ -260,7 +323,10 @@
         "criticalFailure": ["stunned for 4 rounds (caster's turn start) [later or conditional: unchecked]"]
     },
     "Charm": {},
-    "Charming Push": { "success": ["effect: Spell Effect: Charming Push"], "criticalFailure": ["stunned 1"] },
+    "Charming Push": {
+        "success": ["effect: Spell Effect: Charming Push"],
+        "criticalFailure": ["stunned 1"]
+    },
     "Charming Touch": {},
     "Chastising Retort": {
         "failure": ["stupefied 1 for 1d4 rounds (caster's turn start)"],
@@ -338,7 +404,9 @@
         "criticalFailure": ["confused for 1 minute (caster's turn start)"]
     },
     "Conjured Clockwork": {},
-    "Consuming Darkness": { "criticalFailure": ["immobilized for 1 round (caster's turn start)"] },
+    "Consuming Darkness": {
+        "criticalFailure": ["immobilized for 1 round (caster's turn start)"]
+    },
     "Containment": {},
     "Control Currents": {},
     "Control Water": {},
@@ -355,11 +423,18 @@
         ]
     },
     "Cordyceps Command": {},
-    "Corpse Bloom": { "success": ["sickened 1"], "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Corpse Bloom": {
+        "success": ["sickened 1"],
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Corrosive Muck": {},
     "Crashing Wave": {},
     "Creative Splash": {},
-    "Crescent Scepter": { "success": ["frightened 1"], "failure": ["frightened 2"] },
+    "Crescent Scepter": {
+        "success": ["frightened 1"],
+        "failure": ["frightened 2"]
+    },
     "Crimson Breath": {},
     "Crisis of Faith": {
         "failure": ["stupefied 1 for 1 round (caster's turn start) [later or conditional: unchecked]"],
@@ -404,13 +479,23 @@
     "Curse of Slippery Steps": {},
     "Curse of Verse": {},
     "Curse of the Spirit Orchestra": {},
-    "Curse of the Toad Prince": { "success": ["sickened 1"] },
-    "Cursed Metamorphosis": { "success": ["sickened 1"] },
-    "Cutting Insult": { "success": ["frightened 1"], "failure": ["frightened 2"], "criticalFailure": ["frightened 3"] },
+    "Curse of the Toad Prince": {
+        "success": ["sickened 1"]
+    },
+    "Cursed Metamorphosis": {
+        "success": ["sickened 1"]
+    },
+    "Cutting Insult": {
+        "success": ["frightened 1"],
+        "failure": ["frightened 2"],
+        "criticalFailure": ["frightened 3"]
+    },
     "Cycle of Retribution": {},
     "Cyclone Rondo": {},
     "Dancing Fountain": {},
-    "Darkened Eyes": { "criticalFailure": ["blinded for 1 minute (caster's turn start)"] },
+    "Darkened Eyes": {
+        "criticalFailure": ["blinded for 1 minute (caster's turn start)"]
+    },
     "Darklight": {},
     "Day's Weight": {
         "success": ["fatigued for 1 round (caster's turn start)", "enfeebled 1 for 1 round (caster's turn start)"],
@@ -421,7 +506,9 @@
         ]
     },
     "Daydreamer's Curse": {},
-    "Daze": { "criticalFailure": ["stunned 1"] },
+    "Daze": {
+        "criticalFailure": ["stunned 1"]
+    },
     "Dazzling Flash": {
         "success": ["dazzled for 1 round (caster's turn start)"],
         "failure": ["blinded for 1 round (caster's turn start)", "dazzled for 1 minute (caster's turn start)"],
@@ -443,14 +530,21 @@
         "failure": ["deafened for 10 minutes (caster's turn start)"],
         "criticalFailure": ["deafened"]
     },
-    "Death Knell": { "success": ["dying"] },
+    "Death Knell": {
+        "success": ["dying"]
+    },
     "Deathless March": {
         "success": ["frightened 1"],
         "failure": ["frightened 2"],
         "criticalFailure": ["frightened 3", "paralyzed for 1 round (caster's turn start)"]
     },
-    "Deathly Scream": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
-    "Debilitating Dichotomy": { "criticalFailure": ["stunned 1"] },
+    "Deathly Scream": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
+    "Debilitating Dichotomy": {
+        "criticalFailure": ["stunned 1"]
+    },
     "Debilitating Terror": {
         "success": ["effect: Spell Effect: Debilitating Terror"],
         "criticalFailure": ["stunned 1"]
@@ -509,8 +603,14 @@
     },
     "Divine Immolation": {},
     "Divine Plagues": {},
-    "Divine Wrath": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2", "slowed 1 while sickened"] },
-    "Divinity Leech": { "failure": ["stunned 1"], "criticalFailure": ["stunned for 1 round (caster's turn start)"] },
+    "Divine Wrath": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2", "slowed 1 while sickened"]
+    },
+    "Divinity Leech": {
+        "failure": ["stunned 1"],
+        "criticalFailure": ["stunned for 1 round (caster's turn start)"]
+    },
     "Dizzying Colors": {
         "success": ["dazzled for 1 round (caster's turn start)"],
         "failure": [
@@ -520,7 +620,11 @@
         ],
         "criticalFailure": ["stunned for 1 round (caster's turn start)", "blinded for 1 minute (caster's turn start)"]
     },
-    "Dominate": { "success": ["stunned 1"], "failure": ["controlled"], "criticalFailure": ["controlled"] },
+    "Dominate": {
+        "success": ["stunned 1"],
+        "failure": ["controlled"],
+        "criticalFailure": ["controlled"]
+    },
     "Door to Beyond": {},
     "Draconic Barrage": {},
     "Dragon Breath": {},
@@ -532,8 +636,13 @@
         "criticalFailure": ["effect: Spell Effect: Draw Ire"]
     },
     "Draw the Lightning": {},
-    "Dread Mosquito Storm": { "success": ["sickened"] },
-    "Dread Secret": { "failure": ["frightened 1"], "criticalFailure": ["frightened 3"] },
+    "Dread Mosquito Storm": {
+        "success": ["sickened"]
+    },
+    "Dread Secret": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 3"]
+    },
     "Dreamer's Call": {
         "success": ["fascinated"],
         "failure": [
@@ -559,21 +668,33 @@
     "Earth and Sky": {},
     "Earth's Bile": {},
     "Earthbind": {},
-    "Earthquake": { "criticalFailure": ["prone"] },
+    "Earthquake": {
+        "criticalFailure": ["prone"]
+    },
     "Echo Jump": {},
-    "Eclipse Burst": { "criticalFailure": ["blinded"] },
+    "Eclipse Burst": {
+        "criticalFailure": ["blinded"]
+    },
     "Eidolon's Wrath": {},
     "Eject Soul": {
         "failure": ["stunned 1"],
         "criticalFailure": ["stunned for 1 round (caster's turn start)", "invisible"]
     },
     "Electric Arc": {},
-    "Elemental Annihilation Wave": { "criticalFailure": ["prone"] },
+    "Elemental Annihilation Wave": {
+        "criticalFailure": ["prone"]
+    },
     "Elemental Blast": {},
-    "Elemental Breath": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Elemental Breath": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Elysian Whimsy": {},
     "Ember Doppelgänger": {},
-    "Enervation": { "failure": ["drained 1"], "criticalFailure": ["drained 2", "doomed 1"] },
+    "Enervation": {
+        "failure": ["drained 1"],
+        "criticalFailure": ["drained 2", "doomed 1"]
+    },
     "Enfeeble": {
         "success": ["enfeebled 1 for 1 round (caster's turn start)"],
         "failure": ["enfeebled 2 for 1 minute (caster's turn start)"],
@@ -592,13 +713,20 @@
             "clumsy 1 for 3 rounds (caster's turn start)"
         ]
     },
-    "Entangling Flora": { "criticalFailure": ["immobilized for 1 round (caster's turn start)"] },
-    "Enthrall": { "failure": ["fascinated"], "criticalFailure": ["fascinated"] },
+    "Entangling Flora": {
+        "criticalFailure": ["immobilized for 1 round (caster's turn start)"]
+    },
+    "Enthrall": {
+        "failure": ["fascinated"],
+        "criticalFailure": ["fascinated"]
+    },
     "Entrancing Eyes": {
         "failure": ["stupefied 2 for 1 round (its turn end)", "fascinated for 1 round (its turn end)"],
         "criticalFailure": ["stupefied 4 for 1 round (its turn end)", "fascinated for 1 round (its turn end)"]
     },
-    "Entreat the Many": { "criticalFailure": ["prone"] },
+    "Entreat the Many": {
+        "criticalFailure": ["prone"]
+    },
     "Envenom Companion": {
         "failure": ["clumsy 1 for 1 round (caster's turn start)"],
         "criticalFailure": ["clumsy 1 for 1 round (caster's turn start)"]
@@ -611,12 +739,21 @@
     },
     "Eradicate Undeath": {},
     "Etheric Shards": {},
-    "Evil Eye": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Evil Eye": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Exchange Image": {},
     "Excise Lexicon": {},
     "Execute": {},
-    "Expeditious Excavation": { "failure": ["prone"], "criticalFailure": ["prone"] },
-    "Exploding Earth": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Expeditious Excavation": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
+    "Exploding Earth": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Explosive Barrage": {
         "failure": ["deafened for 1 minute (caster's turn start)"],
         "criticalFailure": ["deafened for 1 minute (caster's turn start)"]
@@ -634,7 +771,10 @@
             "effect: Spell Effect: Faerie Dust (Critical Failure)"
         ]
     },
-    "Fallen Soldier's Lament": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
+    "Fallen Soldier's Lament": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Falling Sky": {
         "success": ["prone"],
         "failure": ["prone", "stunned 2"],
@@ -658,7 +798,9 @@
         "failure": ["dazzled for 1 minute (caster's turn start)"],
         "criticalFailure": ["blinded for 1 round (its turn end) [later or conditional: unchecked]"]
     },
-    "Fearful Feast": { "criticalFailure": ["frightened 4"] },
+    "Fearful Feast": {
+        "criticalFailure": ["frightened 4"]
+    },
     "Feast of Ashes": {
         "success": ["fatigued for 1 round (caster's turn start)"],
         "failure": ["fatigued"],
@@ -716,14 +858,20 @@
     },
     "Frigid Flurry": {},
     "Frog Tongue": {},
-    "Frost Pillar": { "failure": ["restrained"], "criticalFailure": ["restrained"] },
+    "Frost Pillar": {
+        "failure": ["restrained"],
+        "criticalFailure": ["restrained"]
+    },
     "Frostbite": {},
     "Frozen Fog": {
         "failure": ["clumsy 1 for 1 minute (caster's turn start)"],
         "criticalFailure": ["clumsy 2 for 1 minute (caster's turn start)"]
     },
     "Frozen Lungs": {},
-    "Fungal Exhalation": { "failure": ["sickened 1"], "criticalFailure": ["sickened 1"] },
+    "Fungal Exhalation": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 1"]
+    },
     "Fungal Infestation": {
         "success": ["effect: Spell Effect: Fungal Infestation"],
         "failure": ["effect: Spell Effect: Fungal Infestation"],
@@ -731,11 +879,22 @@
     },
     "Gale Blast": {},
     "Garden of Stone": {},
-    "Gasping Marsh": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Gasping Marsh": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Geyser": {},
-    "Ghoulish Cravings": { "success": ["sickened 1"], "failure": ["sickened 2"], "criticalFailure": ["sickened 2"] },
-    "Gift of Dusk": { "success": ["enfeebled 1 for 1 minute (caster's turn start)"] },
-    "Gift of the Anemos": { "criticalFailure": ["off-guard for 1 round (caster's turn end)"] },
+    "Ghoulish Cravings": {
+        "success": ["sickened 1"],
+        "failure": ["sickened 2"],
+        "criticalFailure": ["sickened 2"]
+    },
+    "Gift of Dusk": {
+        "success": ["enfeebled 1 for 1 minute (caster's turn start)"]
+    },
+    "Gift of the Anemos": {
+        "criticalFailure": ["off-guard for 1 round (caster's turn end)"]
+    },
     "Glacial Heart": {
         "success": ["slowed 1 for 1 round (caster's turn start)"],
         "failure": [
@@ -756,32 +915,62 @@
     "Glimmer of Charm": {},
     "Glimpse the Netherworld": {},
     "Glossolalia": {},
-    "Gluttonous Growth": { "success": ["grabbed"], "failure": ["grabbed"], "criticalFailure": ["restrained"] },
-    "Goblin Pox": { "success": ["sickened 1"] },
-    "Grasp of the Deep": { "failure": ["grabbed"], "criticalFailure": ["grabbed"] },
-    "Grasping Earth": { "failure": ["grabbed"], "criticalFailure": ["restrained"] },
-    "Grasping Grave": { "criticalFailure": ["immobilized for 1 round (caster's turn start)"] },
+    "Gluttonous Growth": {
+        "success": ["grabbed"],
+        "failure": ["grabbed"],
+        "criticalFailure": ["restrained"]
+    },
+    "Goblin Pox": {
+        "success": ["sickened 1"]
+    },
+    "Grasp of the Deep": {
+        "failure": ["grabbed"],
+        "criticalFailure": ["grabbed"]
+    },
+    "Grasping Earth": {
+        "failure": ["grabbed"],
+        "criticalFailure": ["restrained"]
+    },
+    "Grasping Grave": {
+        "criticalFailure": ["immobilized for 1 round (caster's turn start)"]
+    },
     "Grasping Vine": {
         "success": ["grabbed for 1 round (caster's turn end)"],
         "failure": ["grabbed"],
         "criticalFailure": ["grabbed"]
     },
-    "Gravitational Pull": { "criticalFailure": ["prone"] },
-    "Gravity Wave": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Gravitational Pull": {
+        "criticalFailure": ["prone"]
+    },
+    "Gravity Wave": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Gravity Well": {},
-    "Grease": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Grease": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Grim Tendrils": {},
-    "Grisly Growths": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Grisly Growths": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Gritty Wheeze": {
         "failure": ["dazzled for 1 round (caster's turn start)"],
         "criticalFailure": ["dazzled for 1 minute (caster's turn start)"]
     },
-    "Gust of Wind": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Gust of Wind": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Hag's Fruit": {},
     "Hallowed Ground": {},
     "Hallucination": {},
     "Harm": {},
-    "Haunting Hymn": { "criticalFailure": ["deafened for 1 minute (caster's turn start)"] },
+    "Haunting Hymn": {
+        "criticalFailure": ["deafened for 1 minute (caster's turn start)"]
+    },
     "Haunting Spirit": {
         "success": ["off-guard for 1 round (caster's turn start)"],
         "failure": ["off-guard for 1 round (caster's turn start)"],
@@ -796,7 +985,10 @@
     "Heart's Hook": {},
     "Heartbolt": {},
     "Heat Metal": {},
-    "Heaving Earth": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Heaving Earth": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Hedge Prison": {},
     "Heinous Future": {
         "success": ["slowed 1 for 1 round (caster's turn start)", "stupefied 1 for 1 round (caster's turn start)"],
@@ -804,9 +996,14 @@
         "criticalFailure": ["slowed 2", "stupefied 2"]
     },
     "Hellfire Plume": {},
-    "Hollow Heart": { "criticalFailure": ["frightened 1"] },
+    "Hollow Heart": {
+        "criticalFailure": ["frightened 1"]
+    },
     "Holy Cascade": {},
-    "Horrific Visage": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
+    "Horrific Visage": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Horrifying Blood Loss": {
         "success": ["frightened 1"],
         "failure": ["frightened 2"],
@@ -839,7 +1036,9 @@
     },
     "Illuminate": {},
     "Imp Sting": {},
-    "Impaling Briars": { "criticalFailure": ["immobilized for 1 round (caster's turn start)"] },
+    "Impaling Briars": {
+        "criticalFailure": ["immobilized for 1 round (caster's turn start)"]
+    },
     "Impaling Spike": {
         "failure": [
             "immobilized for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
@@ -910,7 +1109,9 @@
             "drained [later or conditional: unchecked]"
         ]
     },
-    "Inevitable Destination": { "criticalFailure": ["prone"] },
+    "Inevitable Destination": {
+        "criticalFailure": ["prone"]
+    },
     "Inevitable Disaster": {},
     "Inexhaustible Cynicism": {},
     "Infectious Comedy": {
@@ -943,11 +1144,17 @@
         "failure": ["stupefied 1 for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["stupefied 2 for 1 minute (caster's turn start) [spell's duration]"]
     },
-    "Inner Radiance Torrent": { "criticalFailure": ["blinded for 1 round (caster's turn start)"] },
+    "Inner Radiance Torrent": {
+        "criticalFailure": ["blinded for 1 round (caster's turn start)"]
+    },
     "Instant Minefield": {},
-    "Internal Insurrection": { "success": ["clumsy for 1 round (caster's turn start)"] },
+    "Internal Insurrection": {
+        "success": ["clumsy for 1 round (caster's turn start)"]
+    },
     "Interstellar Void": {},
-    "Invoke Spirits": { "criticalFailure": ["frightened 2", "fleeing for 1 round (caster's turn start)"] },
+    "Invoke Spirits": {
+        "criticalFailure": ["frightened 2", "fleeing for 1 round (caster's turn start)"]
+    },
     "Invoke the Crimson Oath": {},
     "Invoke the Harrow": {},
     "Iron Rain": {},
@@ -956,22 +1163,34 @@
         "failure": ["invisible for 3 rounds (caster's turn start) [spell's duration]"]
     },
     "Jealous Hex": {},
-    "Kinetic Ram": { "criticalFailure": ["prone"] },
+    "Kinetic Ram": {
+        "criticalFailure": ["prone"]
+    },
     "Kiss the Ring": {
         "success": ["frightened 1"],
         "failure": ["frightened 1", "prone [later or conditional: unchecked]"],
         "criticalFailure": ["frightened 1", "prone [later or conditional: unchecked]"]
     },
     "Lament": {},
-    "Laughing Fit": { "failure": ["slowed 1"], "criticalFailure": ["prone", "slowed 1"] },
+    "Laughing Fit": {
+        "failure": ["slowed 1"],
+        "criticalFailure": ["prone", "slowed 1"]
+    },
     "Leaden Steps": {
         "success": ["effect: Spell Effect: Leaden Steps"],
         "failure": ["effect: Spell Effect: Leaden Steps"],
         "criticalFailure": ["effect: Spell Effect: Leaden Steps"]
     },
     "Leng Sting": {},
-    "Life Tap": { "success": ["drained 1"], "failure": ["drained 2"], "criticalFailure": ["drained 3"] },
-    "Life's Flowing River": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Life Tap": {
+        "success": ["drained 1"],
+        "failure": ["drained 2"],
+        "criticalFailure": ["drained 3"]
+    },
+    "Life's Flowing River": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Life's Fresh Bloom": {},
     "Life-Draining Roots": {},
     "Lifewood Cage": {},
@@ -992,7 +1211,10 @@
         "criticalFailure": ["slowed 2", "petrified [later or conditional: unchecked]"]
     },
     "Linnorm Sting": {},
-    "Living Graveyard": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Living Graveyard": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Living Terrain": {
         "success": ["clumsy 1 for 1 minute (caster's turn start) [spell's duration]"],
         "failure": ["prone", "clumsy 1 for 1 minute (caster's turn start) [spell's duration]"],
@@ -1002,7 +1224,10 @@
         "failure": ["dazzled for 1 round (caster's turn start)"],
         "criticalFailure": ["dazzled for 1 round (caster's turn start)"]
     },
-    "Localized Quake": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Localized Quake": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Lock Item": {},
     "Lose the Path": {},
     "Lost Things Returned": {
@@ -1060,7 +1285,10 @@
         "failure": ["concealed for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["concealed for 1 minute (caster's turn start) [spell's duration]"]
     },
-    "Mask of Terror": { "failure": ["frightened 2"], "criticalFailure": ["frightened 2"] },
+    "Mask of Terror": {
+        "failure": ["frightened 2"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Massacre": {},
     "Maze of Locked Doors": {},
     "Medusa's Wrath": {
@@ -1071,10 +1299,17 @@
         "failure": ["effect: Spell Effect: Mental Map"],
         "criticalFailure": ["effect: Spell Effect: Mental Map"]
     },
-    "Mercurial Stride": { "success": ["sickened 1"], "failure": ["sickened 2"], "criticalFailure": ["sickened 2"] },
+    "Mercurial Stride": {
+        "success": ["sickened 1"],
+        "failure": ["sickened 2"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Metal Reverberation": {},
     "Metallic Meteorite Glyph": {},
-    "Mind Games": { "failure": ["stunned 1"], "criticalFailure": ["stunned 2"] },
+    "Mind Games": {
+        "failure": ["stunned 1"],
+        "criticalFailure": ["stunned 2"]
+    },
     "Mind Probe": {},
     "Mind Reading": {},
     "Mind of Menace": {},
@@ -1089,20 +1324,26 @@
         "failure": ["frightened 2", "slowed 1 while frightened"],
         "criticalFailure": ["frightened 3", "slowed 1 while frightened"]
     },
-    "Moonburst": { "criticalFailure": ["blinded"] },
+    "Moonburst": {
+        "criticalFailure": ["blinded"]
+    },
     "Morass of Ages": {
         "failure": ["slowed 1 for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["slowed 1 for 1 minute (caster's turn start) [spell's duration]", "restrained"]
     },
     "Mosquito Blight": {},
-    "Murmuration": { "criticalFailure": ["effect: Spell Effect: Murmuration"] },
+    "Murmuration": {
+        "criticalFailure": ["effect: Spell Effect: Murmuration"]
+    },
     "Mushroom Patch": {
         "success": ["dazzled for 1 round (caster's turn start)"],
         "failure": ["dazzled for 1 round (caster's turn start)"],
         "criticalFailure": ["dazzled for 1 round (caster's turn start)", "slowed 1 for 1 round (caster's turn start)"]
     },
     "Mutilate": {},
-    "Mycological Malady": { "success": ["enfeebled 2 for 1 round (caster's turn start)"] },
+    "Mycological Malady": {
+        "success": ["enfeebled 2 for 1 round (caster's turn start)"]
+    },
     "Nature's Enmity": {},
     "Necrotic Bomb": {},
     "Necrotic Radiation": {},
@@ -1111,7 +1352,10 @@
         "failure": ["effect: Spell Effect: Necrotize (Failure)"]
     },
     "Needle of Vengeance": {},
-    "Never Mind": { "success": ["stupefied 2 for 1 round (caster's turn start)"], "failure": ["stupefied 4"] },
+    "Never Mind": {
+        "success": ["stupefied 2 for 1 round (caster's turn start)"],
+        "failure": ["stupefied 4"]
+    },
     "Nightmare": {
         "failure": ["fatigued for 1 day (caster's turn start) [spell's duration]"],
         "criticalFailure": ["fatigued for 1 day (caster's turn start) [spell's duration]", "drained 2 while fatigued"]
@@ -1120,13 +1364,21 @@
         "failure": ["deafened for 1 round (caster's turn start)"],
         "criticalFailure": ["deafened for 1 minute (caster's turn start)", "stunned 1"]
     },
-    "Noxious Metals": { "success": ["sickened 1"], "failure": ["sickened 2"], "criticalFailure": ["sickened 3"] },
-    "Noxious Vapors": { "criticalFailure": ["sickened 1"] },
+    "Noxious Metals": {
+        "success": ["sickened 1"],
+        "failure": ["sickened 2"],
+        "criticalFailure": ["sickened 3"]
+    },
+    "Noxious Vapors": {
+        "criticalFailure": ["sickened 1"]
+    },
     "Nymph's Grace": {
         "failure": ["confused for 1 round (caster's turn start)"],
         "criticalFailure": ["confused for 1 round (caster's turn start)"]
     },
-    "Oneiric Mire": { "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"] },
+    "Oneiric Mire": {
+        "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"]
+    },
     "Orb of Twisting Fate": {},
     "Ordained Purpose": {
         "failure": ["prone [later or conditional: unchecked]"],
@@ -1167,7 +1419,9 @@
         "failure": ["effect: Spell Effect: Pact Broker"],
         "criticalFailure": ["effect: Spell Effect: Pact Broker"]
     },
-    "Pain of Ages": { "criticalFailure": ["stunned for 1 round (caster's turn start)"] },
+    "Pain of Ages": {
+        "criticalFailure": ["stunned for 1 round (caster's turn start)"]
+    },
     "Painful Vibrations": {
         "failure": ["sickened 1", "deafened for 1 round (caster's turn start)"],
         "criticalFailure": ["sickened 2", "deafened for 1 minute (caster's turn start)"]
@@ -1180,7 +1434,9 @@
         "criticalFailure": ["paralyzed for 4 rounds (caster's turn start)"]
     },
     "Paranoia": {},
-    "Parch": { "criticalFailure": ["dazzled for 1 minute (caster's turn start)"] },
+    "Parch": {
+        "criticalFailure": ["dazzled for 1 minute (caster's turn start)"]
+    },
     "Patron's Protector": {},
     "Penumbral Shroud": {},
     "Personal Blizzard": {
@@ -1214,7 +1470,10 @@
         "criticalFailure": ["fascinated for 1 minute (caster's turn start)"]
     },
     "Phantom Orchestra": {},
-    "Phantom Pain": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Phantom Pain": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Phantom Prison": {},
     "Pied Piping": {
         "success": ["fascinated for 1 minute (caster's turn start) [spell's duration]"],
@@ -1227,7 +1486,10 @@
     },
     "Planar Collision": {},
     "Planar Tether": {},
-    "Plasma Whirl": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2"] },
+    "Plasma Whirl": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Pollen Pods": {
         "success": ["dazzled for 1 round (caster's turn start)"],
         "failure": ["dazzled for 1 round (caster's turn start)", "stupefied 1 for 1 minute (caster's turn start)"],
@@ -1274,8 +1536,12 @@
     },
     "Purifying Veil": {},
     "Purple Worm Sting": {},
-    "Pushing Gust": { "criticalFailure": ["prone"] },
-    "Pyrefowl Rebuke": { "criticalFailure": ["dazzled for 1 round (its turn end)"] },
+    "Pushing Gust": {
+        "criticalFailure": ["prone"]
+    },
+    "Pyrefowl Rebuke": {
+        "criticalFailure": ["dazzled for 1 round (its turn end)"]
+    },
     "Pyroclastic Truth": {},
     "Pyrotechnics": {
         "success": ["dazzled for 1 round (its turn end)"],
@@ -1310,7 +1576,9 @@
         "failure": ["clumsy 2", "immobilized"],
         "criticalFailure": ["clumsy 2", "restrained"]
     },
-    "Ranger's Bramble": { "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"] },
+    "Ranger's Bramble": {
+        "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"]
+    },
     "Ravening Maw": {},
     "Ray of Corruption": {},
     "Reaper's Lantern": {
@@ -1321,7 +1589,10 @@
         "failure": ["clumsy 1 for 1 minute (caster's turn start)"],
         "criticalFailure": ["clumsy 2 for 1 minute (caster's turn start)"]
     },
-    "Recurring Nightmare": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
+    "Recurring Nightmare": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Redistribute Potential": {
         "failure": ["clumsy 1", "enfeebled 1"],
         "criticalFailure": ["clumsy 1", "enfeebled 1"]
@@ -1333,15 +1604,24 @@
         "criticalFailure": ["effect: Spell Effect: Remake Physiology (Critical Failure)"]
     },
     "Remember the Lost": {},
-    "Repelling Pulse": { "criticalFailure": ["prone"] },
+    "Repelling Pulse": {
+        "criticalFailure": ["prone"]
+    },
     "Repulsion": {},
     "Retributive Pain": {},
-    "Retrieving Hook": { "criticalFailure": ["off-guard for 1 round (caster's turn start)"] },
+    "Retrieving Hook": {
+        "criticalFailure": ["off-guard for 1 round (caster's turn start)"]
+    },
     "Revealing Light": {},
     "Rewrite Memory": {},
-    "Rime Slick": { "criticalFailure": ["prone"] },
+    "Rime Slick": {
+        "criticalFailure": ["prone"]
+    },
     "Ring of Truth": {},
-    "Rip the Spirit": { "failure": ["drained 1"], "criticalFailure": ["drained 1"] },
+    "Rip the Spirit": {
+        "failure": ["drained 1"],
+        "criticalFailure": ["drained 1"]
+    },
     "Roar of Freedom": {
         "failure": ["frightened 1", "stupefied 1 for 1 round (caster's turn start)"],
         "criticalFailure": ["frightened 2", "stupefied 2 for 2 rounds (caster's turn start)"]
@@ -1358,8 +1638,12 @@
             "fascinated for 10 minutes (caster's turn start) [spell's duration]"
         ]
     },
-    "Root in Place": { "success": ["slowed 1 for 1 round (its turn end)", "immobilized for 1 round (its turn end)"] },
-    "Rose's Thorns": { "criticalFailure": ["immobilized for 1 round (caster's turn start)"] },
+    "Root in Place": {
+        "success": ["slowed 1 for 1 round (its turn end)", "immobilized for 1 round (its turn end)"]
+    },
+    "Rose's Thorns": {
+        "criticalFailure": ["immobilized for 1 round (caster's turn start)"]
+    },
     "Rouse Skeletons": {},
     "Rude Awakening": {},
     "Rust Cloud": {},
@@ -1373,7 +1657,9 @@
     },
     "Sanctuary": {},
     "Sanguine Mist": {},
-    "Savor the Sting": { "failure": ["effect: Spell Effect: Savor the Sting"] },
+    "Savor the Sting": {
+        "failure": ["effect: Spell Effect: Savor the Sting"]
+    },
     "Sawtooth Terrain": {},
     "Scatter Scree": {},
     "Schadenfreude": {
@@ -1386,18 +1672,35 @@
         "failure": ["dazzled for 1 minute (caster's turn start)"],
         "criticalFailure": ["dazzled for 1 minute (caster's turn start)", "blinded for 1 round (its turn end)"]
     },
-    "Scramble Body": { "failure": ["sickened 1"], "criticalFailure": ["sickened 2", "slowed 1 while sickened"] },
-    "Scrounger's Glee": { "failure": ["frightened 1"], "criticalFailure": ["frightened 2"] },
+    "Scramble Body": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 2", "slowed 1 while sickened"]
+    },
+    "Scrounger's Glee": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 2"]
+    },
     "Scrying": {},
-    "Sculpt Sound": { "criticalFailure": ["stupefied 2 for 1 minute (caster's turn start)"] },
-    "Sea Surge": { "failure": ["prone"], "criticalFailure": ["prone"] },
-    "Sea of Thought": { "criticalFailure": ["prone"] },
+    "Sculpt Sound": {
+        "criticalFailure": ["stupefied 2 for 1 minute (caster's turn start)"]
+    },
+    "Sea Surge": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
+    "Sea of Thought": {
+        "criticalFailure": ["prone"]
+    },
     "Seal Fate": {},
     "Searing Rain": {},
     "Seize Identity": {},
     "Sepulchral Mask": {},
     "Shadow Army": {},
-    "Shadow Projectile": { "success": ["off-guard"], "failure": ["off-guard"], "criticalFailure": ["off-guard"] },
+    "Shadow Projectile": {
+        "success": ["off-guard"],
+        "failure": ["off-guard"],
+        "criticalFailure": ["off-guard"]
+    },
     "Shadow Raid": {},
     "Shadow Zombie": {},
     "Shadow's Web": {
@@ -1410,7 +1713,10 @@
         ]
     },
     "Shaken Confidence": {},
-    "Shape Stone": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Shape Stone": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Shared Nightmare": {
         "failure": ["confused for 1 minute (caster's turn start) [later or conditional: unchecked]"],
         "criticalFailure": ["confused for 1 minute (caster's turn start)"]
@@ -1446,13 +1752,19 @@
         "failure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["restrained"]
     },
-    "Sleep": { "failure": ["unconscious"], "criticalFailure": ["unconscious"] },
+    "Sleep": {
+        "failure": ["unconscious"],
+        "criticalFailure": ["unconscious"]
+    },
     "Slime Spit": {
         "success": ["dazzled for 1 round (caster's turn start)"],
         "failure": ["dazzled for 1 round (caster's turn end)"],
         "criticalFailure": ["blinded for 1 round (caster's turn start)", "dazzled"]
     },
-    "Slither": { "failure": ["grabbed"], "criticalFailure": ["grabbed", "restrained"] },
+    "Slither": {
+        "failure": ["grabbed"],
+        "criticalFailure": ["grabbed", "restrained"]
+    },
     "Slow": {
         "success": ["slowed 1 for 1 round (caster's turn start)"],
         "failure": ["slowed 1 for 1 minute (caster's turn start)"],
@@ -1464,7 +1776,10 @@
     },
     "Songbird's Call": {},
     "Soothing Mist": {},
-    "Soul Siphon": { "failure": ["drained 1"], "criticalFailure": ["drained 2"] },
+    "Soul Siphon": {
+        "failure": ["drained 1"],
+        "criticalFailure": ["drained 2"]
+    },
     "Sparkleskin": {
         "failure": ["effect: Spell Effect: Sparkleskin", "dazzled for 1 round (caster's turn start)"],
         "criticalFailure": ["effect: Spell Effect: Sparkleskin", "dazzled for 3 rounds (caster's turn start)"]
@@ -1472,7 +1787,10 @@
     "Spellwrack": {},
     "Spider Sting": {},
     "Spirit Blast": {},
-    "Spirit Song": { "failure": ["stunned 1"], "criticalFailure": ["stunned 2"] },
+    "Spirit Song": {
+        "failure": ["stunned 1"],
+        "criticalFailure": ["stunned 2"]
+    },
     "Spiritual Anamnesis": {
         "success": ["slowed 1 for 1 round (caster's turn start)"],
         "failure": ["slowed 1 for 1 minute (caster's turn start)"],
@@ -1491,7 +1809,9 @@
         "failure": ["stupefied 1 for 1d4 rounds (caster's turn start)"],
         "criticalFailure": ["stupefied 2 for 1d4 rounds (caster's turn start)"]
     },
-    "Spout": { "criticalFailure": ["off-guard for 1 round (caster's turn end)"] },
+    "Spout": {
+        "criticalFailure": ["off-guard for 1 round (caster's turn end)"]
+    },
     "Spray of Salt": {},
     "Spray of Stars": {
         "success": ["dazzled for 1 round (caster's turn start)"],
@@ -1507,7 +1827,9 @@
         "failure": ["fascinated for 1 round (caster's turn start)"],
         "criticalFailure": ["fascinated for 1 round (caster's turn start)"]
     },
-    "Stasis": { "success": ["stunned 1"] },
+    "Stasis": {
+        "success": ["stunned 1"]
+    },
     "Steal Shadow": {
         "success": ["enfeebled 1 for 1 round (caster's turn start)"],
         "failure": ["enfeebled 1 for 1 minute (caster's turn start)"],
@@ -1529,12 +1851,19 @@
         "failure": ["sickened 1", "slowed 1 for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["sickened 2", "slowed 1 for 1 minute (caster's turn start) [spell's duration]"]
     },
-    "Stop Heart": { "success": ["sickened 1"], "failure": ["sickened 2"], "criticalFailure": ["sickened 3"] },
+    "Stop Heart": {
+        "success": ["sickened 1"],
+        "failure": ["sickened 2"],
+        "criticalFailure": ["sickened 3"]
+    },
     "Storm Lord": {
         "failure": ["deafened for 1 round (caster's turn start)"],
         "criticalFailure": ["deafened for 1 round (caster's turn start)"]
     },
-    "Stormburst": { "failure": ["prone"], "criticalFailure": ["prone", "stunned 1"] },
+    "Stormburst": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone", "stunned 1"]
+    },
     "Strange Geometry": {},
     "Stumbling Curse": {
         "success": ["effect: Spell Effect: Stumbling Curse"],
@@ -1551,8 +1880,12 @@
     "Sudden Blight": {},
     "Sudden Bolt": {},
     "Sudden Recollection": {},
-    "Sudden Transposition": { "criticalFailure": ["prone"] },
-    "Suffocate": { "criticalFailure": ["unconscious for 1 minute (caster's turn start)"] },
+    "Sudden Transposition": {
+        "criticalFailure": ["prone"]
+    },
+    "Suffocate": {
+        "criticalFailure": ["unconscious for 1 minute (caster's turn start)"]
+    },
     "Suggestion": {},
     "Summon Healing Servitor": {},
     "Summon Stampede": {
@@ -1560,7 +1893,9 @@
         "failure": ["frightened 2"],
         "criticalFailure": ["frightened 3", "fleeing for 1 round (caster's turn start)"]
     },
-    "Sunburst": { "criticalFailure": ["blinded"] },
+    "Sunburst": {
+        "criticalFailure": ["blinded"]
+    },
     "Suspended Retribution": {},
     "Swallow Light": {},
     "Swamp of Sloth": {},
@@ -1587,8 +1922,14 @@
         "criticalFailure": ["enfeebled 1", "clumsy 1", "drained 1", "stupefied 1"]
     },
     "Tear the Veil": {},
-    "Teeth to Terror": { "failure": ["frightened 1"], "criticalFailure": ["frightened 3"] },
-    "Telekinetic Bombardment": { "failure": ["prone"], "criticalFailure": ["prone", "stunned 1"] },
+    "Teeth to Terror": {
+        "failure": ["frightened 1"],
+        "criticalFailure": ["frightened 3"]
+    },
+    "Telekinetic Bombardment": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone", "stunned 1"]
+    },
     "Telekinetic Rend": {},
     "Telepathic Demand": {},
     "Tempest Surge": {
@@ -1617,14 +1958,18 @@
             "stupefied 1 for 4 rounds (caster's turn start)"
         ]
     },
-    "Temporal Ward": { "criticalFailure": ["confused for 1 minute (caster's turn start)"] },
+    "Temporal Ward": {
+        "criticalFailure": ["confused for 1 minute (caster's turn start)"]
+    },
     "Temporary Possession": {
         "success": ["controlled", "prone", "stunned 1 [later or conditional: unchecked]"],
         "failure": ["controlled", "prone", "stunned 1 [later or conditional: unchecked]"],
         "criticalFailure": ["controlled", "prone", "stunned 1 [later or conditional: unchecked]"]
     },
     "Tenebrous Freedom": {},
-    "Tether": { "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"] },
+    "Tether": {
+        "criticalFailure": ["immobilized for 1 minute (caster's turn start) [spell's duration]"]
+    },
     "The Night is Mine": {},
     "The Parrot's Whisper": {},
     "The Queen's Rainbow": {
@@ -1640,16 +1985,22 @@
         "failure": ["deafened for 1 minute (caster's turn start)"],
         "criticalFailure": ["deafened for 1 hour (caster's turn start)"]
     },
-    "Thunderous Strike": { "criticalFailure": ["prone"] },
+    "Thunderous Strike": {
+        "criticalFailure": ["prone"]
+    },
     "Thunderstrike": {},
     "Tidal Surge": {},
-    "Timber": { "criticalFailure": ["dazzled for 1 round (its turn end)"] },
+    "Timber": {
+        "criticalFailure": ["dazzled for 1 round (its turn end)"]
+    },
     "Tomorrow's Dawn": {
         "success": ["sickened 1"],
         "failure": ["sickened 1", "slowed 1 for 1 round (its turn end)"],
         "criticalFailure": ["sickened 2", "slowed 1 for 1 round (its turn end)"]
     },
-    "Tornadic Gale": { "criticalFailure": ["prone"] },
+    "Tornadic Gale": {
+        "criticalFailure": ["prone"]
+    },
     "Tortoise and the Hare": {
         "success": ["slowed 1 for 1 round (caster's turn start)"],
         "failure": ["slowed 1 for 3 rounds (caster's turn start)", "quickened for 1 round (caster's turn start)"],
@@ -1658,8 +2009,13 @@
             "quickened for 1 minute (caster's turn start)"
         ]
     },
-    "Torturous Trauma": { "criticalFailure": ["fatigued for 1 round (caster's turn start)"] },
-    "Touch of Death": { "success": ["stunned 1"], "failure": ["stunned 3"] },
+    "Torturous Trauma": {
+        "criticalFailure": ["fatigued for 1 round (caster's turn start)"]
+    },
+    "Touch of Death": {
+        "success": ["stunned 1"],
+        "failure": ["stunned 3"]
+    },
     "Touch of Obedience": {
         "success": ["stupefied 1 for 1 round (caster's turn end)"],
         "failure": ["stupefied 2 for 1 round (caster's turn end)"],
@@ -1687,12 +2043,17 @@
     "Ulcerous Canker": {},
     "Unbounded Sphere": {},
     "Unbreaking Wave Advance": {},
-    "Unbreaking Wave Barrier": { "criticalFailure": ["prone"] },
+    "Unbreaking Wave Barrier": {
+        "criticalFailure": ["prone"]
+    },
     "Unbreaking Wave Containment": {},
     "Uncontrollable Dance": {},
     "Undeath's Blessing": {},
     "Undermine Reality": {},
-    "Undertaker": { "failure": ["prone"], "criticalFailure": ["prone [later or conditional: unchecked]"] },
+    "Undertaker": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone [later or conditional: unchecked]"]
+    },
     "Undertow": {
         "failure": ["effect: Spell Effect: Undertow"],
         "criticalFailure": ["effect: Spell Effect: Undertow"]
@@ -1715,8 +2076,12 @@
         "criticalFailure": ["encumbered for 1 minute (caster's turn start)", "prone"]
     },
     "Unfathomable Song": {},
-    "Unfolding Wind Buffet": { "criticalFailure": ["prone"] },
-    "Unfolding Wind Crash": { "criticalFailure": ["prone"] },
+    "Unfolding Wind Buffet": {
+        "criticalFailure": ["prone"]
+    },
+    "Unfolding Wind Crash": {
+        "criticalFailure": ["prone"]
+    },
     "Unravel Existence": {
         "failure": ["off-guard for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["off-guard for 1 minute (caster's turn start) [spell's duration]"]
@@ -1734,26 +2099,39 @@
         "failure": ["prone", "encumbered for 1 round (caster's turn start)"],
         "criticalFailure": ["prone", "encumbered for 1 round (caster's turn start)"]
     },
-    "Unseasonable Squall": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Unseasonable Squall": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Unsettling Knowledge": {
         "success": ["fascinated for 1 round (caster's turn start)"],
         "failure": ["fascinated for 1 minute (caster's turn start)", "frightened 2"],
         "criticalFailure": ["fascinated for 1 minute (caster's turn start)", "frightened 3"]
     },
-    "Unsettling Perspective": { "criticalFailure": ["stunned 1"] },
+    "Unsettling Perspective": {
+        "criticalFailure": ["stunned 1"]
+    },
     "Unspeakable Shadow": {
         "success": ["frightened 2"],
         "failure": ["frightened 3"],
         "criticalFailure": ["frightened 4 [later or conditional: unchecked]"]
     },
-    "Untwisting Iron Roots": { "failure": ["prone"], "criticalFailure": ["prone"] },
-    "Updraft": { "failure": ["prone"], "criticalFailure": ["prone"] },
+    "Untwisting Iron Roots": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
+    "Updraft": {
+        "failure": ["prone"],
+        "criticalFailure": ["prone"]
+    },
     "Utter Destruction": {
         "success": ["deafened for 1 round (caster's turn start)"],
         "failure": ["deafened for 1 minute (caster's turn start)"],
         "criticalFailure": ["deafened"]
     },
-    "Vacuum": { "failure": ["stunned 1"] },
+    "Vacuum": {
+        "failure": ["stunned 1"]
+    },
     "Vampiric Exsanguination": {},
     "Vampiric Feast": {},
     "Vampiric Maiden": {
@@ -1789,7 +2167,9 @@
         "criticalFailure": ["stunned 3", "deafened for 1 minute (caster's turn start) [spell's duration]"]
     },
     "Vicious Jealousy": {},
-    "Vindicator's Judgment": { "criticalFailure": ["off-guard for 1 minute (caster's turn start) [spell's duration]"] },
+    "Vindicator's Judgment": {
+        "criticalFailure": ["off-guard for 1 minute (caster's turn start) [spell's duration]"]
+    },
     "Vision of Beauty": {
         "success": ["stupefied 1 for 1 round (caster's turn start)"],
         "failure": ["stupefied 1 for 1 round (caster's turn start)", "fascinated for 1 round (caster's turn start)"],
@@ -1804,17 +2184,27 @@
         "criticalFailure": ["frightened 4", "fleeing while frightened"]
     },
     "Visions of Danger": {},
-    "Vitality Lash": { "criticalFailure": ["enfeebled 1 for 1 round (caster's turn start)"] },
+    "Vitality Lash": {
+        "criticalFailure": ["enfeebled 1 for 1 round (caster's turn start)"]
+    },
     "Vitrifying Blast": {
         "success": ["effect: Spell Effect: Vitrifying Blast"],
         "failure": ["effect: Spell Effect: Vitrifying Blast", "slowed 1"],
         "criticalFailure": ["effect: Spell Effect: Vitrifying Blast", "slowed 2"]
     },
-    "Void Warp": { "criticalFailure": ["enfeebled 1 for 1 round (caster's turn start)"] },
+    "Void Warp": {
+        "criticalFailure": ["enfeebled 1 for 1 round (caster's turn start)"]
+    },
     "Volcanic Eruption": {},
-    "Vomit Swarm": { "failure": ["sickened 1"], "criticalFailure": ["sickened 1"] },
+    "Vomit Swarm": {
+        "failure": ["sickened 1"],
+        "criticalFailure": ["sickened 1"]
+    },
     "Voracious Gestalt": {},
-    "Wails of the Damned": { "failure": ["drained"], "criticalFailure": ["drained 4"] },
+    "Wails of the Damned": {
+        "failure": ["drained"],
+        "criticalFailure": ["drained 4"]
+    },
     "Waking Dream": {
         "success": ["concealed for 1 round (caster's turn start)"],
         "failure": [
@@ -1876,16 +2266,25 @@
         "failure": ["stunned 1"],
         "criticalFailure": ["stunned 1"]
     },
-    "Whispers of the Void": { "failure": ["drained 1"], "criticalFailure": ["drained 2", "doomed 1"] },
+    "Whispers of the Void": {
+        "failure": ["drained 1"],
+        "criticalFailure": ["drained 2", "doomed 1"]
+    },
     "Wildfire": {},
-    "Wilding Word": { "failure": ["sickened 1 [later or conditional: unchecked]"], "criticalFailure": ["sickened 2"] },
+    "Wilding Word": {
+        "failure": ["sickened 1 [later or conditional: unchecked]"],
+        "criticalFailure": ["sickened 2"]
+    },
     "Wish-Twisted Form": {},
     "With Friends like These": {
         "success": ["sickened 1"],
         "failure": ["sickened 2"],
         "criticalFailure": ["sickened 2"]
     },
-    "Worm's Repast": { "failure": ["off-guard"], "criticalFailure": ["off-guard", "slowed 1"] },
+    "Worm's Repast": {
+        "failure": ["off-guard"],
+        "criticalFailure": ["off-guard", "slowed 1"]
+    },
     "Wronged Monk's Wrath": {
         "failure": ["deafened for 1 round (caster's turn start)"],
         "criticalFailure": ["deafened for 1 minute (caster's turn start)"]

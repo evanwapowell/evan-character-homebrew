@@ -133,7 +133,8 @@ export function runParsers(version) {
 /** The baseline's JSON as Prettier formats it (as the committed baselines are), so an update shows only what changed */
 export async function serialize(output, file) {
     const options = (await prettier.resolveConfig(file)) ?? {};
-    return prettier.format(JSON.stringify(output), { ...options, filepath: file });
+    // From indented JSON: Prettier keeps an object that starts on its own lines expanded
+    return prettier.format(JSON.stringify(output, null, 4), { ...options, filepath: file });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
