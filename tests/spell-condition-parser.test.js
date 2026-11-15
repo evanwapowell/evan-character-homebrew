@@ -115,6 +115,23 @@ describe("parseSpellOutcome on other phrasings", () => {
         ]);
     });
 
+    it("tells the turn a creature is taking ('for that turn') from its next ('until the end of its next turn')", () => {
+        const next = "<p><strong>Failure</strong> The target is fleeing until the end of its next turn.</p>";
+        assert.deepEqual(parse(next, "failure").conditions, [
+            condition("fleeing", null, rounds(1, "target", "turn-end")),
+        ]);
+        // Wave of Despair's success
+        const thisTurn = { ...rounds(1, "target", "turn-end"), thisTurn: true };
+        const that =
+            "<p><strong>Success</strong> For 1 round, the creature must attempt another save at the start of its turn; on a failure, it is slowed 1 for that turn as it sobs uncontrollably.</p>";
+        assert.deepEqual(parse(that, "success").conditions, [condition("slowed", 1, thisTurn)]);
+        // Scouring Sand's critical failure, rolled at the end of the creature's turn: its next action is next turn's
+        const action = "<p><strong>Failure</strong> The creature is blinded for its next action.</p>";
+        assert.deepEqual(parse(action, "failure").conditions, [
+            condition("blinded", null, rounds(1, "target", "turn-end")),
+        ]);
+    });
+
     it("links a condition to another ('as long as it's sickened'), putting the anchor first", () => {
         const html =
             "<p><strong>Failure</strong> The target is slowed 1 as long as it's sickened, and it's sickened 1.</p>";

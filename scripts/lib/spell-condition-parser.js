@@ -175,10 +175,12 @@ function findDurations(sentence, spellDuration) {
     )) {
         add(match, match[2] === "ends" ? turnEnd(match[1]) : { ...turnEnd(match[1]), expiry: "turn-start" });
     }
+    // The turn the creature is taking, when it's taking one: `thisTurn`, unlike "its next turn", which is the one after
     for (const match of sentence.matchAll(/\bfor (?:that|this|the rest of (?:its|that|the)) turn\b/g)) {
-        add(match, turnEnd("its"));
+        add(match, { ...turnEnd("its"), thisTurn: true });
     }
-    // Shorter than a turn, but a turn is the closest timer pf2e has
+    // Shorter than a turn, but a turn is the closest timer pf2e has. A save at the end of the creature's turn (Scouring
+    // Sand) leaves its next action for its next turn, so this isn't the turn it's taking.
     for (const match of sentence.matchAll(new RegExp(String.raw`\bfor ${WHOSE} next action\b`, "g"))) {
         add(match, turnEnd(match[1]));
     }
@@ -370,7 +372,10 @@ function preferLater(entries) {
  * @param {Record<string, string[]>} options.labels The labels of each degree of success, e.g. { failure: ["Failure"] }
  * @param {string} [options.spellDuration] The spell's duration text, used for conditions with no timer of their own
  * @returns {{ effects: { effect: string, label: string }[], conditions: { slug: string, value: number | null,
- *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean }[] }}
+ *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean }[] }} A duration is `{ value,
+ *     dice, unit, expiry, relativeTo }`: counted on the turns of the "caster" or the "target", ending at its
+ *     "turn-start" or "turn-end". "Until the end of its next turn" is 1 round on the target's turns; with `thisTurn`
+ *     ("for that turn"), the turn the target is taking counts as that turn.
  */
 export function parseSpellOutcome(html, outcome, { conditions, labels, spellDuration = "" }) {
     const usable = conditions.filter((c) => !IGNORED.has(c.slug));

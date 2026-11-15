@@ -1241,7 +1241,10 @@
     },
     "Manifold Lives": {
         "success": ["stupefied 2 for 1 round (caster's turn start)"],
-        "failure": ["stupefied 2 for 1 minute (caster's turn start)", "slowed 1 for 1 round (its turn end)"],
+        "failure": [
+            "stupefied 2 for 1 minute (caster's turn start)",
+            "slowed 1 for 1 round (its turn end, counting its current turn)"
+        ],
         "criticalFailure": [
             "stupefied 4 for 1 minute (caster's turn start)",
             "slowed 1 for 1 minute (caster's turn start)"
@@ -2199,8 +2202,8 @@
     },
     "Warrior's Regret": {},
     "Wave of Despair": {
-        "success": ["slowed 1 for 1 round (its turn end)"],
-        "failure": ["slowed 1 for 1 round (its turn end)"],
+        "success": ["slowed 1 for 1 round (its turn end, counting its current turn)"],
+        "failure": ["slowed 1 for 1 round (its turn end, counting its current turn)"],
         "criticalFailure": ["slowed 1 for 1 minute (caster's turn start)"]
     },
     "Weaken Earth": {},

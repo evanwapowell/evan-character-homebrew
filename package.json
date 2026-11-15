@@ -8,7 +8,7 @@
     "unpack": "node tools/packs.mjs unpack",
     "fetch-pf2e": "node tools/fetch-pf2e.mjs",
     "test": "node tools/check.mjs && prettier --check \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.{js,mjs}\" && node --test \"tests/**/*.test.js\"",
-    "test:update-baselines": "node tools/parse-spells.mjs --update",
+    "test:update-baselines": "node tools/parse-spells.mjs --update && prettier --write \"tests/baselines/*.json\"",
     "format": "prettier --write \"scripts/**/*.js\" \"tools/*.mjs\" \"tests/**/*.{js,mjs}\""
   },
   "devDependencies": {

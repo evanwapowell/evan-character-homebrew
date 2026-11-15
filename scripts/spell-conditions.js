@@ -42,16 +42,44 @@ function getLabels() {
     return Object.fromEntries(OUTCOMES.map((o) => [o, [...new Set([english[o], getOutcomeLabel(o)])]]));
 }
 
+/** A timer that ends at the creature's own next turn: "until its next turn begins", "until the end of its next turn" */
+const isOwnTurnTimer = (duration) =>
+    duration?.value === 1 && duration.unit === "rounds" && duration.relativeTo === "target";
+
 function describeDuration(duration) {
     if (duration?.dice) return `${duration.dice} ${duration.unit}`;
     if (!duration?.value) return null;
     if (duration.value === 1 && duration.unit === "rounds" && duration.expiry === "turn-end") {
-        return duration.relativeTo === "caster"
-            ? "until the end of the caster's next turn"
-            : "until the end of its next turn";
+        if (duration.relativeTo === "caster") return "until the end of the caster's next turn";
+        return duration.thisTurn ? "until the end of its turn" : "until the end of its next turn";
     }
+    if (isOwnTurnTimer(duration)) return "until the start of its next turn";
     const [one, many] = UNIT_LABELS[duration.unit] ?? [duration.unit, duration.unit];
     return `${duration.value} ${duration.value === 1 ? one : many}`;
+}
+
+/**
+ * The rounds pf2e counts for a timer that ends at the creature's own next turn. pf2e ends an effect at its origin's
+ * turn (the start, or once the turn has passed to a lower initiative) only when its rounds are up, and its time moves
+ * on with the round, not the turn (calculateRemainingDuration in src/module/item/abstract-effect/helpers.ts, the same
+ * in pf2e 7.x and 8.x). So 1 round ends at the creature's turn in the next round, which is its next turn only when it
+ * has had this round's. When its turn is still to come this round, the timer is 0 rounds, as pf2e's own effects that
+ * last "until the end of your turn" are: it ends at that turn. On the creature's own turn, its next turn is the next
+ * round's, unless the timer is for the turn it's taking (`thisTurn`: "for that turn").
+ */
+function ownTurnRounds(duration, actor) {
+    const combat = game.combat;
+    // pf2e reads the turn the timer counts from as the creature's in the encounter being viewed (ActorPF2e#combatant)
+    const combatant = combat?.started ? combat.combatants.find((c) => c.actor?.uuid === actor.uuid) : null;
+    // Where time also passes with each turn, 0 rounds would be up at the next turn, whoever's it is. pf2e compares
+    // initiatives, and with none rolled it takes the current turn's for the creature's.
+    if (typeof combatant?.initiative !== "number" || CONFIG.time.turnTime) return 1;
+    const turn = combat.turns.indexOf(combatant);
+    const now = combat.turns.indexOf(combat.combatant);
+    if (now === -1 || turn < now) return 1;
+    if (turn === now) return duration.thisTurn ? 0 : 1;
+    // On the turn of a combatant with no creature, pf2e takes an effect whose rounds are up for expired
+    return combat.turns.slice(now, turn).every((c) => c.actor) ? 0 : 1;
 }
 
 /** The save message's spell, outcome, and the creature that rolled it, if it's a save against a spell */
@@ -170,7 +198,9 @@ async function confirmProposals(entries) {
             } else if (condition.duration?.expiry === "turn-end" && condition.duration.value === 1) {
                 timing = `<em>${esc(describeDuration(condition.duration))}</em>`;
             } else {
-                const note = condition.duration?.rolled ?? (condition.fromSpellDuration ? "spell's duration" : "");
+                // 1 round counted on the creature's own turns, which is what's applied unless it's changed
+                const ownTurn = isOwnTurnTimer(condition.duration) ? describeDuration(condition.duration) : "";
+                const note = condition.duration?.rolled ?? (condition.fromSpellDuration ? "spell's duration" : ownTurn);
                 timing = [
                     `for <input type="number" name="duration-${field}" value="${condition.duration?.value ?? ""}"`,
                     ` min="1" placeholder="no timer" style="width: 5.5em">`,
@@ -305,8 +335,8 @@ async function applyProposal(save, { effects, conditions }) {
     // Conditions with the same timer share one effect, named for the spell, that removes them when it expires
     const groups = new Map();
     for (const condition of applicable.filter((c) => c.duration?.value && !c.linkedTo)) {
-        const { value, unit, expiry, relativeTo } = condition.duration;
-        const key = [value, unit, expiry, relativeTo].join("|");
+        const { value, unit, expiry, relativeTo, thisTurn } = condition.duration;
+        const key = [value, unit, expiry, relativeTo, !!thisTurn].join("|");
         if (!groups.has(key)) groups.set(key, { duration: condition.duration, conditions: [] });
         groups.get(key).conditions.push(condition);
     }
@@ -320,7 +350,7 @@ async function applyProposal(save, { effects, conditions }) {
                 description: { value: `<p>From @UUID[${spell.uuid}]{${spell.name}}.</p>` },
                 level: { value: spell.rank },
                 duration: {
-                    value: duration.value,
+                    value: isOwnTurnTimer(duration) ? ownTurnRounds(duration, target) : duration.value,
                     unit: duration.unit,
                     expiry: duration.expiry ?? "turn-start",
                     // Lasting for a sustained spell's duration, it ends when the spell isn't Sustained
