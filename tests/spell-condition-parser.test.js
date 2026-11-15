@@ -14,6 +14,7 @@ const CONDITIONS = [
     ["sickened", "Sickened", "fesd1n5eVhpCSS18"],
     ["slowed", "Slowed", "xYTAsEpcJE1Ccni3"],
     ["stunned", "Stunned", "dfCMdR4wnpbYNTix"],
+    ["prone", "Prone", "j91X7x0XSomq8d60"],
     ["hidden", "Hidden", "iU0fEDdBp3rXpTMC"],
 ].map(([slug, name, id]) => ({ slug, name, id }));
 
@@ -173,6 +174,36 @@ describe("parseSpellOutcome on other phrasings", () => {
         assert.deepEqual(parse(html, "success").conditions, []);
         assert.deepEqual(parse(html, "failure").conditions, [condition("sickened", 1)]);
         assert.deepEqual(parse(html, "criticalFailure").conditions, [condition("sickened", 2)]);
+    });
+
+    it("reads a critical failure's own result in a spell's text, and not on a failure", () => {
+        const html = [
+            "<p>The target takes 2d4 void damage with a basic Fortitude save. On a critical failure, the target is also dazzled for 1 round.</p>",
+            "<p>Each round, it must attempt a Reflex save. On a failure, it takes a –10-foot penalty to its Speeds, and on a critical failure, it's also slowed 1 for 1 round.</p>",
+            "<p>The target is stunned 1 if it critically fails its save.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "failure").conditions, []);
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("dazzled", null, rounds(1)),
+            condition("slowed", 1, rounds(1)),
+            condition("stunned", 1),
+        ]);
+    });
+
+    it("reads 'must succeed at a save or…' and 'otherwise' as a failure, and '(or X on a critical failure)' instead", () => {
+        const fall = "<p>Each creature must succeed at a Reflex save or fall prone.</p>";
+        assert.deepEqual(parse(fall, "failure").conditions, [condition("prone", null)]);
+        assert.deepEqual(parse(fall, "criticalFailure").conditions, [condition("prone", null)]);
+        const pillar =
+            "<p>On a successful save, the creature is pushed; otherwise, it's frozen and becomes slowed 1.</p>";
+        assert.deepEqual(parse(pillar, "failure").conditions, [condition("slowed", 1)]);
+        const rainbow =
+            "<p>Creatures must succeed at a Fortitude save or become dazzled for 1 round (or blinded for 1 round on a critical failure).</p>";
+        assert.deepEqual(parse(rainbow, "failure").conditions, [condition("dazzled", null, rounds(1))]);
+        assert.deepEqual(parse(rainbow, "criticalFailure").conditions, [condition("blinded", null, rounds(1))]);
+        const fog =
+            "<p>A creature that fails its save is also slowed 1 for 1 minute (slowed 2 on a critical failure).</p>";
+        assert.deepEqual(parse(fog, "criticalFailure", "1 minute").conditions, [condition("slowed", 2, minutes(1))]);
     });
 
     it("leaves out negated, ignored and heightened conditions", () => {

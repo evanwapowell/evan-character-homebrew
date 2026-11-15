@@ -81,6 +81,12 @@ const CONDITIONS = {
     },
     // "becomes sickened 1 if it fails a Will save (or sickened 2 on a critical failure)"
     "Evil Eye": { failure: ["sickened 1"], criticalFailure: ["sickened 2"] },
+    // "On a critical failure, the target is also Enfeebled 1 until the start of your next turn"
+    "Void Warp": { criticalFailure: [`enfeebled 1 ${caster(1, "round")}`] },
+    // "On a failure, … and on a critical failure, it's also Immobilized for 1 round"
+    "Entangling Flora": { criticalFailure: [`immobilized ${caster(1, "round")}`] },
+    // "must succeed at a Reflex save or an Acrobatics check against your spell DC or fall Prone"
+    Grease: { failure: ["prone"], criticalFailure: ["prone"] },
     "Scrounger's Glee": { failure: ["frightened 1"], criticalFailure: ["frightened 2"] },
 };
 

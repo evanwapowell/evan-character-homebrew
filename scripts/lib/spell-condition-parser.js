@@ -354,23 +354,34 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
 
 /**
  * Spells without degree-of-success entries can state results in their text: "becomes sickened 1 if it fails a Will
- * save (or sickened 2 on a critical failure)", "If the target critically fails the save, it is also stunned 1".
- * Returns the pieces of text that apply, in order; later pieces override earlier ones.
+ * save (or sickened 2 on a critical failure)", "If the target critically fails the save, it is also stunned 1", "On a
+ * failure, it takes a penalty, and on a critical failure, it's also immobilized", "must succeed at a Reflex save or
+ * fall prone", "On a successful save, it's pushed; otherwise, it's restrained". Returns the pieces of text that apply,
+ * in order; later pieces override earlier ones, and a piece that `replacesLast` ("(or blinded on a critical
+ * failure)") takes the place of the last condition before it.
  */
 function getConditionalTexts(text, outcome) {
     if (!["failure", "criticalFailure"].includes(outcome)) return [];
     const parts = [];
     const override = /\((?:or )?([^)]*?) on a critical failure\)/;
+    const failure = /\bfails?\b|\bfailed\b|\bon a failure\b|\bmust succeed at\b|^otherwise,/;
     for (const sentence of text.split(/(?<=[.;!?])\s+/)) {
-        const criticalOnly = /\bcritically fail/.test(sentence);
-        const onFailure = /\bfails?\b|\bfailed\b|\bon a failure\b/.test(sentence) && !criticalOnly;
-        if (criticalOnly && outcome === "criticalFailure") {
-            parts.push(sentence);
-        } else if (onFailure) {
-            const match = sentence.match(override);
-            parts.push(sentence.replace(override, ""));
-            if (outcome === "criticalFailure" && match) parts.push(`${match[1]}.`);
+        const match = sentence.match(override);
+        const plain = sentence.replace(override, "");
+        // "On a failure, …, and on a critical failure, it's also immobilized": the failure's part, then the rest
+        const at = plain.search(/\bon a critical failure\b/);
+        const before = at === -1 ? plain : plain.slice(0, at);
+        // "The target is stunned 1 if it critically fails", but not "a creature that fails or critically fails"
+        const criticalOnly = at === -1 && /(?<!\bfails? or )\bcritically fail/.test(plain);
+        if (criticalOnly) {
+            if (outcome === "criticalFailure") parts.push({ text: plain });
+            continue;
         }
+        if (failure.test(before)) {
+            parts.push({ text: before });
+            if (outcome === "criticalFailure" && match) parts.push({ text: `${match[1]}.`, replacesLast: true });
+        }
+        if (at !== -1 && outcome === "criticalFailure") parts.push({ text: plain.slice(at) });
     }
     return parts;
 }
@@ -480,8 +491,15 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
 
     let result = read(outcome);
     if (Object.keys(outcomes).length === 0) {
-        const texts = getConditionalTexts(toPlainText(body, conditionsById), outcome);
-        result = { effects: [], conditions: preferLater(texts.flatMap((text) => readConditions(text, context))) };
+        const parts = [];
+        for (const { text, replacesLast } of getConditionalTexts(toPlainText(body, conditionsById), outcome)) {
+            const read = readConditions(text, context);
+            // "Dazzled (or blinded on a critical failure)": blinded instead; the same condition keeps its timer
+            const last = parts.at(-1)?.at(-1);
+            if (replacesLast && last && read.length > 0 && !read.some((c) => c.slug === last.slug)) parts.at(-1).pop();
+            parts.push(read);
+        }
+        result = { effects: [], conditions: preferLater(parts.flat()) };
     }
     result.effects = result.effects.filter((e, i, all) => all.findIndex((o) => o.effect === e.effect) === i);
 

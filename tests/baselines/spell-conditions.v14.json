@@ -180,7 +180,11 @@
             "stupefied 4"
         ]
     },
-    "Arrow Salvo": {},
+    "Arrow Salvo": {
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Ash Cloud": {
         "failure": [
             "dazzled for 1 round (caster's turn start)"
@@ -428,7 +432,11 @@
             "grabbed"
         ]
     },
-    "Brimstone Rain": {},
+    "Brimstone Rain": {
+        "criticalFailure": [
+            "sickened 1"
+        ]
+    },
     "Buffeting Winds": {},
     "Burning Blossoms": {
         "failure": [
@@ -505,7 +513,14 @@
             "fascinated for 1 minute (caster's turn start) [spell's duration]"
         ]
     },
-    "Carrion Mire": {},
+    "Carrion Mire": {
+        "failure": [
+            "prone"
+        ],
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Cast into Time": {
         "failure": [
             "sickened 1"
@@ -586,7 +601,14 @@
             "drained 2"
         ]
     },
-    "Chromatic Ray": {},
+    "Chromatic Ray": {
+        "failure": [
+            "enfeebled 1 for 1 minute (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "enfeebled 2 for 1 minute (caster's turn start)"
+        ]
+    },
     "Chrysopoetic Curse": {
         "success": [
             "encumbered for 1 minute (caster's turn start) [spell's duration]"
@@ -988,7 +1010,14 @@
             "deafened for 1 round (caster's turn end)"
         ]
     },
-    "Disruptive Transfer": {},
+    "Disruptive Transfer": {
+        "failure": [
+            "dazzled for 1 minute (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "dazzled for 1 minute (caster's turn start)"
+        ]
+    },
     "Distracting Chatter": {},
     "Distracting Decoy": {
         "failure": [
@@ -1141,9 +1170,6 @@
     },
     "Electric Arc": {},
     "Elemental Annihilation Wave": {
-        "failure": [
-            "prone"
-        ],
         "criticalFailure": [
             "prone"
         ]
@@ -1195,9 +1221,6 @@
         ]
     },
     "Entangling Flora": {
-        "failure": [
-            "immobilized for 1 round (caster's turn start)"
-        ],
         "criticalFailure": [
             "immobilized for 1 round (caster's turn start)"
         ]
@@ -1267,7 +1290,14 @@
             "prone"
         ]
     },
-    "Exploding Earth": {},
+    "Exploding Earth": {
+        "failure": [
+            "prone"
+        ],
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Explosive Barrage": {
         "failure": [
             "deafened for 1 minute (caster's turn start)"
@@ -1410,7 +1440,14 @@
             "fascinated for 1 round (caster's turn start)"
         ]
     },
-    "Flesh Tsunami": {},
+    "Flesh Tsunami": {
+        "failure": [
+            "immobilized for 1 round (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "immobilized for 1 round (caster's turn start)"
+        ]
+    },
     "Floating Flame": {},
     "Flourishing Flora": {},
     "For Love, For Lightning": {},
@@ -1451,7 +1488,14 @@
     },
     "Frigid Flurry": {},
     "Frog Tongue": {},
-    "Frost Pillar": {},
+    "Frost Pillar": {
+        "failure": [
+            "restrained"
+        ],
+        "criticalFailure": [
+            "restrained"
+        ]
+    },
     "Frostbite": {},
     "Frozen Fog": {
         "failure": [
@@ -1587,7 +1631,11 @@
             "grabbed"
         ]
     },
-    "Gravitational Pull": {},
+    "Gravitational Pull": {
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Gravity Wave": {
         "failure": [
             "prone"
@@ -1597,7 +1645,14 @@
         ]
     },
     "Gravity Well": {},
-    "Grease": {},
+    "Grease": {
+        "failure": [
+            "prone"
+        ],
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Grim Tendrils": {},
     "Grisly Growths": {
         "failure": [
@@ -1757,9 +1812,6 @@
     "Illuminate": {},
     "Imp Sting": {},
     "Impaling Briars": {
-        "failure": [
-            "immobilized for 1 round (caster's turn start)"
-        ],
         "criticalFailure": [
             "immobilized for 1 round (caster's turn start)"
         ]
@@ -1928,7 +1980,11 @@
             "stupefied 2 for 1 minute (caster's turn start) [spell's duration]"
         ]
     },
-    "Inner Radiance Torrent": {},
+    "Inner Radiance Torrent": {
+        "criticalFailure": [
+            "blinded for 1 round (caster's turn start)"
+        ]
+    },
     "Instant Minefield": {},
     "Internal Insurrection": {
         "success": [
@@ -1955,9 +2011,6 @@
     },
     "Jealous Hex": {},
     "Kinetic Ram": {
-        "failure": [
-            "prone"
-        ],
         "criticalFailure": [
             "prone"
         ]
@@ -2057,7 +2110,14 @@
         ]
     },
     "Linnorm Sting": {},
-    "Living Graveyard": {},
+    "Living Graveyard": {
+        "failure": [
+            "prone"
+        ],
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Living Terrain": {
         "success": [
             "clumsy 1 for 1 minute (caster's turn start) [spell's duration]"
@@ -2363,8 +2423,19 @@
             "sickened 1"
         ]
     },
-    "Nymph's Grace": {},
-    "Oneiric Mire": {},
+    "Nymph's Grace": {
+        "failure": [
+            "confused for 1 round (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "confused for 1 round (caster's turn start)"
+        ]
+    },
+    "Oneiric Mire": {
+        "criticalFailure": [
+            "immobilized for 1 minute (caster's turn start) [spell's duration]"
+        ]
+    },
     "Orb of Twisting Fate": {},
     "Ordained Purpose": {
         "failure": [
@@ -2450,7 +2521,11 @@
             "effect: Spell Effect: Pact Broker"
         ]
     },
-    "Pain of Ages": {},
+    "Pain of Ages": {
+        "criticalFailure": [
+            "stunned for 1 round (caster's turn start)"
+        ]
+    },
     "Painful Vibrations": {
         "failure": [
             "sickened 1",
@@ -2682,8 +2757,24 @@
             "blinded for 1 round (caster's turn start)"
         ]
     },
-    "Radiant Globe": {},
-    "Radiant Heart of Devotion": {},
+    "Radiant Globe": {
+        "failure": [
+            "dazzled for 1 round (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "blinded for 1 round (caster's turn start)"
+        ]
+    },
+    "Radiant Heart of Devotion": {
+        "failure": [
+            "dazzled for 1 round (caster's turn start)",
+            "blinded for 1 round (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "dazzled for 1 round (caster's turn start)",
+            "blinded for 1 round (caster's turn start)"
+        ]
+    },
     "Rainbow Fumarole": {},
     "Rainbow's End": {
         "failure": [
@@ -2729,7 +2820,14 @@
             "clumsy 2 for 1 minute (caster's turn start)"
         ]
     },
-    "Recurring Nightmare": {},
+    "Recurring Nightmare": {
+        "failure": [
+            "frightened 1"
+        ],
+        "criticalFailure": [
+            "frightened 2"
+        ]
+    },
     "Redistribute Potential": {
         "failure": [
             "clumsy 1",
@@ -2907,9 +3005,6 @@
         ]
     },
     "Sea of Thought": {
-        "failure": [
-            "prone"
-        ],
         "criticalFailure": [
             "prone"
         ]
@@ -3439,7 +3534,14 @@
     },
     "The Night is Mine": {},
     "The Parrot's Whisper": {},
-    "The Queen's Rainbow": {},
+    "The Queen's Rainbow": {
+        "failure": [
+            "dazzled for 1 round (caster's turn start)"
+        ],
+        "criticalFailure": [
+            "blinded for 1 round (caster's turn start)"
+        ]
+    },
     "Threatening Mimicry": {
         "success": [
             "frightened 1"
@@ -3459,7 +3561,11 @@
             "deafened for 1 hour (caster's turn start)"
         ]
     },
-    "Thunderous Strike": {},
+    "Thunderous Strike": {
+        "criticalFailure": [
+            "prone"
+        ]
+    },
     "Thunderstrike": {},
     "Tidal Surge": {},
     "Timber": {
@@ -3837,7 +3943,11 @@
             "slowed 2"
         ]
     },
-    "Void Warp": {},
+    "Void Warp": {
+        "criticalFailure": [
+            "enfeebled 1 for 1 round (caster's turn start)"
+        ]
+    },
     "Volcanic Eruption": {},
     "Vomit Swarm": {
         "failure": [
@@ -4004,7 +4114,7 @@
             "deafened for 1 round (caster's turn start)"
         ],
         "criticalFailure": [
-            "deafened for 1 round (caster's turn start)"
+            "deafened for 1 minute (caster's turn start)"
         ]
     },
     "Wyvern Sting": {},
