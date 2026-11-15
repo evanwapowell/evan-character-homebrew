@@ -88,6 +88,7 @@ async function buildProposal({ spell, outcome }) {
         conditions,
         labels: getLabels(),
         spellDuration: spell.system.duration?.value,
+        save: spell.system.defense?.save?.statistic,
     });
 
     const effects = [];

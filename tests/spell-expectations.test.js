@@ -131,6 +131,22 @@ const CONDITIONS = {
     "Entangling Flora": { criticalFailure: [`immobilized ${caster(1, "round")}`] },
     // "must succeed at a Reflex save or an Acrobatics check against your spell DC or fall Prone"
     Grease: { failure: ["prone"], criticalFailure: ["prone"] },
+    // Dazzled for neutral creatures, blinded for evil ones: neither is checked
+    "Radiant Heart of Devotion": {
+        failure: [
+            `dazzled ${caster(1, "round")} [later or conditional: unchecked]`,
+            `blinded ${caster(1, "round")} [later or conditional: unchecked]`,
+        ],
+        criticalFailure: [
+            `dazzled ${caster(1, "round")} [later or conditional: unchecked]`,
+            `blinded ${caster(1, "round")} [later or conditional: unchecked]`,
+        ],
+    },
+    // "Sickened 1 each time it damages you"; "As failure, but the sickened value is 2"
+    "Wilding Word": {
+        failure: ["sickened 1 [later or conditional: unchecked]"],
+        criticalFailure: ["sickened 2 [later or conditional: unchecked]"],
+    },
     "Scrounger's Glee": { failure: ["frightened 1"], criticalFailure: ["frightened 2"] },
 };
 

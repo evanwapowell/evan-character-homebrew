@@ -26,8 +26,8 @@ const LABELS = {
     criticalFailure: ["Critical Failure"],
 };
 
-const parse = (html, outcome, spellDuration = "") =>
-    parseSpellOutcome(html, outcome, { conditions: CONDITIONS, labels: LABELS, spellDuration });
+const parse = (html, outcome, spellDuration = "", save = null) =>
+    parseSpellOutcome(html, outcome, { conditions: CONDITIONS, labels: LABELS, spellDuration, save });
 
 const rounds = (value, relativeTo = "caster", expiry = "turn-start") => ({
     value,
@@ -249,6 +249,66 @@ describe("parseSpellOutcome on other phrasings", () => {
             condition("stunned", 1, null, { later: true }),
             condition("sickened", 1, null, { later: true }),
         ]);
+    });
+
+    it("replaces the condition a '(… on a critical failure)' follows, not the last one", () => {
+        const two =
+            "<p>Creatures must succeed at a Will save or be sickened 1 and slowed 1 for 1 round (or sickened 2 on a critical failure).</p>";
+        assert.deepEqual(parse(two, "criticalFailure").conditions, [
+            condition("sickened", 2),
+            condition("slowed", 1, rounds(1)),
+        ]);
+        const between =
+            "<p>Creatures must succeed at a Will save or be dazzled (or blinded on a critical failure) and slowed 1 for 1 minute.</p>";
+        assert.deepEqual(parse(between, "criticalFailure").conditions, [
+            condition("slowed", 1, minutes(1)),
+            condition("blinded", null),
+        ]);
+    });
+
+    it("leaves out what a spell's text says about another save than the spell's", () => {
+        const html = [
+            "<p>Creatures in the area take 4d6 fire damage with a basic Reflex save.</p>",
+            "<p>Breathing creatures must succeed at a Fortitude save or take 2d6 poison damage. On a critical failure, they're also sickened 1.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalFailure", "", "reflex").conditions, []);
+        assert.deepEqual(parse(html, "criticalFailure", "", "fortitude").conditions, [condition("sickened", 1)]);
+    });
+
+    it("offers alternatives for different creatures unchecked", () => {
+        const html = [
+            "<p>Neutral creatures must succeed at a Will save or be dazzled for 1 round.</p>",
+            "<p>Evil creatures must succeed at a Will save or be blinded for 1 round.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("dazzled", null, rounds(1), { later: true }),
+            condition("blinded", null, rounds(1), { later: true }),
+        ]);
+    });
+
+    it("keeps a condition later when a degree only restates its value", () => {
+        const html = [
+            "<p><strong>Failure</strong> The target becomes sickened 1 each time it damages you, and is slowed 1 if it flies.</p>",
+            "<p><strong>Critical Failure</strong> As failure, but the sickened value is 2 and the target is automatically slowed 1 for 1 minute.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("sickened", 2, null, { later: true }),
+            condition("slowed", 1, minutes(1)),
+        ]);
+    });
+
+    it("gives 'permanently' to the condition right after it only", () => {
+        const html = "<p><strong>Failure</strong> The target is dazzled and permanently blinded.</p>";
+        assert.deepEqual(parse(html, "failure", "1 minute").conditions, [
+            condition("dazzled", null, minutes(1), { fromSpellDuration: true }),
+            condition("blinded", null),
+        ]);
+    });
+
+    it("reads others than 'the target' as the subject, so the caster's gain doesn't hide their condition", () => {
+        const html =
+            "<p><strong>Failure</strong> You gain 5 temporary Hit Points, and each enemy in the area is frightened 1.</p>";
+        assert.deepEqual(parse(html, "failure").conditions, [condition("frightened", 1)]);
     });
 
     it("leaves out negated, ignored and heightened conditions", () => {

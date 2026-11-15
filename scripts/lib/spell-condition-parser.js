@@ -239,7 +239,7 @@ function findLinks(sentence, namePattern, slugsByName) {
  * Stunned 1"): the last subject before it is "you"
  */
 const SUBJECTS = new RegExp(
-    String.raw`\b(?:(?<!\b(?:than|to|at|from|by|with) )(you)(?:'re| are| become| fall| also| spend| take| gain)\b|it|they|the (?:target|creature|attacker)s?)\b`,
+    String.raw`\b(?:(?<!\b(?:than|to|at|from|by|with) )(you)(?:'re| are| become| fall| also| spend| take| gain)\b|it|they|(?:the|each|every|any|a|an) (?:\w+ )?(?:target|creature|attacker|enemy|ally)s?|creatures|enemies|targets)\b`,
     "g",
 );
 function isCasters(before) {
@@ -255,6 +255,8 @@ function isCasters(before) {
 const LATER_BEFORE = new RegExp(
     [
         String.raw`\b(?:if|when|whenever|each time|every time|the first time|finally|can choose|chooses? to)\b`,
+        // "Any creature that becomes stupefied 1 … also becomes Enfeebled 1"
+        String.raw`\bany (?:creature|target) that\b`,
         String.raw`\bon (?:the|its|their) (?:second|third|fourth|fifth|next|following) (?:round|turn)\b`,
         String.raw`\bat the (?:start|end|beginning) of\b`,
         String.raw`\bon (?:a|an|the) (?:failed|successful) (?:save|saving throw)\b`,
@@ -348,6 +350,19 @@ function readConditions(text, { namePattern, slugsByName, fallback }, { markLate
         let lastDuration = null;
         const durations = findDurations(sentence, fallback);
         durations.forEach(({ start, end, duration }, index) => {
+            // "Slowed 1 and permanently enfeebled 2": "permanently" just before a condition is that condition's
+            const next = mentions.find((m) => m.start >= end);
+            if (duration.permanent && next && !sentence.slice(end, next.start).trim()) {
+                for (const mention of mentions.filter((m) => m.start >= next.start)) {
+                    if (
+                        mention !== next &&
+                        !isListJoin(sentence.slice(mentions[mentions.indexOf(mention) - 1].end, mention.start))
+                    )
+                        break;
+                    if (!mention.duration && !mention.linkedTo) mention.duration = { ...duration };
+                }
+                return;
+            }
             // "For 1 round, the target is stupefied 2": a timer before any condition applies to those after it
             if (!mentions.some((m) => m.end <= start)) {
                 const until = durations[index + 1]?.start ?? sentence.length;
@@ -420,15 +435,21 @@ function readConditions(text, { namePattern, slugsByName, fallback }, { markLate
  * save (or sickened 2 on a critical failure)", "If the target critically fails the save, it is also stunned 1", "On a
  * failure, it takes a penalty, and on a critical failure, it's also immobilized", "must succeed at a Reflex save or
  * fall prone", "On a successful save, it's pushed; otherwise, it's restrained". Returns the pieces of text that apply,
- * in order; later pieces override earlier ones, and a piece that `replacesLast` ("(or blinded on a critical
- * failure)") takes the place of the last condition before it.
+ * in order; later pieces override earlier ones. A piece with `replaces` ("(or blinded on a critical failure)") takes
+ * the place of the last condition in that text; `alternative` marks a "must succeed at a save or…" piece.
+ *
+ * Sentences about another save than the spell's (`save`: "breathing creatures must succeed at a Fortitude save" in a
+ * spell with a basic Reflex save) are left out, up to the next sentence that names a save.
  */
-function getConditionalTexts(text, outcome) {
+function getConditionalTexts(text, outcome, save) {
     if (!["failure", "criticalFailure"].includes(outcome)) return [];
     const parts = [];
     const override = /\((?:or )?([^)]*?) on a critical failure\)/;
     const failure = /\bfails?\b|\bfailed\b|\bon a failure\b|\bmust succeed at\b|^otherwise,/;
+    let current = null;
     for (const sentence of text.split(/(?<=[.;!?])\s+/)) {
+        current = sentence.match(/\b(fortitude|reflex|will) (?:save|saving throw)/)?.[1] ?? current;
+        if (save && current && current !== save) continue;
         const match = sentence.match(override);
         const plain = sentence.replace(override, "");
         // "On a failure, …, and on a critical failure, it's also immobilized": the failure's part, then the rest
@@ -441,8 +462,10 @@ function getConditionalTexts(text, outcome) {
             continue;
         }
         if (failure.test(before)) {
-            parts.push({ text: before });
-            if (outcome === "criticalFailure" && match) parts.push({ text: `${match[1]}.`, replacesLast: true });
+            parts.push({ text: before, alternative: /\bmust succeed at\b/.test(before) });
+            if (outcome === "criticalFailure" && match) {
+                parts.push({ text: `${match[1]}.`, replaces: sentence.slice(0, match.index) });
+            }
         }
         if (at !== -1 && outcome === "criticalFailure") parts.push({ text: plain.slice(at) });
     }
@@ -455,7 +478,7 @@ function getConditionalTexts(text, outcome) {
  */
 function preferLater(entries) {
     const result = [];
-    for (const entry of entries) {
+    for (let entry of entries) {
         const index = result.findIndex((e) => e.slug === entry.slug);
         if (index === -1) {
             result.push(entry);
@@ -464,6 +487,12 @@ function preferLater(entries) {
             continue;
         } else {
             const earlier = result[index];
+            // "As failure, but the sickened value is 2", where failure's sickened 1 only comes "each time it damages
+            // you": still only then. A restatement with its own timer stands on its own ("automatically slowed 1 for
+            // 1 minute").
+            if (earlier.later && !entry.later && entry.value != null && !entry.linkedTo) {
+                if (!entry.duration || entry.fromSpellDuration) entry = { ...entry, later: true };
+            }
             const keepTimer =
                 !entry.linkedTo && !entry.permanent && (!entry.duration || entry.fromSpellDuration) && earlier.duration;
             result[index] = keepTimer
@@ -482,11 +511,12 @@ function preferLater(entries) {
  * @param {{ slug: string, name: string, id?: string }[]} options.conditions The conditions to recognize
  * @param {Record<string, string[]>} options.labels The labels of each degree of success, e.g. { failure: ["Failure"] }
  * @param {string} [options.spellDuration] The spell's duration text, used for conditions with no timer of their own
+ * @param {string} [options.save] The spell's save ("fortitude", "reflex" or "will"), for spells without degree entries
  * @returns {{ effects: { effect: string, label: string }[], conditions: { slug: string, value: number | null,
  *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean, later: boolean }[] }} `later`:
  *     the text gives it later or only if something happens, so it's offered unchecked
  */
-export function parseSpellOutcome(html, outcome, { conditions, labels, spellDuration = "" }) {
+export function parseSpellOutcome(html, outcome, { conditions, labels, spellDuration = "", save = null }) {
     const usable = conditions.filter((c) => !IGNORED.has(c.slug));
     const conditionsById = new Map(conditions.filter((c) => c.id).map((c) => [c.id, c.name]));
     const slugsByName = new Map();
@@ -583,12 +613,24 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
     let result = read(outcome);
     if (Object.keys(outcomes).length === 0) {
         const parts = [];
-        for (const { text, replacesLast } of getConditionalTexts(toPlainText(body, conditionsById), outcome)) {
-            const read = readConditions(text, context);
-            // "Dazzled (or blinded on a critical failure)": blinded instead; the same condition keeps its timer
-            const last = parts.at(-1)?.at(-1);
-            if (replacesLast && last && read.length > 0 && !read.some((c) => c.slug === last.slug)) parts.at(-1).pop();
+        const alternatives = [];
+        for (const piece of getConditionalTexts(toPlainText(body, conditionsById), outcome, save)) {
+            const read = readConditions(piece.text, context);
+            // "Dazzled (or blinded on a critical failure)": blinded instead of the condition the parenthesis
+            // follows. A condition the sentence already names gets the new value, keeping its timer ("sickened 1
+            // and slowed 1 for 1 round (or sickened 2 on a critical failure)").
+            const replaced = piece.replaces != null ? readConditions(piece.replaces, context).at(-1)?.slug : null;
+            const restates = read.some((c) => parts.at(-1)?.some((p) => p.slug === c.slug));
+            if (replaced && read.length > 0 && !restates) {
+                parts[parts.length - 1] = parts.at(-1).filter((c) => c.slug !== replaced);
+            }
             parts.push(read);
+            if (piece.alternative && read.length > 0) alternatives.push(parts.length - 1);
+        }
+        // "Neutral creatures … must succeed at a Will save or be Dazzled. Evil creatures … or be Blinded": one or the
+        // other, so neither is checked
+        if (alternatives.length > 1) {
+            for (const index of alternatives) parts[index] = parts[index].map((c) => ({ ...c, later: true }));
         }
         result = { effects: [], conditions: preferLater(parts.flat()) };
     }

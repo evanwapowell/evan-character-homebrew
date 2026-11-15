@@ -77,6 +77,7 @@ export function proposeConditions(spell, outcome, { conditions, byUuid }) {
         conditions,
         labels: LABELS,
         spellDuration: spell.system.duration?.value,
+        save: spell.system.defense?.save?.statistic,
     });
     const granted = new Set();
     const effects = [];

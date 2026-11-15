@@ -585,9 +585,9 @@
         ],
         "criticalFailure": [
             "off-guard for 3 rounds (caster's turn start)",
-            "stupefied 1 for 3 rounds (caster's turn start)",
-            "enfeebled 1 for 3 rounds (caster's turn start)",
-            "clumsy 1 for 3 rounds (caster's turn start)"
+            "stupefied 1 for 3 rounds (caster's turn start) [later or conditional: unchecked]",
+            "enfeebled 1 for 3 rounds (caster's turn start) [later or conditional: unchecked]",
+            "clumsy 1 for 3 rounds (caster's turn start) [later or conditional: unchecked]"
         ]
     },
     "Entangling Flora": {
@@ -1302,8 +1302,14 @@
         "criticalFailure": ["blinded for 1 round (caster's turn start)"]
     },
     "Radiant Heart of Devotion": {
-        "failure": ["dazzled for 1 round (caster's turn start)", "blinded for 1 round (caster's turn start)"],
-        "criticalFailure": ["dazzled for 1 round (caster's turn start)", "blinded for 1 round (caster's turn start)"]
+        "failure": [
+            "dazzled for 1 round (caster's turn start) [later or conditional: unchecked]",
+            "blinded for 1 round (caster's turn start) [later or conditional: unchecked]"
+        ],
+        "criticalFailure": [
+            "dazzled for 1 round (caster's turn start) [later or conditional: unchecked]",
+            "blinded for 1 round (caster's turn start) [later or conditional: unchecked]"
+        ]
     },
     "Rainbow Fumarole": {},
     "Rainbow's End": {
@@ -1807,7 +1813,10 @@
             "stunned 1 [later or conditional: unchecked]",
             "deafened for 1 minute (caster's turn start) [spell's duration]"
         ],
-        "criticalFailure": ["stunned 3", "deafened for 1 minute (caster's turn start) [spell's duration]"]
+        "criticalFailure": [
+            "stunned 3 [later or conditional: unchecked]",
+            "deafened for 1 minute (caster's turn start) [spell's duration]"
+        ]
     },
     "Vicious Jealousy": {},
     "Vindicator's Judgment": {
@@ -1904,7 +1913,7 @@
     "Wildfire": {},
     "Wilding Word": {
         "failure": ["sickened 1 [later or conditional: unchecked]"],
-        "criticalFailure": ["sickened 2"]
+        "criticalFailure": ["sickened 2 [later or conditional: unchecked]"]
     },
     "Wish-Twisted Form": {},
     "Worm's Repast": {
