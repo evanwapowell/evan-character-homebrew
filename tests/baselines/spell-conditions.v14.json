@@ -303,7 +303,7 @@
         "criticalFailure": ["effect: Spell Effect: Canticle of Everlasting Grief (Critical Failure)"]
     },
     "Captivating Adoration": {
-        "success": ["fascinated for 1 round (its turn end)"],
+        "success": ["fascinated for 1 round (its turn end, counting its current turn)"],
         "failure": ["fascinated for 1 minute (caster's turn start) [spell's duration]"],
         "criticalFailure": ["fascinated for 1 minute (caster's turn start) [spell's duration]"]
     },
@@ -1241,7 +1241,10 @@
     },
     "Manifold Lives": {
         "success": ["stupefied 2 for 1 round (caster's turn start)"],
-        "failure": ["stupefied 2 for 1 minute (caster's turn start)", "slowed 1 for 1 round (its turn end)"],
+        "failure": [
+            "stupefied 2 for 1 minute (caster's turn start)",
+            "slowed 1 for 1 round (its turn end, counting its current turn)"
+        ],
         "criticalFailure": [
             "stupefied 4 for 1 minute (caster's turn start)",
             "slowed 1 for 1 minute (caster's turn start)"
@@ -1647,7 +1650,10 @@
     "Scouring Pulse": {},
     "Scouring Sand": {
         "failure": ["dazzled for 1 minute (caster's turn start)"],
-        "criticalFailure": ["dazzled for 1 minute (caster's turn start)", "blinded for 1 round (its turn end)"]
+        "criticalFailure": [
+            "dazzled for 1 minute (caster's turn start)",
+            "blinded for 1 round (its turn end, counting its current turn)"
+        ]
     },
     "Scramble Body": {
         "failure": ["sickened 1"],
@@ -2199,8 +2205,8 @@
     },
     "Warrior's Regret": {},
     "Wave of Despair": {
-        "success": ["slowed 1 for 1 round (its turn end)"],
-        "failure": ["slowed 1 for 1 round (its turn end)"],
+        "success": ["slowed 1 for 1 round (its turn end, counting its current turn)"],
+        "failure": ["slowed 1 for 1 round (its turn end, counting its current turn)"],
         "criticalFailure": ["slowed 1 for 1 minute (caster's turn start)"]
     },
     "Weaken Earth": {},

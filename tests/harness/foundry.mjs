@@ -479,6 +479,11 @@ class Session {
             release: { generation: world.foundryGeneration },
             system: { id: "pf2e", version: world.systemVersion },
             combat: null,
+            time: {
+                get worldTime() {
+                    return world.time;
+                },
+            },
             pf2e: { ConditionManager: { conditions: new Map() }, actions: {} },
             ready: false,
         };
@@ -491,7 +496,8 @@ class Session {
                 applications: { api: { ApplicationV2: class {}, DialogV2: class {} } },
             },
             Handlebars: { escapeExpression: escapeHtml },
-            CONFIG: { PF2E: {}, ChatMessage: { documentClass: ChatMessage } },
+            // A round is 6 seconds (pf2e's src/scripts/hooks/init.ts); a turn takes no time of its own (Foundry's default)
+            CONFIG: { PF2E: {}, ChatMessage: { documentClass: ChatMessage }, time: { roundTime: 6, turnTime: 0 } },
             canvas: { ready: false, scene: null, tokens: { controlled: [], placeables: [] } },
             ChatMessage,
             Roll: FakeRoll,
@@ -563,6 +569,8 @@ class World {
     messages = new Collection();
     settings = new Map();
     sessions = [];
+    /** The world's time in seconds (game.time.worldTime), which an encounter moves on with its rounds */
+    time = 0;
     #pending = 0;
 
     constructor({ users = [], modules = {}, version = "v14" } = {}) {

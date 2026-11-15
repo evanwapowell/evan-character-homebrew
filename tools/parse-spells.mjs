@@ -45,7 +45,9 @@ export function describeCondition(condition) {
         const unit = amount === 1 ? duration.unit.replace(/s$/, "") : duration.unit;
         const whose = duration.relativeTo === "caster" ? "caster's" : "its";
         const when = duration.expiry === "turn-end" ? "end" : "start";
-        text += ` for ${amount} ${unit} (${whose} turn ${when})`;
+        // "For that turn": the turn the creature is taking, when it's taking one, rather than its next
+        const which = duration.thisTurn ? ", counting its current turn" : "";
+        text += ` for ${amount} ${unit} (${whose} turn ${when}${which})`;
         if (condition.fromSpellDuration) text += " [spell's duration]";
     }
     if (condition.linkedTo) text += ` while ${condition.linkedTo}`;

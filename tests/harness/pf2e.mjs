@@ -57,6 +57,10 @@ export function makeActor(
         get level() {
             return this.system.details.level.value;
         },
+        /** Its combatant in the encounter being viewed (ActorPF2e#combatant) */
+        get combatant() {
+            return game.combat?.combatants.find((c) => c.actor?.uuid === this.uuid) ?? null;
+        },
         get auras() {
             const auras = new Map();
             for (const item of this.items.values()) {
@@ -92,8 +96,15 @@ export function makeActor(
                     _source: source,
                     updateSource: (changes) => foundry.utils.mergeObject(source, changes),
                 };
-                if (Hooks.call("preCreateItem", draft, source, options, userId) !== false)
-                    pending.push({ source, options });
+                if (Hooks.call("preCreateItem", draft, source, options, userId) === false) continue;
+                // EffectPF2e#_preCreate (src/module/item/effect/document.ts): when it started, and at whose initiative
+                if (source.type === "effect") {
+                    const originUuid = source.system?.context?.origin?.actor;
+                    const origin = !originUuid || originUuid === this.uuid ? this : world.fromUuidSync(originUuid);
+                    const initiative = origin?.combatant?.initiative ?? game.combat?.combatant?.initiative ?? null;
+                    source.system = { ...source.system, start: { value: game.time.worldTime, initiative } };
+                }
+                pending.push({ source, options });
             }
             await serverTrip();
             const created = pending.map(({ source, options }) => {
@@ -231,9 +242,71 @@ export function addItem(
         },
         getRollOptions: (prefix = "item") => [`${prefix}:type:${type}`, ...(slug ? [`${prefix}:slug:${slug}`] : [])],
     };
+    if (type === "effect") {
+        // Each can be set by a test
+        const derived = {
+            level: () => item.system.level?.value ?? 1,
+            origin: () => {
+                const uuid = item.system.context?.origin?.actor;
+                return !uuid || uuid === actor.uuid ? actor : world.fromUuidSync(uuid);
+            },
+            remainingDuration: () => remainingDuration(item),
+            isExpired: () => item.remainingDuration.expired,
+        };
+        for (const [key, get] of Object.entries(derived)) {
+            const set = (value) => Object.defineProperty(item, key, { value, writable: true, configurable: true });
+            Object.defineProperty(item, key, { get, set, configurable: true, enumerable: true });
+        }
+    }
     actor.items.set(id, item);
     world.add(item);
     return item;
+}
+
+const DURATION_UNITS = { rounds: 6, minutes: 60, hours: 3600, days: 86400 };
+
+/**
+ * Whether an effect has expired, and the seconds it has left: calculateRemainingDuration in
+ * src/module/item/abstract-effect/helpers.ts, the same on v13-dev and v14-dev. An effect with no `start` (one that
+ * wasn't created on its actor) never expires. Once its time is up, in an encounter, it expires at the start of its
+ * origin's turn, or once the turn is at a lower initiative than the one it started at.
+ */
+function remainingDuration(effect) {
+    const duration = effect.system.duration ?? { value: -1, unit: "unlimited", expiry: null };
+    const start = effect.system.start;
+    if (duration.unit === "encounter") {
+        const expired = !!effect.system.expired;
+        return { expired, remaining: expired ? 0 : Infinity };
+    }
+    if (duration.unit === "unlimited" || !start) return { expired: false, remaining: Infinity };
+
+    const combatant = game.combat?.combatant ?? null;
+    const expiry = duration.expiry || "turn-start";
+    const seconds = duration.value * (DURATION_UNITS[duration.unit] ?? 0);
+    // Outside encounters, an effect until the end of the turn or round doesn't expire at once
+    const addend =
+        !combatant && seconds === 0 && duration.unit === "rounds" && ["turn-end", "round-end"].includes(expiry) ? 1 : 0;
+    const remaining = start.value + seconds + addend - game.time.worldTime;
+    const result = { remaining, expired: remaining <= 0 };
+
+    if (remaining === 0 && combatant?.actor) {
+        const startInitiative = start.initiative ?? 0;
+        const currentInitiative = combatant.initiative ?? 0;
+        const bearer = effect.actor;
+        // A familiar isn't in the encounter: its master stands in for it
+        const fightyActor = bearer?.isOfType("familiar") ? (bearer.master ?? bearer) : bearer;
+        const atTurnStart = () =>
+            startInitiative === currentInitiative && combatant.actor === (effect.origin ?? fightyActor);
+        result.expired =
+            expiry === "turn-start"
+                ? atTurnStart()
+                : expiry === "turn-end"
+                  ? currentInitiative < startInitiative
+                  : expiry === "round-end"
+                    ? game.time.worldTime > start.value
+                    : false;
+    }
+    return result;
 }
 
 /** ItemPF2e#getOriginData (src/module/item/base/document.ts) */
@@ -334,8 +407,10 @@ export function checkMessage({
 /**
  * An effect (src/module/item/effect/data.ts and src/module/item/abstract-effect/data.ts): its duration (with
  * `sustained`), its level, its rules and its context, where it came from. `origin` is the actor it came from, its own
- * when it has none (AbstractEffectPF2e#origin in src/module/item/abstract-effect/document.ts), and it never expires:
- * time doesn't pass in the stand-in.
+ * when it has none (AbstractEffectPF2e#origin in src/module/item/abstract-effect/document.ts). Put on its actor without
+ * being created there, it has no start, so it never expires; one made with `createEmbeddedDocuments` starts at the
+ * world's time and expires as pf2e's do (`remainingDuration`, `isExpired`). Expired effects stay on their actor, as
+ * with pf2e's "remove expired effects" off.
  */
 export function addEffect(
     world,
@@ -376,19 +451,6 @@ export function addEffect(
                 : null,
         },
     });
-    // Each can be set by a test
-    const derived = {
-        level: () => effect.system.level.value,
-        origin: () => {
-            const uuid = effect.system.context?.origin?.actor;
-            return !uuid || uuid === actor.uuid ? actor : world.fromUuidSync(uuid);
-        },
-        remainingDuration: () => ({ expired: false, remaining: Infinity }),
-    };
-    for (const [key, get] of Object.entries(derived)) {
-        const set = (value) => Object.defineProperty(effect, key, { value, writable: true, configurable: true });
-        Object.defineProperty(effect, key, { get, set, configurable: true, enumerable: true });
-    }
     return effect;
 }
 
@@ -397,7 +459,7 @@ export function addEffect(
  * `current` are the round, turn and combatant before and after the last change of turn, as Foundry keeps them
  * (CombatHistoryData in types/foundry/client/documents/combat.d.mts). Start it, then move through it as the tracker's
  * buttons do: each is an update of the round and turn that comes back from the server a tick later, with updateCombat
- * in every session.
+ * in every session. The world's time moves by 6 seconds with each round, and not with a turn (`CONFIG.time`).
  *
  * A change to the combatants (one removed, or its initiative set) sets the turns up again at the same index, then
  * commits the index that keeps the current combatant's turn (Combat#_manageTurnEvents's `adjustedTurn`; pf2e's
@@ -454,6 +516,10 @@ export function makeCombat(world, { id = makeId("combat"), scene = null, combata
         if (Object.keys(changed).length === 0) return combat;
         await serverTrip();
         const prior = { ...combat.current };
+        // The world's time moves with the encounter, back as well as on (Combat#getTimeDelta, by CONFIG.time)
+        world.time +=
+            ((changed.round ?? combat.round) - combat.round) * CONFIG.time.roundTime +
+            ((changed.turn ?? combat.turn ?? 0) - (combat.turn ?? 0)) * CONFIG.time.turnTime;
         Object.assign(combat, changed);
         combat.current = state();
         if (["round", "turn", "combatantId"].some((key) => prior[key] !== combat.current[key])) combat.previous = prior;
