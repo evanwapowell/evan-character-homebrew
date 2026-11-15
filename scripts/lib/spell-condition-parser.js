@@ -246,6 +246,33 @@ function isCasters(before) {
     return !![...before.matchAll(SUBJECTS)].at(-1)?.[1];
 }
 
+/**
+ * Whether a condition mentioned in an entry comes later or only if something happens, so it isn't applied with the
+ * rest: "If it's asleep, it wakes up and is Paralyzed", "On the second round, it becomes off-guard", "on a failed
+ * save, …", "When it's unable to act, it's Petrified permanently", "Sickened 1 each time it damages you", "spends the
+ * first action of each of its turns Confused", "it can choose to be stunned for 1 round instead"
+ */
+const LATER_BEFORE = new RegExp(
+    [
+        String.raw`\b(?:if|when|whenever|each time|every time|the first time|finally|can choose|chooses? to)\b`,
+        String.raw`\bon (?:the|its|their) (?:second|third|fourth|fifth|next|following) (?:round|turn)\b`,
+        String.raw`\bat the (?:start|end|beginning) of\b`,
+        String.raw`\bon (?:a|an|the) (?:failed|successful) (?:save|saving throw)\b`,
+        String.raw`\bon a (?:critical )?(?:failure|success)\b`,
+    ].join("|"),
+);
+function isLater(sentence, start, end) {
+    // Not an aside ("falls off the stone (if applicable) and lands Prone")
+    const before = sentence.slice(0, start).replace(/\([^)]*\)/g, "");
+    return (
+        LATER_BEFORE.test(before) ||
+        /^\s*(?:each time|every time|whenever)\b/.test(sentence.slice(end)) ||
+        // "Spends the first action on its next turn Confused", "must Drop Prone as its first action"
+        /\bfirst action\b/.test(before) ||
+        /^\s*as its first action\b/.test(sentence.slice(end))
+    );
+}
+
 /** Whether the text between two condition mentions only joins them in a list ("x, y, and z") */
 function isListJoin(text) {
     return /^\s*(?:,|and|or|, and|, or)\s*$/.test(text);
@@ -265,7 +292,7 @@ function toRounds(duration) {
 }
 
 /** Read the conditions in a piece of plain text */
-function readConditions(text, { namePattern, slugsByName, fallback }) {
+function readConditions(text, { namePattern, slugsByName, fallback }, { markLater = false } = {}) {
     const mentionPattern = new RegExp(String.raw`\b(${namePattern})\b(?:(?: value is)? (\d+))?`, "g");
     const entries = [];
     for (const sentence of text.split(/(?<=[.;!?])\s+/)) {
@@ -285,13 +312,15 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
                 )
             )
                 continue;
+            const end = match.index + match[0].length;
             mentions.push({
                 slug: slugsByName.get(match[1]),
                 value: match[2] ? Number(match[2]) : null,
                 start: match.index,
-                end: match.index + match[0].length,
+                end,
                 duration: null,
                 linkedTo: null,
+                later: markLater && isLater(sentence, match.index, end),
             });
         }
         if (mentions.length === 0) continue;
@@ -378,6 +407,7 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
                 duration: duration ?? (useSpellDuration ? { ...fallback } : null),
                 linkedTo: mention.linkedTo,
                 fromSpellDuration: useSpellDuration,
+                later: mention.later,
                 permanent,
             });
         }
@@ -429,6 +459,9 @@ function preferLater(entries) {
         const index = result.findIndex((e) => e.slug === entry.slug);
         if (index === -1) {
             result.push(entry);
+        } else if (entry.later && !result[index].later) {
+            // "As failure, but when it Interacts, it reduces its clumsy condition by 1": failure's clumsy 2 stands
+            continue;
         } else {
             const earlier = result[index];
             const keepTimer =
@@ -450,7 +483,8 @@ function preferLater(entries) {
  * @param {Record<string, string[]>} options.labels The labels of each degree of success, e.g. { failure: ["Failure"] }
  * @param {string} [options.spellDuration] The spell's duration text, used for conditions with no timer of their own
  * @returns {{ effects: { effect: string, label: string }[], conditions: { slug: string, value: number | null,
- *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean }[] }}
+ *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean, later: boolean }[] }} `later`:
+ *     the text gives it later or only if something happens, so it's offered unchecked
  */
 export function parseSpellOutcome(html, outcome, { conditions, labels, spellDuration = "" }) {
     const usable = conditions.filter((c) => !IGNORED.has(c.slug));
@@ -516,7 +550,7 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
             if (degrees) return degrees.includes(key);
             return effects.length === 0 && !unaffected && !damageOnly;
         });
-        let own = readConditions(text, context);
+        let own = readConditions(text, context, { markLater: true });
         // "As success, with a duration of 1 hour", "As success, but the duration is unlimited": a new timer for the
         // conditions that take one
         const restated = text.match(RESTATED);

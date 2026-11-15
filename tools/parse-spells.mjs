@@ -36,7 +36,10 @@ const LABELS = {
     criticalFailure: ["Critical Failure"],
 };
 
-/** "frightened 3", "slowed 1 for 1 minute (caster's turn start)", "stupefied 2 while frightened" */
+/**
+ * "frightened 3", "slowed 1 for 1 minute (caster's turn start)", "stupefied 2 while frightened", "petrified [later or
+ * conditional: unchecked]"
+ */
 export function describeCondition(condition) {
     let text = condition.slug + (condition.value != null ? ` ${condition.value}` : "");
     const duration = condition.duration;
@@ -49,6 +52,7 @@ export function describeCondition(condition) {
         if (condition.fromSpellDuration) text += " [spell's duration]";
     }
     if (condition.linkedTo) text += ` while ${condition.linkedTo}`;
+    if (condition.later) text += " [later or conditional: unchecked]";
     return text;
 }
 

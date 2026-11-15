@@ -77,6 +77,18 @@ const CONDITIONS = {
         failure: [`enfeebled 2 ${caster(1, "minute")}`, "drained 1"],
         criticalFailure: ["enfeebled 2", "drained 2"],
     },
+    // Petrified once slowed takes every action, so it's offered unchecked
+    Petrify: {
+        success: [`slowed 1 ${caster(1, "round")}`],
+        failure: ["slowed 1", "petrified [later or conditional: unchecked]"],
+        criticalFailure: ["slowed 2", "petrified [later or conditional: unchecked]"],
+    },
+    // "If it's asleep, it wakes up and is Paralyzed for 1 round"
+    "Waking Nightmare": {
+        success: ["frightened 1"],
+        failure: ["frightened 2", `paralyzed ${caster(1, "round")} [later or conditional: unchecked]`],
+        criticalFailure: ["frightened 3", `paralyzed ${caster(1, "round")} [later or conditional: unchecked]`],
+    },
     // pf2e 8.x links an effect for each degree, which grants the critical failure's stunned 2; 7.x links none
     Synesthesia: {
         v13: { criticalFailure: ["stunned 2"] },

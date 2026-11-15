@@ -102,8 +102,10 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       so Sustain tracks them. The link parser picks the defaults (a heightened entry's version of the effect, not a
       battle form's variants, amp or immunity effects) and has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
-      save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node. What it
-      applies records the spell, caster, rank and DC (`flags.evan-character-homebrew.spellSource`), for Counteract.
+      save result and apply its conditions. What the text gives later or only if something happens ("If it's asleep,
+      it wakes up and is Paralyzed", Petrify's petrified) is offered unchecked. The parser has no Foundry
+      dependencies, so it can be run in Node. What it applies records the spell, caster, rank and DC
+      (`flags.evan-character-homebrew.spellSource`), for Counteract.
     - `counteract.js` with `lib/counteract-rules.js`: counteracting. pf2e's Counteract button on spell cards (spells
       with `system.counteraction`, like Dispel Magic) only rolls the check; this takes it over (removing its
       `data-action` in `renderChatMessageHTML`, which runs before pf2e attaches its listeners). The caster checks what
@@ -297,8 +299,9 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included),
   and pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. `tests/guards.test.js`
   checks that pf2e's messages reach the features and the module's own don't, `tests/session.test.js` the session
-  helpers, `tests/gm-requests.test.js` the requests to the GM, and `tests/turns.test.js` the turns of an encounter
-  with Manifest Will's and Sustain's work on them. Fix a hook-driven bug with a test here; export what a test needs
+  helpers, `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js` the turns of an encounter
+  with Manifest Will's and Sustain's work on them, and `tests/spell-conditions.test.js` the spell conditions' Apply
+  button and dialog. Fix a hook-driven bug with a test here; export what a test needs
   from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned

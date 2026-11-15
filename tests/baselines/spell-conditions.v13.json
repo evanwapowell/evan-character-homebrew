@@ -322,7 +322,7 @@
     "Bone Spray": {},
     "Boneshaker": {
         "success": [
-            "prone"
+            "prone [later or conditional: unchecked]"
         ],
         "failure": [
             "enfeebled 1",
@@ -330,7 +330,7 @@
         ],
         "criticalFailure": [
             "enfeebled 2",
-            "prone"
+            "prone [later or conditional: unchecked]"
         ]
     },
     "Bound in Death": {},
@@ -417,10 +417,10 @@
     },
     "Cast into Time": {
         "failure": [
-            "sickened 1"
+            "sickened 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "sickened 2"
+            "sickened 2 [later or conditional: unchecked]"
         ]
     },
     "Caster's Imposition": {},
@@ -437,7 +437,7 @@
             "sickened 2"
         ],
         "criticalFailure": [
-            "sickened 4"
+            "sickened 2"
         ]
     },
     "Chain Lightning": {},
@@ -457,10 +457,10 @@
             "stunned 1"
         ],
         "failure": [
-            "stunned for 1 round (caster's turn start)"
+            "stunned for 1 round (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "stunned for 4 rounds (caster's turn start)"
+            "stunned for 4 rounds (caster's turn start) [later or conditional: unchecked]"
         ]
     },
     "Charm": {},
@@ -505,11 +505,11 @@
     },
     "Chrysopoetic Curse": {
         "success": [
-            "encumbered for 1 minute (caster's turn start) [spell's duration]"
+            "encumbered for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ],
         "failure": [
-            "encumbered for 1 minute (caster's turn start) [spell's duration]",
-            "clumsy 3 for 1 minute (caster's turn start) [spell's duration]"
+            "encumbered for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]",
+            "clumsy 3 for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ]
     },
     "Chthonian Wrath": {},
@@ -520,13 +520,13 @@
         ],
         "failure": [
             "controlled for 10 minutes (caster's turn start) [spell's duration]",
-            "stunned 1",
-            "confused for 1 round (caster's turn start)"
+            "stunned 1 [later or conditional: unchecked]",
+            "confused for 1 round (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "controlled for 10 minutes (caster's turn start) [spell's duration]",
-            "stunned 1",
-            "confused for 1 round (caster's turn start)"
+            "stunned 1 [later or conditional: unchecked]",
+            "confused for 1 round (caster's turn start) [later or conditional: unchecked]"
         ]
     },
     "Clinging Ice": {
@@ -595,11 +595,11 @@
         ],
         "failure": [
             "clumsy 2 for 1 minute (caster's turn start) [spell's duration]",
-            "paralyzed for 1 minute (caster's turn start) [spell's duration]"
+            "paralyzed for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "clumsy for 1 minute (caster's turn start) [spell's duration]",
-            "paralyzed for 1 minute (caster's turn start) [spell's duration]"
+            "clumsy 2 for 1 minute (caster's turn start) [spell's duration]",
+            "paralyzed for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ]
     },
     "Cordyceps Command": {},
@@ -617,7 +617,7 @@
     "Crimson Breath": {},
     "Crisis of Faith": {
         "failure": [
-            "stupefied 1 for 1 round (caster's turn start)"
+            "stupefied 1 for 1 round (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "stupefied 1 for 1 round (caster's turn start)"
@@ -895,13 +895,13 @@
         ],
         "failure": [
             "fascinated",
-            "fleeing",
-            "prone"
+            "fleeing [later or conditional: unchecked]",
+            "prone [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "fascinated",
-            "fleeing",
-            "prone"
+            "fleeing [later or conditional: unchecked]",
+            "prone [later or conditional: unchecked]"
         ]
     },
     "Dull Ambition": {},
@@ -986,7 +986,7 @@
         ],
         "failure": [
             "off-guard for 3 rounds (caster's turn start)",
-            "stupefied 1 for 3 rounds (caster's turn start)"
+            "stupefied 1 for 3 rounds (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "off-guard for 3 rounds (caster's turn start)",
@@ -1143,7 +1143,7 @@
             "dazzled for 1 minute (caster's turn start)"
         ],
         "criticalFailure": [
-            "blinded for 1 round (its turn end)"
+            "blinded for 1 round (its turn end) [later or conditional: unchecked]"
         ]
     },
     "Fearful Feast": {
@@ -1277,11 +1277,11 @@
         ],
         "failure": [
             "slowed 1 for 1 minute (caster's turn start) [spell's duration]",
-            "stunned 1"
+            "stunned 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "slowed 2 for 1 minute (caster's turn start) [spell's duration]",
-            "stunned 1"
+            "stunned 1 [later or conditional: unchecked]"
         ]
     },
     "Glass Sand": {},
@@ -1501,37 +1501,37 @@
     },
     "Impaling Spike": {
         "failure": [
-            "immobilized for 1 minute (caster's turn start) [spell's duration]"
+            "immobilized for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "immobilized for 1 minute (caster's turn start) [spell's duration]",
+            "immobilized for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]",
             "off-guard for 1 minute (caster's turn start) [spell's duration]"
         ]
     },
     "Impart Empathy": {},
     "Impending Doom": {
         "success": [
-            "off-guard for 3 rounds (caster's turn start) [spell's duration]",
-            "frightened 1"
+            "off-guard for 3 rounds (caster's turn start) [spell's duration] [later or conditional: unchecked]",
+            "frightened 1 [later or conditional: unchecked]"
         ],
         "failure": [
             "off-guard for 3 rounds (caster's turn start) [spell's duration]",
-            "frightened 2",
-            "stunned 1"
+            "frightened 2 [later or conditional: unchecked]",
+            "stunned 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "off-guard for 3 rounds (caster's turn start) [spell's duration]",
             "frightened 3",
-            "stunned 1",
-            "paralyzed for 3 rounds (caster's turn start) [spell's duration]"
+            "stunned 1 [later or conditional: unchecked]",
+            "paralyzed for 3 rounds (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ]
     },
     "Implement of Destruction": {
         "failure": [
-            "doomed 1"
+            "doomed 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "doomed 1"
+            "doomed 1 [later or conditional: unchecked]"
         ]
     },
     "Implosion": {},
@@ -1540,16 +1540,16 @@
     "Indolent Haze": {
         "success": [
             "prone",
-            "unconscious for 1 minute (caster's turn start) [spell's duration]"
+            "unconscious for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ],
         "failure": [
             "prone",
-            "unconscious for 1 minute (caster's turn start) [spell's duration]"
+            "unconscious for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "prone",
             "unconscious for 1 minute (caster's turn start) [spell's duration]",
-            "drained"
+            "drained [later or conditional: unchecked]"
         ]
     },
     "Inevitable Destination": {
@@ -1689,11 +1689,11 @@
         ],
         "failure": [
             "slowed 1",
-            "petrified"
+            "petrified [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "slowed 2",
-            "petrified"
+            "petrified [later or conditional: unchecked]"
         ]
     },
     "Linnorm Sting": {},
@@ -1752,7 +1752,7 @@
         ],
         "failure": [
             "stupefied 2 for 1 minute (caster's turn start)",
-            "slowed 1 for 1 round (its turn end)"
+            "slowed 1 for 1 round (its turn end) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "stupefied 4 for 1 minute (caster's turn start)",
@@ -1773,11 +1773,11 @@
         ],
         "failure": [
             "sickened 1",
-            "slowed 1"
+            "slowed 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "sickened 2",
-            "slowed 1"
+            "slowed 1 [later or conditional: unchecked]"
         ]
     },
     "Mark of Blood": {
@@ -1804,11 +1804,11 @@
     "Medusa's Wrath": {
         "criticalSuccess": [
             "slowed 2",
-            "petrified"
+            "petrified [later or conditional: unchecked]"
         ],
         "success": [
             "slowed 1",
-            "petrified"
+            "petrified [later or conditional: unchecked]"
         ]
     },
     "Mental Map": {
@@ -1966,10 +1966,10 @@
     "Orb of Twisting Fate": {},
     "Ordained Purpose": {
         "failure": [
-            "prone"
+            "prone [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "prone"
+            "prone [later or conditional: unchecked]"
         ]
     },
     "Osseous Cage": {},
@@ -1986,11 +1986,11 @@
     },
     "Over the Coals": {
         "failure": [
-            "drained 1"
+            "drained 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "drained 2",
-            "doomed 1"
+            "drained 2 [later or conditional: unchecked]",
+            "doomed 1 [later or conditional: unchecked]"
         ]
     },
     "Overflowing Sorrow": {},
@@ -2096,11 +2096,11 @@
         ],
         "failure": [
             "slowed 1",
-            "petrified"
+            "petrified [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "slowed 2",
-            "petrified"
+            "petrified [later or conditional: unchecked]"
         ]
     },
     "Phantasmagoria": {
@@ -2194,7 +2194,7 @@
     },
     "Possession": {
         "failure": [
-            "controlled for 1 minute (caster's turn start) [spell's duration]"
+            "controlled for 1 minute (caster's turn start) [spell's duration] [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "controlled for 1 minute (caster's turn start) [spell's duration]"
@@ -2496,7 +2496,7 @@
     },
     "Shared Nightmare": {
         "failure": [
-            "confused for 1 minute (caster's turn start)"
+            "confused for 1 minute (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "confused for 1 minute (caster's turn start)"
@@ -2508,7 +2508,7 @@
     "Shifting Sand": {
         "criticalFailure": [
             "immobilized for 1 minute (caster's turn start) [spell's duration]",
-            "prone"
+            "prone [later or conditional: unchecked]"
         ]
     },
     "Shock and Awe": {
@@ -2694,10 +2694,10 @@
     "Steal Voice": {},
     "Steal the Sky": {
         "failure": [
-            "prone"
+            "prone [later or conditional: unchecked]"
         ],
         "criticalFailure": [
-            "prone"
+            "prone [later or conditional: unchecked]"
         ]
     },
     "Stifling Stillness": {},
@@ -3054,7 +3054,7 @@
             "prone"
         ],
         "criticalFailure": [
-            "prone"
+            "prone [later or conditional: unchecked]"
         ]
     },
     "Unexpected Transposition": {},
@@ -3127,7 +3127,7 @@
             "frightened 3"
         ],
         "criticalFailure": [
-            "frightened 4"
+            "frightened 4 [later or conditional: unchecked]"
         ]
     },
     "Untwisting Iron Roots": {
@@ -3203,7 +3203,7 @@
     },
     "Vibrant Vibrato": {
         "failure": [
-            "stunned 1",
+            "stunned 1 [later or conditional: unchecked]",
             "deafened for 1 minute (caster's turn start) [spell's duration]"
         ],
         "criticalFailure": [
@@ -3290,11 +3290,11 @@
         ],
         "failure": [
             "confused for 1 minute (caster's turn start) [spell's duration]",
-            "concealed for 1 round (caster's turn start)"
+            "concealed for 1 round (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "confused for 1 minute (caster's turn start) [spell's duration]",
-            "concealed for 1 round (caster's turn start)"
+            "concealed for 1 round (caster's turn start) [later or conditional: unchecked]"
         ]
     },
     "Waking Nightmare": {
@@ -3303,18 +3303,18 @@
         ],
         "failure": [
             "frightened 2",
-            "paralyzed for 1 round (caster's turn start)"
+            "paralyzed for 1 round (caster's turn start) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "frightened 3",
-            "paralyzed for 1 round (caster's turn start)"
+            "paralyzed for 1 round (caster's turn start) [later or conditional: unchecked]"
         ]
     },
     "Wall of Radiance": {},
     "Wall of Wind": {},
     "Warp Mind": {
         "success": [
-            "confused"
+            "confused [later or conditional: unchecked]"
         ],
         "failure": [
             "confused for 1 minute (caster's turn start)"
@@ -3326,10 +3326,10 @@
     "Warrior's Regret": {},
     "Wave of Despair": {
         "success": [
-            "slowed 1 for 1 round (its turn end)"
+            "slowed 1 for 1 round (its turn end) [later or conditional: unchecked]"
         ],
         "failure": [
-            "slowed 1 for 1 round (its turn end)"
+            "slowed 1 for 1 round (its turn end) [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "slowed 1 for 1 minute (caster's turn start)"
@@ -3351,8 +3351,8 @@
             "frightened 2"
         ],
         "criticalFailure": [
-            "frightened 2",
-            "fleeing for 1 round (its turn end)"
+            "frightened 2 [later or conditional: unchecked]",
+            "fleeing for 1 round (its turn end) [later or conditional: unchecked]"
         ]
     },
     "Whirling Flames": {},
@@ -3370,7 +3370,7 @@
     "Wildfire": {},
     "Wilding Word": {
         "failure": [
-            "sickened 1"
+            "sickened 1 [later or conditional: unchecked]"
         ],
         "criticalFailure": [
             "sickened 2"

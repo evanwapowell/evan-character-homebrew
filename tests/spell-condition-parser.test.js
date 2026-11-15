@@ -14,6 +14,7 @@ const CONDITIONS = [
     ["sickened", "Sickened", "fesd1n5eVhpCSS18"],
     ["slowed", "Slowed", "xYTAsEpcJE1Ccni3"],
     ["stunned", "Stunned", "dfCMdR4wnpbYNTix"],
+    ["petrified", "Petrified", "dTwPJuKgBQCMxixg"],
     ["prone", "Prone", "j91X7x0XSomq8d60"],
     ["hidden", "Hidden", "iU0fEDdBp3rXpTMC"],
 ].map(([slug, name, id]) => ({ slug, name, id }));
@@ -42,6 +43,7 @@ const condition = (slug, value, duration = null, extra = {}) => ({
     duration,
     linkedTo: null,
     fromSpellDuration: false,
+    later: false,
     ...extra,
 });
 
@@ -228,6 +230,25 @@ describe("parseSpellOutcome on other phrasings", () => {
         const fog =
             "<p>A creature that fails its save is also slowed 1 for 1 minute (slowed 2 on a critical failure).</p>";
         assert.deepEqual(parse(fog, "criticalFailure", "1 minute").conditions, [condition("slowed", 2, minutes(1))]);
+    });
+
+    it("marks conditions that come later or only if something happens", () => {
+        const html = [
+            "<p><strong>Success</strong> The target spends the first action on its next turn with the confused condition.</p>",
+            "<p><strong>Failure</strong> The target is slowed 1 and must attempt a save at the end of each of its turns. On a failed save, the slowed condition increases by 1. When it's unable to act, it's petrified permanently.</p>",
+            "<p><strong>Critical Failure</strong> As failure, but the target is initially slowed 2. If it's asleep, it wakes up and is stunned 1. It's sickened 1 each time it damages you.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "success").conditions, [condition("confused", null, null, { later: true })]);
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("slowed", 1),
+            condition("petrified", null, null, { later: true }),
+        ]);
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("slowed", 2),
+            condition("petrified", null, null, { later: true }),
+            condition("stunned", 1, null, { later: true }),
+            condition("sickened", 1, null, { later: true }),
+        ]);
     });
 
     it("leaves out negated, ignored and heightened conditions", () => {
