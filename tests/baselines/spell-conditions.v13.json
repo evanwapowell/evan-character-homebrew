@@ -464,7 +464,7 @@
             "stunned for 1 round (caster's turn start)"
         ],
         "criticalFailure": [
-            "stunned for 1 round (caster's turn start)"
+            "stunned for 4 rounds (caster's turn start)"
         ]
     },
     "Charm": {},
@@ -495,7 +495,7 @@
             "drained 1"
         ],
         "criticalFailure": [
-            "enfeebled 2 for 1 minute (caster's turn start)",
+            "enfeebled 2",
             "drained 2"
         ]
     },
@@ -662,12 +662,12 @@
             "enfeebled 1 for 1 round (caster's turn start)"
         ],
         "failure": [
-            "clumsy 1 for 1 round (caster's turn start)",
-            "enfeebled 1 for 1 round (caster's turn start)"
+            "clumsy 1 for 1 hour (caster's turn start)",
+            "enfeebled 1 for 1 hour (caster's turn start)"
         ],
         "criticalFailure": [
-            "clumsy 1 for 1 round (caster's turn start)",
-            "enfeebled 1 for 1 round (caster's turn start)"
+            "clumsy 1",
+            "enfeebled 1"
         ]
     },
     "Curse of Recoil": {
@@ -704,7 +704,7 @@
     "Dancing Fountain": {},
     "Darkened Eyes": {
         "criticalFailure": [
-            "blinded"
+            "blinded for 1 minute (caster's turn start)"
         ]
     },
     "Darklight": {},
@@ -1202,10 +1202,10 @@
             "fascinated for 1 round (caster's turn start)"
         ],
         "failure": [
-            "fascinated for 1 round (caster's turn start)"
+            "fascinated for 1 minute (caster's turn start)"
         ],
         "criticalFailure": [
-            "fascinated for 1 round (caster's turn start)"
+            "fascinated for 1 minute (caster's turn start)"
         ]
     },
     "Floating Flame": {},
@@ -2168,10 +2168,10 @@
             "fascinated"
         ],
         "failure": [
-            "fascinated"
+            "fascinated for 1 minute (caster's turn start)"
         ],
         "criticalFailure": [
-            "fascinated"
+            "fascinated for 1 minute (caster's turn start)"
         ]
     },
     "Phantom Orchestra": {},
@@ -2530,10 +2530,10 @@
     },
     "Shared Nightmare": {
         "failure": [
-            "confused"
+            "confused for 1 minute (caster's turn start)"
         ],
         "criticalFailure": [
-            "confused"
+            "confused for 1 minute (caster's turn start)"
         ]
     },
     "Shatter Mind": {},

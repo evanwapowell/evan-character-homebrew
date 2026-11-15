@@ -65,6 +65,18 @@ const CONDITIONS = {
     "Mind Games": { failure: ["stunned 1"], criticalFailure: ["stunned 2"] },
     // "It then takes the effects of a failure"
     "Laughing Fit": { failure: ["slowed 1"], criticalFailure: ["prone", "slowed 1"] },
+    // "As success, with a duration of 1 hour", "As success, with an unlimited duration"
+    "Curse of Lost Time": {
+        success: [`clumsy 1 ${caster(1, "round")}`, `enfeebled 1 ${caster(1, "round")}`],
+        failure: [`clumsy 1 ${caster(1, "hour")}`, `enfeebled 1 ${caster(1, "hour")}`],
+        criticalFailure: ["clumsy 1", "enfeebled 1"],
+    },
+    // "As failure, but the creature is permanently Enfeebled 2 and Drained 2"
+    "Chroma Leach": {
+        success: [`enfeebled 2 ${caster(1, "round")}`],
+        failure: [`enfeebled 2 ${caster(1, "minute")}`, "drained 1"],
+        criticalFailure: ["enfeebled 2", "drained 2"],
+    },
     // pf2e 8.x links an effect for each degree, which grants the critical failure's stunned 2; 7.x links none
     Synesthesia: {
         v13: { criticalFailure: ["stunned 2"] },

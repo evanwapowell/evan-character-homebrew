@@ -118,6 +118,30 @@ describe("parseSpellOutcome on other phrasings", () => {
         ]);
     });
 
+    it("restates the timer of an entry it refers to, and doesn't keep a timer for a permanent condition", () => {
+        const html = [
+            "<p><strong>Success</strong> The target is dazzled and slowed 1 for 1 round, and stunned 1.</p>",
+            "<p><strong>Failure</strong> As success, with a duration of 1 hour.</p>",
+            "<p><strong>Critical Failure</strong> As success, but the duration is unlimited.</p>",
+        ].join("");
+        const hour = { value: 1, dice: null, unit: "hours", expiry: "turn-start", relativeTo: "caster" };
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("dazzled", null, hour),
+            condition("slowed", 1, hour),
+            condition("stunned", 1),
+        ]);
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("dazzled", null),
+            condition("slowed", 1),
+            condition("stunned", 1),
+        ]);
+        const leach = [
+            "<p><strong>Failure</strong> The target is slowed 2 for 1 minute.</p>",
+            "<p><strong>Critical Failure</strong> As failure, but the creature is permanently slowed 2.</p>",
+        ].join("");
+        assert.deepEqual(parse(leach, "criticalFailure", "1 minute").conditions, [condition("slowed", 2)]);
+    });
+
     it("links a condition to another ('as long as it's sickened'), putting the anchor first", () => {
         const html =
             "<p><strong>Failure</strong> The target is slowed 1 as long as it's sickened, and it's sickened 1.</p>";

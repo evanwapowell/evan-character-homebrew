@@ -182,6 +182,10 @@ function findDurations(sentence, spellDuration) {
     for (const match of sentence.matchAll(new RegExp(String.raw`\bfor ${WHOSE} next action\b`, "g"))) {
         add(match, turnEnd(match[1]));
     }
+    // No timer, and not the spell's duration either ("the target is permanently enfeebled 2")
+    for (const match of sentence.matchAll(/\bpermanently\b/g)) {
+        add(match, { permanent: true });
+    }
     if (spellDuration) {
         for (const match of sentence.matchAll(/\bfor the (?:spell's )?duration(?: of the spell)?\b/g)) {
             add(match, { ...spellDuration });
@@ -228,6 +232,15 @@ function isListJoin(text) {
     return /^\s*(?:,|and|or|, and|, or)\s*$/.test(text);
 }
 
+/** Conditions that end by their own rules, and stunned with a value, which counts down */
+const isTimeless = (condition) =>
+    SELF_ENDING.has(condition.slug) || (condition.slug === "stunned" && !!condition.value);
+
+/** "As success, with a duration of 1 hour", "but the duration is 3 rounds", "with an unlimited duration" */
+const RESTATED = new RegExp(
+    String.raw`\b(?:with a duration of|the duration is) (?:${COUNT} (round|minute|hour|day)s?\b|unlimited\b|permanent\b)|\bwith an? (?:unlimited|permanent) duration\b`,
+);
+
 function toRounds(duration) {
     return duration.value * (ROUNDS_PER_UNIT[duration.unit] ?? 1);
 }
@@ -267,7 +280,6 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
         // A duration or link applies to the mention just before it, if nothing else comes between them, and back
         // through a list joined to it ("dazzled and deafened for 1 minute"), skipping valued conditions that end by
         // their own rules
-        const isTimeless = (m) => SELF_ENDING.has(m.slug) || (m.slug === "stunned" && m.value);
         const assignBackwards = (position, assign) => {
             let index = mentions.findLastIndex((m) => m.end <= position);
             if (index === -1) return false;
@@ -331,21 +343,23 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
         }
 
         for (const mention of mentions) {
+            const permanent = !!mention.duration?.permanent;
+            const duration = permanent ? null : mention.duration;
             // A condition mentioned again ("the sickened value can't be reduced") adds nothing new
             const existing = entries.find((e) => e.slug === mention.slug);
             if (existing) {
                 existing.value ??= mention.value;
-                existing.duration ??= mention.duration;
+                existing.duration ??= duration;
                 continue;
             }
-            const timeless = SELF_ENDING.has(mention.slug) || (mention.slug === "stunned" && mention.value);
-            const useSpellDuration = !mention.duration && !mention.linkedTo && !timeless && !!fallback;
+            const useSpellDuration = !duration && !permanent && !mention.linkedTo && !isTimeless(mention) && !!fallback;
             entries.push({
                 slug: mention.slug,
                 value: mention.value,
-                duration: mention.duration ?? (useSpellDuration ? { ...fallback } : null),
+                duration: duration ?? (useSpellDuration ? { ...fallback } : null),
                 linkedTo: mention.linkedTo,
                 fromSpellDuration: useSpellDuration,
+                permanent,
             });
         }
     }
@@ -398,7 +412,8 @@ function preferLater(entries) {
             result.push(entry);
         } else {
             const earlier = result[index];
-            const keepTimer = !entry.linkedTo && (!entry.duration || entry.fromSpellDuration) && earlier.duration;
+            const keepTimer =
+                !entry.linkedTo && !entry.permanent && (!entry.duration || entry.fromSpellDuration) && earlier.duration;
             result[index] = keepTimer
                 ? { ...entry, duration: earlier.duration, fromSpellDuration: earlier.fromSpellDuration }
                 : { ...entry, linkedTo: entry.linkedTo ?? (entry.duration ? null : earlier.linkedTo) };
@@ -480,7 +495,23 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
                 );
             return !unaffected;
         });
-        const own = readConditions(text, context);
+        let own = readConditions(text, context);
+        // "As success, with a duration of 1 hour", "As success, but the duration is unlimited": a new timer for the
+        // conditions that take one
+        const restated = text.match(RESTATED);
+        if (restated) {
+            const value = restated[1] ? parseCount(restated[1]) : null;
+            const duration = value
+                ? { value, dice: null, unit: UNITS[restated[2]], expiry: "turn-start", relativeTo: "caster" }
+                : null;
+            // Not a timer tied to the creature's turn ("slowed 1 for that turn")
+            const retime = (c) =>
+                c.linkedTo || c.permanent || isTimeless(c) || c.duration?.relativeTo === "target"
+                    ? c
+                    : { ...c, duration: duration && { ...duration }, fromSpellDuration: false, permanent: !duration };
+            inherited = { ...inherited, conditions: inherited.conditions.map(retime) };
+            own = own.map((c) => (c.duration && !c.fromSpellDuration ? c : retime(c)));
+        }
         return {
             effects: [...inherited.effects, ...effects, ...general],
             conditions: suffers
@@ -506,7 +537,9 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
     // Conditions others are linked to come first, so they exist when the link is made
     return {
         effects: result.effects,
-        conditions: result.conditions.sort((a, b) => Number(!!a.linkedTo) - Number(!!b.linkedTo)),
+        conditions: result.conditions
+            .sort((a, b) => Number(!!a.linkedTo) - Number(!!b.linkedTo))
+            .map(({ permanent: _permanent, ...condition }) => condition),
     };
 }
 
