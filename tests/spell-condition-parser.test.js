@@ -6,12 +6,16 @@ import { getGrantedConditions, parseSpellOutcome, preselectDegree } from "../scr
 // pf2e's conditions, with their compendium IDs
 const CONDITIONS = [
     ["blinded", "Blinded", "XgEqL1kFApUbl5Z2"],
+    ["concealed", "Concealed", "DmAIPqOBomZ7H95W"],
+    ["confused", "Confused", "yblD8fOR1J8rDwEQ"],
     ["dazzled", "Dazzled", "TkIyaNPgTZFBCCuh"],
     ["fleeing", "Fleeing", "sDPxOjQ9kx2RZE8D"],
     ["frightened", "Frightened", "TBSHQspnbcqxsmjL"],
     ["sickened", "Sickened", "fesd1n5eVhpCSS18"],
     ["slowed", "Slowed", "xYTAsEpcJE1Ccni3"],
     ["stunned", "Stunned", "dfCMdR4wnpbYNTix"],
+    ["petrified", "Petrified", "dTwPJuKgBQCMxixg"],
+    ["prone", "Prone", "j91X7x0XSomq8d60"],
     ["hidden", "Hidden", "iU0fEDdBp3rXpTMC"],
 ].map(([slug, name, id]) => ({ slug, name, id }));
 
@@ -22,8 +26,8 @@ const LABELS = {
     criticalFailure: ["Critical Failure"],
 };
 
-const parse = (html, outcome, spellDuration = "") =>
-    parseSpellOutcome(html, outcome, { conditions: CONDITIONS, labels: LABELS, spellDuration });
+const parse = (html, outcome, spellDuration = "", save = null) =>
+    parseSpellOutcome(html, outcome, { conditions: CONDITIONS, labels: LABELS, spellDuration, save });
 
 const rounds = (value, relativeTo = "caster", expiry = "turn-start") => ({
     value,
@@ -39,6 +43,7 @@ const condition = (slug, value, duration = null, extra = {}) => ({
     duration,
     linkedTo: null,
     fromSpellDuration: false,
+    later: false,
     ...extra,
 });
 
@@ -115,6 +120,30 @@ describe("parseSpellOutcome on other phrasings", () => {
         ]);
     });
 
+    it("restates the timer of an entry it refers to, and doesn't keep a timer for a permanent condition", () => {
+        const html = [
+            "<p><strong>Success</strong> The target is dazzled and slowed 1 for 1 round, and stunned 1.</p>",
+            "<p><strong>Failure</strong> As success, with a duration of 1 hour.</p>",
+            "<p><strong>Critical Failure</strong> As success, but the duration is unlimited.</p>",
+        ].join("");
+        const hour = { value: 1, dice: null, unit: "hours", expiry: "turn-start", relativeTo: "caster" };
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("dazzled", null, hour),
+            condition("slowed", 1, hour),
+            condition("stunned", 1),
+        ]);
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("dazzled", null),
+            condition("slowed", 1),
+            condition("stunned", 1),
+        ]);
+        const leach = [
+            "<p><strong>Failure</strong> The target is slowed 2 for 1 minute.</p>",
+            "<p><strong>Critical Failure</strong> As failure, but the creature is permanently slowed 2.</p>",
+        ].join("");
+        assert.deepEqual(parse(leach, "criticalFailure", "1 minute").conditions, [condition("slowed", 2)]);
+    });
+
     it("tells the turn a creature is taking ('for that turn') from its next ('until the end of its next turn')", () => {
         const next = "<p><strong>Failure</strong> The target is fleeing until the end of its next turn.</p>";
         assert.deepEqual(parse(next, "failure").conditions, [
@@ -124,7 +153,8 @@ describe("parseSpellOutcome on other phrasings", () => {
         const thisTurn = { ...rounds(1, "target", "turn-end"), thisTurn: true };
         const that =
             "<p><strong>Success</strong> For 1 round, the creature must attempt another save at the start of its turn; on a failure, it is slowed 1 for that turn as it sobs uncontrollably.</p>";
-        assert.deepEqual(parse(that, "success").conditions, [condition("slowed", 1, thisTurn)]);
+        // Only on a failure of that later save, so it's offered unchecked
+        assert.deepEqual(parse(that, "success").conditions, [condition("slowed", 1, thisTurn, { later: true })]);
         // Scouring Sand's critical failure, rolled at the end of the creature's turn: its next action is next turn's
         const action = "<p><strong>Failure</strong> The creature is blinded for its next action.</p>";
         assert.deepEqual(parse(action, "failure").conditions, [
@@ -141,6 +171,39 @@ describe("parseSpellOutcome on other phrasings", () => {
         ]);
     });
 
+    it("links a condition to one named before it ('while it's sickened, it's also slowed 1')", () => {
+        const html =
+            "<p><strong>Critical Failure</strong> The creature is sickened 2; while it's sickened, it's also slowed 1.</p>";
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("sickened", 2),
+            condition("slowed", 1, null, { linkedTo: "sickened" }),
+        ]);
+    });
+
+    it("leaves out the caster's conditions and others' as the target sees them", () => {
+        const html = [
+            "<p><strong>Critical Success</strong> The target resists being banished and you are stunned 1.</p>",
+            "<p><strong>Success</strong> You spend your first action with the confused condition.</p>",
+            "<p><strong>Failure</strong> The target can't see you and is dazzled. Creatures other than you are concealed from the target.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalSuccess").conditions, []);
+        assert.deepEqual(parse(html, "success").conditions, []);
+        assert.deepEqual(parse(html, "failure").conditions, [condition("dazzled", null)]);
+    });
+
+    it("follows 'it then takes the effects of a failure', but not a conditional one", () => {
+        const html = [
+            "<p><strong>Failure</strong> The target is slowed 1.</p>",
+            "<p><strong>Critical Failure</strong> The target is dazzled for 1 round. It then takes the effects of a failure.</p>",
+            "<p><strong>Success</strong> If it was flying, it takes the effects of critical failure instead.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("dazzled", null, rounds(1)),
+            condition("slowed", 1),
+        ]);
+        assert.deepEqual(parse(html, "success").conditions, []);
+    });
+
     it("uses the spell's duration for a condition with no timer of its own, but not for self-ending ones", () => {
         const html = "<p><strong>Failure</strong> The target is dazzled and frightened 1.</p>";
         assert.deepEqual(parse(html, "failure", "1 minute").conditions, [
@@ -155,6 +218,115 @@ describe("parseSpellOutcome on other phrasings", () => {
         assert.deepEqual(parse(html, "success").conditions, []);
         assert.deepEqual(parse(html, "failure").conditions, [condition("sickened", 1)]);
         assert.deepEqual(parse(html, "criticalFailure").conditions, [condition("sickened", 2)]);
+    });
+
+    it("reads a critical failure's own result in a spell's text, and not on a failure", () => {
+        const html = [
+            "<p>The target takes 2d4 void damage with a basic Fortitude save. On a critical failure, the target is also dazzled for 1 round.</p>",
+            "<p>Each round, it must attempt a Reflex save. On a failure, it takes a –10-foot penalty to its Speeds, and on a critical failure, it's also slowed 1 for 1 round.</p>",
+            "<p>The target is stunned 1 if it critically fails its save.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "failure").conditions, []);
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("dazzled", null, rounds(1)),
+            condition("slowed", 1, rounds(1)),
+            condition("stunned", 1),
+        ]);
+    });
+
+    it("reads 'must succeed at a save or…' and 'otherwise' as a failure, and '(or X on a critical failure)' instead", () => {
+        const fall = "<p>Each creature must succeed at a Reflex save or fall prone.</p>";
+        assert.deepEqual(parse(fall, "failure").conditions, [condition("prone", null)]);
+        assert.deepEqual(parse(fall, "criticalFailure").conditions, [condition("prone", null)]);
+        const pillar =
+            "<p>On a successful save, the creature is pushed; otherwise, it's frozen and becomes slowed 1.</p>";
+        assert.deepEqual(parse(pillar, "failure").conditions, [condition("slowed", 1)]);
+        const rainbow =
+            "<p>Creatures must succeed at a Fortitude save or become dazzled for 1 round (or blinded for 1 round on a critical failure).</p>";
+        assert.deepEqual(parse(rainbow, "failure").conditions, [condition("dazzled", null, rounds(1))]);
+        assert.deepEqual(parse(rainbow, "criticalFailure").conditions, [condition("blinded", null, rounds(1))]);
+        const fog =
+            "<p>A creature that fails its save is also slowed 1 for 1 minute (slowed 2 on a critical failure).</p>";
+        assert.deepEqual(parse(fog, "criticalFailure", "1 minute").conditions, [condition("slowed", 2, minutes(1))]);
+    });
+
+    it("marks conditions that come later or only if something happens", () => {
+        const html = [
+            "<p><strong>Success</strong> The target spends the first action on its next turn with the confused condition.</p>",
+            "<p><strong>Failure</strong> The target is slowed 1 and must attempt a save at the end of each of its turns. On a failed save, the slowed condition increases by 1. When it's unable to act, it's petrified permanently.</p>",
+            "<p><strong>Critical Failure</strong> As failure, but the target is initially slowed 2. If it's asleep, it wakes up and is stunned 1. It's sickened 1 each time it damages you.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "success").conditions, [condition("confused", null, null, { later: true })]);
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("slowed", 1),
+            condition("petrified", null, null, { later: true }),
+        ]);
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("slowed", 2),
+            condition("petrified", null, null, { later: true }),
+            condition("stunned", 1, null, { later: true }),
+            condition("sickened", 1, null, { later: true }),
+        ]);
+    });
+
+    it("replaces the condition a '(… on a critical failure)' follows, not the last one", () => {
+        const two =
+            "<p>Creatures must succeed at a Will save or be sickened 1 and slowed 1 for 1 round (or sickened 2 on a critical failure).</p>";
+        assert.deepEqual(parse(two, "criticalFailure").conditions, [
+            condition("sickened", 2),
+            condition("slowed", 1, rounds(1)),
+        ]);
+        const between =
+            "<p>Creatures must succeed at a Will save or be dazzled (or blinded on a critical failure) and slowed 1 for 1 minute.</p>";
+        assert.deepEqual(parse(between, "criticalFailure").conditions, [
+            condition("slowed", 1, minutes(1)),
+            condition("blinded", null),
+        ]);
+    });
+
+    it("leaves out what a spell's text says about another save than the spell's", () => {
+        const html = [
+            "<p>Creatures in the area take 4d6 fire damage with a basic Reflex save.</p>",
+            "<p>Breathing creatures must succeed at a Fortitude save or take 2d6 poison damage. On a critical failure, they're also sickened 1.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalFailure", "", "reflex").conditions, []);
+        assert.deepEqual(parse(html, "criticalFailure", "", "fortitude").conditions, [condition("sickened", 1)]);
+    });
+
+    it("offers alternatives for different creatures unchecked", () => {
+        const html = [
+            "<p>Neutral creatures must succeed at a Will save or be dazzled for 1 round.</p>",
+            "<p>Evil creatures must succeed at a Will save or be blinded for 1 round.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "failure").conditions, [
+            condition("dazzled", null, rounds(1), { later: true }),
+            condition("blinded", null, rounds(1), { later: true }),
+        ]);
+    });
+
+    it("keeps a condition later when a degree only restates its value", () => {
+        const html = [
+            "<p><strong>Failure</strong> The target becomes sickened 1 each time it damages you, and is slowed 1 if it flies.</p>",
+            "<p><strong>Critical Failure</strong> As failure, but the sickened value is 2 and the target is automatically slowed 1 for 1 minute.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("sickened", 2, null, { later: true }),
+            condition("slowed", 1, minutes(1)),
+        ]);
+    });
+
+    it("gives 'permanently' to the condition right after it only", () => {
+        const html = "<p><strong>Failure</strong> The target is dazzled and permanently blinded.</p>";
+        assert.deepEqual(parse(html, "failure", "1 minute").conditions, [
+            condition("dazzled", null, minutes(1), { fromSpellDuration: true }),
+            condition("blinded", null),
+        ]);
+    });
+
+    it("reads others than 'the target' as the subject, so the caster's gain doesn't hide their condition", () => {
+        const html =
+            "<p><strong>Failure</strong> You gain 5 temporary Hit Points, and each enemy in the area is frightened 1.</p>";
+        assert.deepEqual(parse(html, "failure").conditions, [condition("frightened", 1)]);
     });
 
     it("leaves out negated, ignored and heightened conditions", () => {
@@ -176,6 +348,54 @@ describe("parseSpellOutcome on other phrasings", () => {
         assert.deepEqual(parse(html, "criticalSuccess").effects, []);
         assert.deepEqual(parse(html, "success").effects, [{ effect, label: "Spell Effect: Penalty" }]);
         assert.deepEqual(parse(html, "failure").effects, [{ effect, label: "Spell Effect: Penalty" }]);
+    });
+
+    it("gives each degree its own effect, adding to the one it refers to only with 'and'", () => {
+        const link = (id, label) => `@UUID[Compendium.pf2e.spell-effects.Item.${id}]{${label}}`;
+        const html = [
+            "<p><strong>Critical Success</strong> The target is unaffected.</p>",
+            "<p><strong>Success</strong> The target takes a –1 penalty for 10 minutes.</p>",
+            `<p>${link("aaaaaaaaaaaaaaaa", "Spell Effect: Curse (Success)")}</p>`,
+            "<p><strong>Failure</strong> As success, but the effect is permanent.</p>",
+            `<p>${link("bbbbbbbbbbbbbbbb", "Spell Effect: Curse (Failure)")}</p>`,
+            "<p><strong>Critical Failure</strong> As failure, and the target also takes a –1 penalty to Will saves.</p>",
+            `<p>${link("cccccccccccccccc", "Spell Effect: Curse (Critical Failure)")}</p>`,
+        ].join("");
+        const effects = (outcome) => parse(html, outcome).effects.map((e) => e.label);
+        assert.deepEqual(effects("success"), ["Spell Effect: Curse (Success)"]);
+        assert.deepEqual(effects("failure"), ["Spell Effect: Curse (Failure)"]);
+        assert.deepEqual(effects("criticalFailure"), [
+            "Spell Effect: Curse (Failure)",
+            "Spell Effect: Curse (Critical Failure)",
+        ]);
+    });
+
+    it("reads the degrees an effect after the last entry is named for, and skips damage-only degrees", () => {
+        const link = (id, label) => `@UUID[Compendium.pf2e.spell-effects.Item.${id}]{${label}}`;
+        const html = [
+            "<p><strong>Success</strong> The target takes half damage.</p>",
+            "<p><strong>Failure</strong> The target takes full damage and a –10-foot penalty to its Speeds.</p>",
+            "<p><strong>Critical Failure</strong> The target takes double damage and a –15-foot penalty.</p>",
+            `<p>${link("aaaaaaaaaaaaaaaa", "Spell Effect: Ice")} ${link("bbbbbbbbbbbbbbbb", "Spell Effect: Ice (Failure or Critical Failure)")}</p>`,
+        ].join("");
+        const effects = (outcome) => parse(html, outcome).effects.map((e) => e.label);
+        assert.deepEqual(effects("success"), []);
+        assert.deepEqual(effects("failure"), ["Spell Effect: Ice", "Spell Effect: Ice (Failure or Critical Failure)"]);
+        assert.deepEqual(effects("criticalFailure"), [
+            "Spell Effect: Ice",
+            "Spell Effect: Ice (Failure or Critical Failure)",
+        ]);
+    });
+
+    it("leaves out an effect after the entries that's what the caster gains", () => {
+        const html = [
+            "<p>The target attempts a Will save. If this kills it, you gain 10 temporary HP.</p>",
+            "<p><strong>Success</strong> The target's dying value increases by 1.</p>",
+            "<p><strong>Failure</strong> The target dies.</p>",
+            "<p>@UUID[Compendium.pf2e.spell-effects.Item.aaaaaaaaaaaaaaaa]{Spell Effect: Knell}</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "success").effects, []);
+        assert.deepEqual(parse(html, "failure").effects, []);
     });
 });
 

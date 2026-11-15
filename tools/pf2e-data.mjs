@@ -82,12 +82,16 @@ export function loadData(version) {
         byUuid.set(`Compendium.evan-character-homebrew.evans-character-homebrew.Item.${doc._id}`, doc);
     }
 
-    // As pf2e's build does: "Compendium.pf2e.conditionitems.Item.Frightened" → "…Item.TBSHQspnbcqxsmjL"
+    // As pf2e's build does (CompendiumPack in build/lib/compendium-pack.ts): "@UUID[Compendium.pf2e.conditionitems.
+    // Item.Frightened]" → "@UUID[…Item.TBSHQspnbcqxsmjL]{Frightened}", the name becoming the label when there's none
     const resolveLinks = (html) =>
-        String(html ?? "").replace(/@UUID\[Compendium\.pf2e\.([\w-]+)\.Item\.([^\]]+)\]/g, (match, pack, name) => {
-            const uuid = byName.get(`${pack}.${name}`);
-            return uuid ? `@UUID[${uuid}]` : match;
-        });
+        String(html ?? "").replace(
+            /@UUID\[Compendium\.pf2e\.([\w-]+)\.Item\.([^\]]+)\](\{)?/g,
+            (match, pack, name, brace) => {
+                const uuid = byName.get(`${pack}.${name}`);
+                return uuid ? `@UUID[${uuid}]${brace ?? `{${name}}`}` : match;
+            },
+        );
     const ownSpells = own.filter((doc) => doc.type === "spell").map((spell) => ({ ...spell, own: true }));
     const spells = [...packs.spells, ...ownSpells].map((spell) => ({
         ...spell,

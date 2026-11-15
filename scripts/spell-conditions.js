@@ -116,6 +116,7 @@ async function buildProposal({ spell, outcome }) {
         conditions,
         labels: getLabels(),
         spellDuration: spell.system.duration?.value,
+        save: spell.system.defense?.save?.statistic,
     });
 
     const effects = [];
@@ -155,14 +156,16 @@ async function rollDurations(proposal) {
     return { effects: proposal.effects, conditions };
 }
 
-function summarize({ effects, conditions }) {
+/** "Frightened 2, Slowed 1 (for 1 minute)"; with `proposed`, what's offered unchecked is marked as such */
+function summarize({ effects, conditions }, { proposed = false } = {}) {
     const names = new Map(conditions.map((c) => [c.slug, c.name]));
     return [
         ...effects.map((e) => e.name),
         ...conditions.map((c) => {
             const label = `${c.name}${c.value ? ` ${c.value}` : ""}`;
             const timing = c.linkedTo ? `while ${names.get(c.linkedTo) ?? c.linkedTo}` : describeDuration(c.duration);
-            return timing ? `${label} (${timing})` : label;
+            const notes = [timing, proposed && c.later ? "later, or only if" : null].filter(Boolean);
+            return notes.length ? `${label} (${notes.join("; ")})` : label;
         }),
     ].join(", ");
 }
@@ -208,8 +211,10 @@ async function confirmProposals(entries) {
                     note ? ` <em>(${esc(note)})</em>` : "",
                 ].join("");
             }
-            const checkbox = `<input type="checkbox" name="condition-${field}" checked>`;
-            return row(`<label>${checkbox} ${esc(condition.name)}</label>${value} ${timing}`);
+            // What the text gives later, or only if something happens, is offered but not checked
+            const checkbox = `<input type="checkbox" name="condition-${field}" ${condition.later ? "" : "checked"}>`;
+            const later = condition.later ? ` <em>(later, or only if)</em>` : "";
+            return row(`<label>${checkbox} ${esc(condition.name)}</label>${value} ${timing}${later}`);
         });
         const heading = `${esc(save.target.name)}</strong>'s save against ${esc(save.spell.name)}`;
         return [
@@ -422,7 +427,7 @@ async function addApplyButton(message, html) {
 
     const proposal = await buildProposal(save);
     if (proposal.effects.length === 0 && proposal.conditions.length === 0) return;
-    content.append(createApplyButton(`Apply: ${summarize(proposal)}`, [{ save, proposal }]));
+    content.append(createApplyButton(`Apply: ${summarize(proposal, { proposed: true })}`, [{ save, proposal }]));
 }
 
 /*

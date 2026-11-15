@@ -19,6 +19,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import * as prettier from "prettier";
+
 import { OUTCOMES, getGrantedConditions, parseSpellOutcome } from "../scripts/lib/spell-condition-parser.js";
 import { defaultEffects, parseLinks } from "../scripts/lib/spell-effect-links.js";
 import { PINS, hasData, loadData } from "./pf2e-data.mjs";
@@ -36,7 +38,10 @@ const LABELS = {
     criticalFailure: ["Critical Failure"],
 };
 
-/** "frightened 3", "slowed 1 for 1 minute (caster's turn start)", "stupefied 2 while frightened" */
+/**
+ * "frightened 3", "slowed 1 for 1 minute (caster's turn start)", "stupefied 2 while frightened", "petrified [later or
+ * conditional: unchecked]"
+ */
 export function describeCondition(condition) {
     let text = condition.slug + (condition.value != null ? ` ${condition.value}` : "");
     const duration = condition.duration;
@@ -51,6 +56,7 @@ export function describeCondition(condition) {
         if (condition.fromSpellDuration) text += " [spell's duration]";
     }
     if (condition.linkedTo) text += ` while ${condition.linkedTo}`;
+    if (condition.later) text += " [later or conditional: unchecked]";
     return text;
 }
 
@@ -73,6 +79,7 @@ export function proposeConditions(spell, outcome, { conditions, byUuid }) {
         conditions,
         labels: LABELS,
         spellDuration: spell.system.duration?.value,
+        save: spell.system.defense?.save?.statistic,
     });
     const granted = new Set();
     const effects = [];
@@ -126,7 +133,12 @@ export function runParsers(version) {
     return { "spell-conditions": conditions, "spell-effect-links": links };
 }
 
-export const serialize = (output) => `${JSON.stringify(output, null, 4)}\n`;
+/** The baseline's JSON as Prettier formats it (as the committed baselines are), so an update shows only what changed */
+export async function serialize(output, file) {
+    const options = (await prettier.resolveConfig(file)) ?? {};
+    // From indented JSON: Prettier keeps an object that starts on its own lines expanded
+    return prettier.format(JSON.stringify(output, null, 4), { ...options, filepath: file });
+}
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const update = process.argv.includes("--update");
@@ -142,7 +154,10 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
             const count = Object.keys(output[kind]).length;
             if (update) {
                 fs.mkdirSync(BASELINES, { recursive: true });
-                fs.writeFileSync(baselineFile(kind, version), serialize(output[kind]));
+                fs.writeFileSync(
+                    baselineFile(kind, version),
+                    await serialize(output[kind], baselineFile(kind, version)),
+                );
                 console.log(`Wrote ${path.relative(ROOT, baselineFile(kind, version))} (${count} spells)`);
             } else {
                 console.log(`pf2e ${version}: ${kind}, ${count} spells`);

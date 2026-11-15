@@ -3,7 +3,8 @@
  * the button and its dialog, in an encounter. In 1.26.12 "until its next turn begins" and "until the end of its next
  * turn" were always effects of 1 round from the target's turn. pf2e ends such an effect at the target's turn in the next
  * round (calculateRemainingDuration, which the stand-in's effects follow), so a target that hadn't acted yet this round
- * kept the condition through a turn too many (issue #48).
+ * kept the condition through a turn too many (issue #48). Wave of Despair's slowed "for that turn" comes on a failure of
+ * a later save, so it's offered unchecked (issue #49) and checked here.
  */
 
 import assert from "node:assert/strict";
@@ -66,7 +67,8 @@ const SPELLS = {
 const TIMERS = {
     "until its next turn begins": { spell: "blindness", outcome: "success", expiry: "turn-start" },
     "until the end of its next turn": { spell: "phantasmalKiller", outcome: "criticalFailure", expiry: "turn-end" },
-    "for that turn": { spell: "waveOfDespair", outcome: "success", expiry: "turn-end" },
+    // Slowed on a failure of the save at the start of its turn: offered unchecked, and checked when it fails
+    "for that turn": { spell: "waveOfDespair", outcome: "success", expiry: "turn-end", check: true },
 };
 
 async function settle(world, done) {
@@ -135,8 +137,11 @@ async function setup(t, version, { order = null, turn = null } = {}) {
      * its dialog, once `change(form)` has made its changes
      */
     async function apply(timer, change = null) {
-        edit = change;
-        const { spell: key, outcome } = TIMERS[timer];
+        const { spell: key, outcome, check } = TIMERS[timer];
+        edit = (form) => {
+            if (check) for (const box of form.querySelectorAll("input[name^=condition-]")) box.checked = true;
+            change?.(form);
+        };
         const data = SPELLS[key];
         const spell = addItem(world, actors.witch, {
             name: data.name,

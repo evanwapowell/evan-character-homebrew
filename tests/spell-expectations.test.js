@@ -59,6 +59,36 @@ const CONDITIONS = {
         failure: ["sickened 1"],
         criticalFailure: ["sickened 2", "slowed 1 while sickened"],
     },
+    // "while it's sickened, it's also Slowed 1": the link comes before the condition
+    "Divine Wrath": { failure: ["sickened 1"], criticalFailure: ["sickened 2", "slowed 1 while sickened"] },
+    // "You are Stunned 1 and the spell ends": the caster's
+    "Mind Games": { failure: ["stunned 1"], criticalFailure: ["stunned 2"] },
+    // "It then takes the effects of a failure"
+    "Laughing Fit": { failure: ["slowed 1"], criticalFailure: ["prone", "slowed 1"] },
+    // "As success, with a duration of 1 hour", "As success, with an unlimited duration"
+    "Curse of Lost Time": {
+        success: [`clumsy 1 ${caster(1, "round")}`, `enfeebled 1 ${caster(1, "round")}`],
+        failure: [`clumsy 1 ${caster(1, "hour")}`, `enfeebled 1 ${caster(1, "hour")}`],
+        criticalFailure: ["clumsy 1", "enfeebled 1"],
+    },
+    // "As failure, but the creature is permanently Enfeebled 2 and Drained 2"
+    "Chroma Leach": {
+        success: [`enfeebled 2 ${caster(1, "round")}`],
+        failure: [`enfeebled 2 ${caster(1, "minute")}`, "drained 1"],
+        criticalFailure: ["enfeebled 2", "drained 2"],
+    },
+    // Petrified once slowed takes every action, so it's offered unchecked
+    Petrify: {
+        success: [`slowed 1 ${caster(1, "round")}`],
+        failure: ["slowed 1", "petrified [later or conditional: unchecked]"],
+        criticalFailure: ["slowed 2", "petrified [later or conditional: unchecked]"],
+    },
+    // "If it's asleep, it wakes up and is Paralyzed for 1 round"
+    "Waking Nightmare": {
+        success: ["frightened 1"],
+        failure: ["frightened 2", `paralyzed ${caster(1, "round")} [later or conditional: unchecked]`],
+        criticalFailure: ["frightened 3", `paralyzed ${caster(1, "round")} [later or conditional: unchecked]`],
+    },
     // pf2e 8.x links an effect for each degree, which grants the critical failure's stunned 2; 7.x links none
     Synesthesia: {
         v13: { criticalFailure: ["stunned 2"] },
@@ -68,6 +98,26 @@ const CONDITIONS = {
             criticalFailure: ["effect: Spell Effect: Synesthesia (Failure)"],
         },
     },
+    // "As success, but the effect is permanent", each with its own effect; "As failure, and…" adds to failure's
+    "Outcast's Curse": {
+        success: ["effect: Spell Effect: Outcast's Curse (Success)"],
+        failure: ["effect: Spell Effect: Outcast's Curse (Failure)"],
+        criticalFailure: ["effect: Spell Effect: Outcast's Curse (Failure)"],
+    },
+    "Faerie Dust": {
+        failure: ["effect: Spell Effect: Faerie Dust (Failure)"],
+        criticalFailure: [
+            "effect: Spell Effect: Faerie Dust (Failure)",
+            "effect: Spell Effect: Faerie Dust (Critical Failure)",
+        ],
+    },
+    // The effect after the entries isn't for a success that only takes half damage
+    "Clinging Ice": {
+        failure: ["effect: Spell Effect: Clinging Ice"],
+        criticalFailure: ["effect: Spell Effect: Clinging Ice"],
+    },
+    // The effect after the entries is the caster's ("If this kills it, you gain…")
+    "Death Knell": { success: ["dying"] },
     "Leaden Steps": {
         success: ["effect: Spell Effect: Leaden Steps"],
         failure: ["effect: Spell Effect: Leaden Steps"],
@@ -75,6 +125,28 @@ const CONDITIONS = {
     },
     // "becomes sickened 1 if it fails a Will save (or sickened 2 on a critical failure)"
     "Evil Eye": { failure: ["sickened 1"], criticalFailure: ["sickened 2"] },
+    // "On a critical failure, the target is also Enfeebled 1 until the start of your next turn"
+    "Void Warp": { criticalFailure: [`enfeebled 1 ${caster(1, "round")}`] },
+    // "On a failure, … and on a critical failure, it's also Immobilized for 1 round"
+    "Entangling Flora": { criticalFailure: [`immobilized ${caster(1, "round")}`] },
+    // "must succeed at a Reflex save or an Acrobatics check against your spell DC or fall Prone"
+    Grease: { failure: ["prone"], criticalFailure: ["prone"] },
+    // Dazzled for neutral creatures, blinded for evil ones: neither is checked
+    "Radiant Heart of Devotion": {
+        failure: [
+            `dazzled ${caster(1, "round")} [later or conditional: unchecked]`,
+            `blinded ${caster(1, "round")} [later or conditional: unchecked]`,
+        ],
+        criticalFailure: [
+            `dazzled ${caster(1, "round")} [later or conditional: unchecked]`,
+            `blinded ${caster(1, "round")} [later or conditional: unchecked]`,
+        ],
+    },
+    // "Sickened 1 each time it damages you"; "As failure, but the sickened value is 2"
+    "Wilding Word": {
+        failure: ["sickened 1 [later or conditional: unchecked]"],
+        criticalFailure: ["sickened 2 [later or conditional: unchecked]"],
+    },
     "Scrounger's Glee": { failure: ["frightened 1"], criticalFailure: ["frightened 2"] },
 };
 

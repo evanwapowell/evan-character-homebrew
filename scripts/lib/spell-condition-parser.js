@@ -105,6 +105,7 @@ function getOutcomeHtml(html, labels) {
     found.sort((a, b) => a.start - b.start);
 
     const sections = {};
+    const starts = Object.fromEntries(found.map((entry) => [entry.outcome, entry.start]));
     let general = "";
     found.forEach((entry, index) => {
         const next = found[index + 1];
@@ -117,7 +118,25 @@ function getOutcomeHtml(html, labels) {
             general = end === -1 ? "" : section.slice(end);
         }
     });
-    return { sections, general };
+    return { sections, general, starts };
+}
+
+const DEGREE_KEYS = {
+    "critical success": "criticalSuccess",
+    success: "success",
+    failure: "failure",
+    "critical failure": "criticalFailure",
+};
+
+/**
+ * The degrees of success an effect's label names in its last parentheses: "Spell Effect: Faerie Dust (Critical
+ * Failure)" → ["criticalFailure"], "(Failure or Critical Failure)" → ["failure", "criticalFailure"]; null if none
+ */
+function degreesNamed(label) {
+    const named = label.toLowerCase().match(/\(([^()]*)\)\s*$/)?.[1];
+    if (!named) return null;
+    const parts = named.split(/\s*(?:,|\bor\b|\band\b|\/)\s*/).filter(Boolean);
+    return parts.length > 0 && parts.every((part) => DEGREE_KEYS[part]) ? parts.map((part) => DEGREE_KEYS[part]) : null;
 }
 
 /** Links to effect items in a piece of text, e.g. "@UUID[Compendium.pf2e.spell-effects.Item.abc]{Spell Effect: X}" */
@@ -184,6 +203,10 @@ function findDurations(sentence, spellDuration) {
     for (const match of sentence.matchAll(new RegExp(String.raw`\bfor ${WHOSE} next action\b`, "g"))) {
         add(match, turnEnd(match[1]));
     }
+    // No timer, and not the spell's duration either ("the target is permanently enfeebled 2")
+    for (const match of sentence.matchAll(/\bpermanently\b/g)) {
+        add(match, { permanent: true });
+    }
     if (spellDuration) {
         for (const match of sentence.matchAll(/\bfor the (?:spell's )?duration(?: of the spell)?\b/g)) {
             add(match, { ...spellDuration });
@@ -213,17 +236,67 @@ function findLinks(sentence, namePattern, slugsByName) {
     }));
 }
 
+/**
+ * Whether a condition mentioned after this text is the caster's ("the target resists being banished and you are
+ * Stunned 1"): the last subject before it is "you"
+ */
+const SUBJECTS = new RegExp(
+    String.raw`\b(?:(?<!\b(?:than|to|at|from|by|with) )(you)(?:'re| are| become| fall| also| spend| take| gain)\b|it|they|(?:the|each|every|any|a|an) (?:\w+ )?(?:target|creature|attacker|enemy|ally)s?|creatures|enemies|targets)\b`,
+    "g",
+);
+function isCasters(before) {
+    return !![...before.matchAll(SUBJECTS)].at(-1)?.[1];
+}
+
+/**
+ * Whether a condition mentioned in an entry comes later or only if something happens, so it isn't applied with the
+ * rest: "If it's asleep, it wakes up and is Paralyzed", "On the second round, it becomes off-guard", "on a failed
+ * save, …", "When it's unable to act, it's Petrified permanently", "Sickened 1 each time it damages you", "spends the
+ * first action of each of its turns Confused", "it can choose to be stunned for 1 round instead"
+ */
+const LATER_BEFORE = new RegExp(
+    [
+        String.raw`\b(?:if|when|whenever|each time|every time|the first time|finally|can choose|chooses? to)\b`,
+        // "Any creature that becomes stupefied 1 … also becomes Enfeebled 1"
+        String.raw`\bany (?:creature|target) that\b`,
+        String.raw`\bon (?:the|its|their) (?:second|third|fourth|fifth|next|following) (?:round|turn)\b`,
+        String.raw`\bat the (?:start|end|beginning) of\b`,
+        String.raw`\bon (?:a|an|the) (?:failed|successful) (?:save|saving throw)\b`,
+        String.raw`\bon a (?:critical )?(?:failure|success)\b`,
+    ].join("|"),
+);
+function isLater(sentence, start, end) {
+    // Not an aside ("falls off the stone (if applicable) and lands Prone")
+    const before = sentence.slice(0, start).replace(/\([^)]*\)/g, "");
+    return (
+        LATER_BEFORE.test(before) ||
+        /^\s*(?:each time|every time|whenever)\b/.test(sentence.slice(end)) ||
+        // "Spends the first action on its next turn Confused", "must Drop Prone as its first action"
+        /\bfirst action\b/.test(before) ||
+        /^\s*as its first action\b/.test(sentence.slice(end))
+    );
+}
+
 /** Whether the text between two condition mentions only joins them in a list ("x, y, and z") */
 function isListJoin(text) {
     return /^\s*(?:,|and|or|, and|, or)\s*$/.test(text);
 }
+
+/** Conditions that end by their own rules, and stunned with a value, which counts down */
+const isTimeless = (condition) =>
+    SELF_ENDING.has(condition.slug) || (condition.slug === "stunned" && !!condition.value);
+
+/** "As success, with a duration of 1 hour", "but the duration is 3 rounds", "with an unlimited duration" */
+const RESTATED = new RegExp(
+    String.raw`\b(?:with a duration of|the duration is) (?:${COUNT} (round|minute|hour|day)s?\b|unlimited\b|permanent\b)|\bwith an? (?:unlimited|permanent) duration\b`,
+);
 
 function toRounds(duration) {
     return duration.value * (ROUNDS_PER_UNIT[duration.unit] ?? 1);
 }
 
 /** Read the conditions in a piece of plain text */
-function readConditions(text, { namePattern, slugsByName, fallback }) {
+function readConditions(text, { namePattern, slugsByName, fallback }, { markLater = false } = {}) {
     const mentionPattern = new RegExp(String.raw`\b(${namePattern})\b(?:(?: value is)? (\d+))?`, "g");
     const entries = [];
     for (const sentence of text.split(/(?<=[.;!?])\s+/)) {
@@ -235,13 +308,23 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
             if (inLink(match.index)) continue;
             const before = sentence.slice(Math.max(0, match.index - 25), match.index);
             if (NEGATORS.some((n) => before.endsWith(n) || before.includes(` ${n}`))) continue;
+            if (isCasters(sentence.slice(0, match.index))) continue;
+            // "Everything other than you is concealed from the target": others' condition, as the target sees them
+            if (
+                /^ (?:from|to) (?:the (?:target|creature)|it|them)\b/.test(
+                    sentence.slice(match.index + match[0].length),
+                )
+            )
+                continue;
+            const end = match.index + match[0].length;
             mentions.push({
                 slug: slugsByName.get(match[1]),
                 value: match[2] ? Number(match[2]) : null,
                 start: match.index,
-                end: match.index + match[0].length,
+                end,
                 duration: null,
                 linkedTo: null,
+                later: markLater && isLater(sentence, match.index, end),
             });
         }
         if (mentions.length === 0) continue;
@@ -249,7 +332,6 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
         // A duration or link applies to the mention just before it, if nothing else comes between them, and back
         // through a list joined to it ("dazzled and deafened for 1 minute"), skipping valued conditions that end by
         // their own rules
-        const isTimeless = (m) => SELF_ENDING.has(m.slug) || (m.slug === "stunned" && m.value);
         const assignBackwards = (position, assign) => {
             let index = mentions.findLastIndex((m) => m.end <= position);
             if (index === -1) return false;
@@ -270,6 +352,19 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
         let lastDuration = null;
         const durations = findDurations(sentence, fallback);
         durations.forEach(({ start, end, duration }, index) => {
+            // "Slowed 1 and permanently enfeebled 2": "permanently" just before a condition is that condition's
+            const next = mentions.find((m) => m.start >= end);
+            if (duration.permanent && next && !sentence.slice(end, next.start).trim()) {
+                for (const mention of mentions.filter((m) => m.start >= next.start)) {
+                    if (
+                        mention !== next &&
+                        !isListJoin(sentence.slice(mentions[mentions.indexOf(mention) - 1].end, mention.start))
+                    )
+                        break;
+                    if (!mention.duration && !mention.linkedTo) mention.duration = { ...duration };
+                }
+                return;
+            }
             // "For 1 round, the target is stupefied 2": a timer before any condition applies to those after it
             if (!mentions.some((m) => m.end <= start)) {
                 const until = durations[index + 1]?.start ?? sentence.length;
@@ -291,28 +386,46 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
             });
             if (duration.value) lastDuration = duration;
         });
-        for (const { start, anchor } of links) {
-            assignBackwards(start, (mention) => {
-                if (mention.slug !== anchor && !mention.duration) mention.linkedTo = anchor;
-            });
+        // "While it's sickened, it's also slowed 1": a link with no condition before it applies to the one after it
+        const assignForwards = (position, assign) => {
+            let index = mentions.findIndex((m) => m.start >= position);
+            if (index === -1) return;
+            const between = sentence.slice(position, mentions[index].start);
+            if (/[;.]|\bthen\b/.test(between) || between.length > 40) return;
+            assign(mentions[index]);
+            while (index < mentions.length - 1) {
+                const next = mentions[index + 1];
+                if (!isListJoin(sentence.slice(mentions[index].end, next.start))) break;
+                assign(next);
+                index += 1;
+            }
+        };
+        for (const { start, end, anchor } of links) {
+            const link = (mention) => {
+                if (mention.slug !== anchor && !mention.duration && !mention.linkedTo) mention.linkedTo = anchor;
+            };
+            if (!assignBackwards(start, link)) assignForwards(end, link);
         }
 
         for (const mention of mentions) {
+            const permanent = !!mention.duration?.permanent;
+            const duration = permanent ? null : mention.duration;
             // A condition mentioned again ("the sickened value can't be reduced") adds nothing new
             const existing = entries.find((e) => e.slug === mention.slug);
             if (existing) {
                 existing.value ??= mention.value;
-                existing.duration ??= mention.duration;
+                existing.duration ??= duration;
                 continue;
             }
-            const timeless = SELF_ENDING.has(mention.slug) || (mention.slug === "stunned" && mention.value);
-            const useSpellDuration = !mention.duration && !mention.linkedTo && !timeless && !!fallback;
+            const useSpellDuration = !duration && !permanent && !mention.linkedTo && !isTimeless(mention) && !!fallback;
             entries.push({
                 slug: mention.slug,
                 value: mention.value,
-                duration: mention.duration ?? (useSpellDuration ? { ...fallback } : null),
+                duration: duration ?? (useSpellDuration ? { ...fallback } : null),
                 linkedTo: mention.linkedTo,
                 fromSpellDuration: useSpellDuration,
+                later: mention.later,
+                permanent,
             });
         }
     }
@@ -321,23 +434,42 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
 
 /**
  * Spells without degree-of-success entries can state results in their text: "becomes sickened 1 if it fails a Will
- * save (or sickened 2 on a critical failure)", "If the target critically fails the save, it is also stunned 1".
- * Returns the pieces of text that apply, in order; later pieces override earlier ones.
+ * save (or sickened 2 on a critical failure)", "If the target critically fails the save, it is also stunned 1", "On a
+ * failure, it takes a penalty, and on a critical failure, it's also immobilized", "must succeed at a Reflex save or
+ * fall prone", "On a successful save, it's pushed; otherwise, it's restrained". Returns the pieces of text that apply,
+ * in order; later pieces override earlier ones. A piece with `replaces` ("(or blinded on a critical failure)") takes
+ * the place of the last condition in that text; `alternative` marks a "must succeed at a save or…" piece.
+ *
+ * Sentences about another save than the spell's (`save`: "breathing creatures must succeed at a Fortitude save" in a
+ * spell with a basic Reflex save) are left out, up to the next sentence that names a save.
  */
-function getConditionalTexts(text, outcome) {
+function getConditionalTexts(text, outcome, save) {
     if (!["failure", "criticalFailure"].includes(outcome)) return [];
     const parts = [];
     const override = /\((?:or )?([^)]*?) on a critical failure\)/;
+    const failure = /\bfails?\b|\bfailed\b|\bon a failure\b|\bmust succeed at\b|^otherwise,/;
+    let current = null;
     for (const sentence of text.split(/(?<=[.;!?])\s+/)) {
-        const criticalOnly = /\bcritically fail/.test(sentence);
-        const onFailure = /\bfails?\b|\bfailed\b|\bon a failure\b/.test(sentence) && !criticalOnly;
-        if (criticalOnly && outcome === "criticalFailure") {
-            parts.push(sentence);
-        } else if (onFailure) {
-            const match = sentence.match(override);
-            parts.push(sentence.replace(override, ""));
-            if (outcome === "criticalFailure" && match) parts.push(`${match[1]}.`);
+        current = sentence.match(/\b(fortitude|reflex|will) (?:save|saving throw)/)?.[1] ?? current;
+        if (save && current && current !== save) continue;
+        const match = sentence.match(override);
+        const plain = sentence.replace(override, "");
+        // "On a failure, …, and on a critical failure, it's also immobilized": the failure's part, then the rest
+        const at = plain.search(/\bon a critical failure\b/);
+        const before = at === -1 ? plain : plain.slice(0, at);
+        // "The target is stunned 1 if it critically fails", but not "a creature that fails or critically fails"
+        const criticalOnly = at === -1 && /(?<!\bfails? or )\bcritically fail/.test(plain);
+        if (criticalOnly) {
+            if (outcome === "criticalFailure") parts.push({ text: plain });
+            continue;
         }
+        if (failure.test(before)) {
+            parts.push({ text: before, alternative: /\bmust succeed at\b/.test(before) });
+            if (outcome === "criticalFailure" && match) {
+                parts.push({ text: `${match[1]}.`, replaces: sentence.slice(0, match.index) });
+            }
+        }
+        if (at !== -1 && outcome === "criticalFailure") parts.push({ text: plain.slice(at) });
     }
     return parts;
 }
@@ -348,13 +480,23 @@ function getConditionalTexts(text, outcome) {
  */
 function preferLater(entries) {
     const result = [];
-    for (const entry of entries) {
+    for (let entry of entries) {
         const index = result.findIndex((e) => e.slug === entry.slug);
         if (index === -1) {
             result.push(entry);
+        } else if (entry.later && !result[index].later) {
+            // "As failure, but when it Interacts, it reduces its clumsy condition by 1": failure's clumsy 2 stands
+            continue;
         } else {
             const earlier = result[index];
-            const keepTimer = !entry.linkedTo && (!entry.duration || entry.fromSpellDuration) && earlier.duration;
+            // "As failure, but the sickened value is 2", where failure's sickened 1 only comes "each time it damages
+            // you": still only then. A restatement with its own timer stands on its own ("automatically slowed 1 for
+            // 1 minute").
+            if (earlier.later && !entry.later && entry.value != null && !entry.linkedTo) {
+                if (!entry.duration || entry.fromSpellDuration) entry = { ...entry, later: true };
+            }
+            const keepTimer =
+                !entry.linkedTo && !entry.permanent && (!entry.duration || entry.fromSpellDuration) && earlier.duration;
             result[index] = keepTimer
                 ? { ...entry, duration: earlier.duration, fromSpellDuration: earlier.fromSpellDuration }
                 : { ...entry, linkedTo: entry.linkedTo ?? (entry.duration ? null : earlier.linkedTo) };
@@ -371,13 +513,15 @@ function preferLater(entries) {
  * @param {{ slug: string, name: string, id?: string }[]} options.conditions The conditions to recognize
  * @param {Record<string, string[]>} options.labels The labels of each degree of success, e.g. { failure: ["Failure"] }
  * @param {string} [options.spellDuration] The spell's duration text, used for conditions with no timer of their own
+ * @param {string} [options.save] The spell's save ("fortitude", "reflex" or "will"), for spells without degree entries
  * @returns {{ effects: { effect: string, label: string }[], conditions: { slug: string, value: number | null,
- *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean }[] }} A duration is `{ value,
- *     dice, unit, expiry, relativeTo }`: counted on the turns of the "caster" or the "target", ending at its
- *     "turn-start" or "turn-end". "Until the end of its next turn" is 1 round on the target's turns; with `thisTurn`
- *     ("for that turn"), the turn the target is taking counts as that turn.
+ *     duration: object | null, linkedTo: string | null, fromSpellDuration: boolean, later: boolean }[] }} A
+ *     duration is `{ value, dice, unit, expiry, relativeTo }`: counted on the turns of the "caster" or the "target",
+ *     ending at its "turn-start" or "turn-end". "Until the end of its next turn" is 1 round on the target's turns;
+ *     with `thisTurn` ("for that turn"), the turn the target is taking counts as that turn. `later`: the text gives
+ *     the condition later or only if something happens, so it's offered unchecked.
  */
-export function parseSpellOutcome(html, outcome, { conditions, labels, spellDuration = "" }) {
+export function parseSpellOutcome(html, outcome, { conditions, labels, spellDuration = "", save = null }) {
     const usable = conditions.filter((c) => !IGNORED.has(c.slug));
     const conditionsById = new Map(conditions.filter((c) => c.id).map((c) => [c.id, c.name]));
     const slugsByName = new Map();
@@ -394,8 +538,12 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
 
     // Leave out heightening, which describes other ranks
     const body = html.split(/<strong>\s*Heightened/i)[0];
-    const { sections: outcomes, general } = getOutcomeHtml(body, labels);
-    const generalEffects = findEffectLinks(general);
+    const { sections: outcomes, general, starts } = getOutcomeHtml(body, labels);
+    // An unnamed effect after the entries is the caster's when the spell says what "you gain" before them ("If this
+    // kills it, you gain 10 temporary HP", followed by Spell Effect: Death Knell)
+    const intro = toPlainText(body.slice(0, Math.min(...Object.values(starts))), conditionsById);
+    const castersGain = /\byou (?:gain|get|receive)\b/.test(intro);
+    const generalEffects = findEffectLinks(general).filter((e) => !castersGain || degreesNamed(e.label));
 
     const read = (key, seen = new Set()) => {
         const outcomeHtml = outcomes[key];
@@ -412,30 +560,55 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
             inherited = read(otherKey, seen);
             text = text.slice(asOther[0].length);
         }
-        // "It then suffers the failure effect"
-        const suffers = text.match(/\bsuffers? the (critical success|success|critical failure|failure) effects?\b/);
+        // "It then suffers the failure effect", "It then takes the effects of a failure" (not "if it was flying, it
+        // takes the effects of critical failure instead")
+        const degree = "(critical success|success|critical failure|failure)";
+        const suffers = text.match(
+            new RegExp(
+                String.raw`\bsuffers? the ${degree} effects?\b|\bthen takes? the effects? of (?:a |the )?${degree}\b`,
+            ),
+        );
         if (suffers && !asOther) {
             const other = { "critical success": "criticalSuccess", success: "success", failure: "failure" };
-            const later = read(other[suffers[1]] ?? "criticalFailure", seen);
+            const later = read(other[suffers[1] ?? suffers[2]] ?? "criticalFailure", seen);
             inherited = { effects: later.effects, conditions: later.conditions };
             text = text.replace(suffers[0], "");
         }
 
-        // An effect linked after the last entry applies to every degree the creature doesn't shrug off, unless it's
-        // named for one degree ("Spell Effect: Faerie Dust (Critical Failure)")
+        // An effect linked after the last entry applies to every degree the creature doesn't shrug off, or only takes
+        // damage from, unless the degree has an effect of its own or the effect is named for other degrees ("Spell
+        // Effect: Faerie Dust (Critical Failure)", "(Failure or Critical Failure)")
         const unaffected = /\bunaffected\b/.test(text) && !asOther;
+        const damageOnly = /^(?:the |a |each )?\w+ takes? (?:no|half|full|double) damage\.?$/.test(text.trim());
         const general = generalEffects.filter((e) => {
-            const degree = e.label.toLowerCase().match(/\((critical success|success|critical failure|failure)\)/)?.[1];
-            if (degree)
-                return (
-                    { "critical success": "criticalSuccess", success: "success", failure: "failure" }[degree] === key ||
-                    (degree === "critical failure" && key === "criticalFailure")
-                );
-            return !unaffected;
+            const degrees = degreesNamed(e.label);
+            if (degrees) return degrees.includes(key);
+            return effects.length === 0 && !unaffected && !damageOnly;
         });
-        const own = readConditions(text, context);
+        let own = readConditions(text, context, { markLater: true });
+        // "As success, with a duration of 1 hour", "As success, but the duration is unlimited": a new timer for the
+        // conditions that take one
+        const restated = text.match(RESTATED);
+        if (restated) {
+            const value = restated[1] ? parseCount(restated[1]) : null;
+            const duration = value
+                ? { value, dice: null, unit: UNITS[restated[2]], expiry: "turn-start", relativeTo: "caster" }
+                : null;
+            // Not a timer tied to the creature's turn ("slowed 1 for that turn")
+            const retime = (c) =>
+                c.linkedTo || c.permanent || isTimeless(c) || c.duration?.relativeTo === "target"
+                    ? c
+                    : { ...c, duration: duration && { ...duration }, fromSpellDuration: false, permanent: !duration };
+            inherited = { ...inherited, conditions: inherited.conditions.map(retime) };
+            own = own.map((c) => (c.duration && !c.fromSpellDuration ? c : retime(c)));
+        }
+        // An entry's own effect replaces the one it refers to ("As success, but the effect is permanent", followed by
+        // Spell Effect: Outcast's Curse (Failure)), unless it adds to it ("As failure, and the creature also takes a
+        // –1 penalty", followed by Spell Effect: Faerie Dust (Critical Failure)) or follows it ("It then suffers…")
+        const ownEffects = [...effects, ...general];
+        const adds = suffers || /^\s*(?:and|plus)\b/.test(text);
         return {
-            effects: [...inherited.effects, ...effects, ...general],
+            effects: ownEffects.length > 0 && !adds ? ownEffects : [...inherited.effects, ...ownEffects],
             conditions: suffers
                 ? preferLater([...own, ...inherited.conditions])
                 : preferLater([...inherited.conditions, ...own]),
@@ -444,15 +617,36 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
 
     let result = read(outcome);
     if (Object.keys(outcomes).length === 0) {
-        const texts = getConditionalTexts(toPlainText(body, conditionsById), outcome);
-        result = { effects: [], conditions: preferLater(texts.flatMap((text) => readConditions(text, context))) };
+        const parts = [];
+        const alternatives = [];
+        for (const piece of getConditionalTexts(toPlainText(body, conditionsById), outcome, save)) {
+            const read = readConditions(piece.text, context);
+            // "Dazzled (or blinded on a critical failure)": blinded instead of the condition the parenthesis
+            // follows. A condition the sentence already names gets the new value, keeping its timer ("sickened 1
+            // and slowed 1 for 1 round (or sickened 2 on a critical failure)").
+            const replaced = piece.replaces != null ? readConditions(piece.replaces, context).at(-1)?.slug : null;
+            const restates = read.some((c) => parts.at(-1)?.some((p) => p.slug === c.slug));
+            if (replaced && read.length > 0 && !restates) {
+                parts[parts.length - 1] = parts.at(-1).filter((c) => c.slug !== replaced);
+            }
+            parts.push(read);
+            if (piece.alternative && read.length > 0) alternatives.push(parts.length - 1);
+        }
+        // "Neutral creatures … must succeed at a Will save or be Dazzled. Evil creatures … or be Blinded": one or the
+        // other, so neither is checked
+        if (alternatives.length > 1) {
+            for (const index of alternatives) parts[index] = parts[index].map((c) => ({ ...c, later: true }));
+        }
+        result = { effects: [], conditions: preferLater(parts.flat()) };
     }
     result.effects = result.effects.filter((e, i, all) => all.findIndex((o) => o.effect === e.effect) === i);
 
     // Conditions others are linked to come first, so they exist when the link is made
     return {
         effects: result.effects,
-        conditions: result.conditions.sort((a, b) => Number(!!a.linkedTo) - Number(!!b.linkedTo)),
+        conditions: result.conditions
+            .sort((a, b) => Number(!!a.linkedTo) - Number(!!b.linkedTo))
+            .map(({ permanent: _permanent, ...condition }) => condition),
     };
 }
 

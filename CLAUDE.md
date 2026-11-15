@@ -102,13 +102,14 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       so Sustain tracks them. The link parser picks the defaults (a heightened entry's version of the effect, not a
       battle form's variants, amp or immunity effects) and has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
-      save result and apply its conditions. The parser has no Foundry dependencies, so it can be run in Node. What it
-      applies records the spell, caster, rank and DC (`flags.evan-character-homebrew.spellSource`), for Counteract. A
-      timer that ends at the target's own next turn ("until its next turn begins", "until the end of its next turn")
-      is an effect with the target as origin, of the rounds pf2e's expiry needs when it's created: 0 when the
-      target's turn is still to come this round (pf2e ends an effect at its origin's turn only once its rounds are up,
-      and time moves on with the round), 1 when it has acted, on its own turn (unless the timer is "for that turn") or
-      outside an encounter.
+      save result and apply its conditions. What the text gives later or only if something happens ("If it's asleep,
+      it wakes up and is Paralyzed", Petrify's petrified) is offered unchecked. The parser has no Foundry
+      dependencies, so it can be run in Node. What it applies records the spell, caster, rank and DC
+      (`flags.evan-character-homebrew.spellSource`), for Counteract. A timer that ends at the target's own next turn
+      ("until its next turn begins", "until the end of its next turn") is an effect with the target as origin, of the
+      rounds pf2e's expiry needs when it's created: 0 when the target's turn is still to come this round (pf2e ends an
+      effect at its origin's turn only once its rounds are up, and time moves on with the round), 1 when it has acted,
+      on its own turn (unless the timer is "for that turn") or outside an encounter.
     - `counteract.js` with `lib/counteract-rules.js`: counteracting. pf2e's Counteract button on spell cards (spells
       with `system.counteraction`, like Dispel Magic) only rolls the check; this takes it over (removing its
       `data-action` in `renderChatMessageHTML`, which runs before pf2e attaches its listeners). The caster checks what
@@ -306,8 +307,9 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   reach the features and the module's own don't, `tests/session.test.js` the session helpers,
   `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js` the turns of an encounter with Manifest
   Will's and Sustain's work on them, and `tests/spell-conditions.test.js` the Apply button's timers, from a save's
-  message through its dialog to the turn the effect expires at. Fix a hook-driven bug with a test here; export what a
-  test needs from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
+  message through its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers
+  unchecked). Fix a hook-driven bug with a test here; export what a test needs from a script (a patch bump), or drive
+  it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
 from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say
