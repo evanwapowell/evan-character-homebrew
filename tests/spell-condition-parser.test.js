@@ -6,6 +6,8 @@ import { getGrantedConditions, parseSpellOutcome, preselectDegree } from "../scr
 // pf2e's conditions, with their compendium IDs
 const CONDITIONS = [
     ["blinded", "Blinded", "XgEqL1kFApUbl5Z2"],
+    ["concealed", "Concealed", "DmAIPqOBomZ7H95W"],
+    ["confused", "Confused", "yblD8fOR1J8rDwEQ"],
     ["dazzled", "Dazzled", "TkIyaNPgTZFBCCuh"],
     ["fleeing", "Fleeing", "sDPxOjQ9kx2RZE8D"],
     ["frightened", "Frightened", "TBSHQspnbcqxsmjL"],
@@ -131,6 +133,17 @@ describe("parseSpellOutcome on other phrasings", () => {
             condition("sickened", 2),
             condition("slowed", 1, null, { linkedTo: "sickened" }),
         ]);
+    });
+
+    it("leaves out the caster's conditions and others' as the target sees them", () => {
+        const html = [
+            "<p><strong>Critical Success</strong> The target resists being banished and you are stunned 1.</p>",
+            "<p><strong>Success</strong> You spend your first action with the confused condition.</p>",
+            "<p><strong>Failure</strong> The target can't see you and is dazzled. Creatures other than you are concealed from the target.</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "criticalSuccess").conditions, []);
+        assert.deepEqual(parse(html, "success").conditions, []);
+        assert.deepEqual(parse(html, "failure").conditions, [condition("dazzled", null)]);
     });
 
     it("uses the spell's duration for a condition with no timer of its own, but not for self-ending ones", () => {

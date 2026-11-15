@@ -211,6 +211,18 @@ function findLinks(sentence, namePattern, slugsByName) {
     }));
 }
 
+/**
+ * Whether a condition mentioned after this text is the caster's ("the target resists being banished and you are
+ * Stunned 1"): the last subject before it is "you"
+ */
+const SUBJECTS = new RegExp(
+    String.raw`\b(?:(?<!\b(?:than|to|at|from|by|with) )(you)(?:'re| are| become| fall| also| spend| take| gain)\b|it|they|the (?:target|creature|attacker)s?)\b`,
+    "g",
+);
+function isCasters(before) {
+    return !![...before.matchAll(SUBJECTS)].at(-1)?.[1];
+}
+
 /** Whether the text between two condition mentions only joins them in a list ("x, y, and z") */
 function isListJoin(text) {
     return /^\s*(?:,|and|or|, and|, or)\s*$/.test(text);
@@ -233,6 +245,14 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
             if (inLink(match.index)) continue;
             const before = sentence.slice(Math.max(0, match.index - 25), match.index);
             if (NEGATORS.some((n) => before.endsWith(n) || before.includes(` ${n}`))) continue;
+            if (isCasters(sentence.slice(0, match.index))) continue;
+            // "Everything other than you is concealed from the target": others' condition, as the target sees them
+            if (
+                /^ (?:from|to) (?:the (?:target|creature)|it|them)\b/.test(
+                    sentence.slice(match.index + match[0].length),
+                )
+            )
+                continue;
             mentions.push({
                 slug: slugsByName.get(match[1]),
                 value: match[2] ? Number(match[2]) : null,

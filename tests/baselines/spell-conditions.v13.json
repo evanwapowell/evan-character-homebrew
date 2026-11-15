@@ -205,11 +205,7 @@
         ]
     },
     "Bane": {},
-    "Banishment": {
-        "criticalSuccess": [
-            "stunned 1"
-        ]
-    },
+    "Banishment": {},
     "Befuddle": {
         "success": [
             "clumsy 1 for 1 round (caster's turn start) [spell's duration]",
@@ -1015,8 +1011,7 @@
         ],
         "criticalFailure": [
             "stupefied 4 for 1 round (its turn end)",
-            "fascinated for 1 round (its turn end)",
-            "concealed for 1 minute (caster's turn start) [spell's duration]"
+            "fascinated for 1 round (its turn end)"
         ]
     },
     "Entreat the Many": {
@@ -1814,9 +1809,6 @@
         ]
     },
     "Mind Games": {
-        "criticalSuccess": [
-            "stunned 1"
-        ],
         "failure": [
             "stunned 1"
         ],
@@ -2466,12 +2458,6 @@
         ]
     },
     "Shared Nightmare": {
-        "criticalSuccess": [
-            "confused for 1 round (caster's turn start)"
-        ],
-        "success": [
-            "confused"
-        ],
         "failure": [
             "confused"
         ],
@@ -2513,11 +2499,7 @@
         ]
     },
     "Shroud of Flame": {},
-    "Shroud of Night": {
-        "failure": [
-            "concealed for 1 minute (caster's turn start) [spell's duration]"
-        ]
-    },
+    "Shroud of Night": {},
     "Signal Skyrocket": {
         "failure": [
             "dazzled for 1 round (caster's turn start)"
