@@ -45,8 +45,8 @@ let settle;
 const settling = new Promise((resolve) => (settle = resolve));
 /** Messages heard from the others so far: what's heard after a question is an answer to it */
 let heard = 0;
-/** When this session last asked the others to answer: the time, and the messages heard by then */
-let pinged = { time: -Infinity, heard: 0 };
+/** When this session last asked the others to answer: the time, the messages heard by then, and the checks waiting */
+let pinged = { time: -Infinity, heard: 0, waiting: 0 };
 
 /** The creation option that names the session that created a message or item */
 const OPTION = `${MODULE_ID}.session`;
@@ -141,11 +141,15 @@ function isActiveGM(options) {
     return isPrimarySession(options);
 }
 
-/** Ask the user's other sessions to answer, unless this session just did: answers to that question count */
+/**
+ * Ask the user's other sessions to answer, unless a question this session asked is still awaiting answers (work given
+ * in a burst asks once). Once a question's checks are done, the next work asks again: an answer from before it could
+ * come from a session that has since vanished.
+ */
 function ping() {
     const now = Date.now();
-    if (now - pinged.time >= CONFIRM) {
-        pinged = { time: now, heard };
+    if (pinged.waiting === 0 || now - pinged.time >= CONFIRM) {
+        pinged = { time: now, heard, waiting: 0 };
         announce("hello");
     }
     return pinged;
@@ -170,11 +174,14 @@ async function confirmPrimarySession({ scene } = {}) {
             if (!top || top.heard > sent.heard) done(true);
         };
         const done = (result) => {
+            if (!listeners.has(check)) return;
+            sent.waiting -= 1;
             listeners.delete(check);
             clearTimeout(timer);
             resolve(result);
         };
         const timer = setTimeout(() => done(false), Math.max(0, sent.time + CONFIRM - Date.now()));
+        sent.waiting += 1;
         listeners.add(check);
         check();
     });

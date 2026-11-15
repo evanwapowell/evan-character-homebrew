@@ -225,6 +225,21 @@ describe("confirming who does the work (scripts/lib/session.js)", () => {
         assert.equal(await peek(helpers(second).confirmActiveGM()), true);
     });
 
+    it("an answer to an earlier question doesn't vouch for a session that vanished since", async (t) => {
+        const { tick, first, second } = await connectAll(t);
+        tick(HEARTBEAT * 2);
+        await world.flush();
+        assert.equal(await helpers(second).confirmActiveGM(), false);
+        tick(500);
+        first.disconnect({ silently: true });
+        tick(500);
+        const asked = helpers(second).confirmActiveGM();
+        await world.flush();
+        assert.equal(await peek(asked), "pending");
+        tick(CONFIRM);
+        assert.equal(await asked, true);
+    });
+
     it("a chosen session that answers slowly, within the time limit, keeps the work: it's done once", async (t) => {
         const { tick, first, second, player } = await connectAll(t, { scripts: ["counteract.js"] });
         first.latency = 500;
