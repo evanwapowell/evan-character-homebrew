@@ -28,7 +28,7 @@ import {
     rankFromText,
     spellRankDC,
 } from "./lib/counteract-rules.js";
-import { createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
+import { confirmActiveGM, createdHere, featureHooks, guardApi } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -912,7 +912,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "counteractRemove" || !isActiveGM()) return;
+        if (data?.action !== "counteractRemove" || !(await confirmActiveGM())) return;
         const byActor = new Map();
         for (const uuid of data.uuids ?? []) {
             const item = await fromUuid(uuid).catch(() => null);

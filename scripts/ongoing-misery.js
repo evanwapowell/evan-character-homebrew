@@ -6,7 +6,15 @@
  */
 
 import { playCurse } from "./lib/finch.js";
-import { canAnimate, canAnimateFinch, createdHere, featureHooks, guardApi, isActiveGM, isEnabled } from "./settings.js";
+import {
+    canAnimate,
+    canAnimateFinch,
+    confirmActiveGM,
+    createdHere,
+    featureHooks,
+    guardApi,
+    isEnabled,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -252,7 +260,7 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
     // Players can't update effects on creatures they don't own, so the active GM extends those
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "ongoingMisery" || !isActiveGM()) return;
+        if (data?.action !== "ongoingMisery" || !(await confirmActiveGM())) return;
         const effect = await fromUuid(data.effectUuid);
         if (effect) await extendEffect(effect, data);
     });

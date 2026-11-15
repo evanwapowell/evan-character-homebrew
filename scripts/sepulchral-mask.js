@@ -10,7 +10,7 @@
  * from the card for every creature in the area, as usual.
  */
 
-import { canAnimate, createdHere, featureHooks, isActiveGM } from "./settings.js";
+import { canAnimate, confirmActiveGM, createdHere, featureHooks } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -155,8 +155,7 @@ function playTurnAnimation(token) {
 /* Start of turn: "Each enemy [...] that starts its turn in the area takes 1d4 mental damage and must attempt a Will
  * save." The active GM posts a card for each one, with a button to roll the save. */
 
-async function onTurnStart(combat) {
-    const combatant = combat.combatant;
+async function onTurnStart(combat, { combatant = combat.combatant, round = combat.round } = {}) {
     const { actor, token } = combatant ?? {};
     if (!actor?.isOfType("creature") || !token?.parent || combatant.defeated) return;
 
@@ -170,7 +169,7 @@ async function onTurnStart(combat) {
         if (actor === caster || actor === wearer || !actor.isEnemyOf(caster)) continue;
 
         // Going back and forth in the turn order doesn't post the card again
-        const turn = [combat.id, combat.round, combatant.id, auraEffect.uuid].join(".");
+        const turn = [combat.id, round, combatant.id, auraEffect.uuid].join(".");
         const posted = game.messages.contents.slice(-50).some((m) => m.flags[MODULE_ID]?.sepulchralMask?.turn === turn);
         if (posted) continue;
 
@@ -631,20 +630,22 @@ hooks.on("createItem", (item, options, userId) => {
     }
 });
 
-hooks.on("updateCombat", (combat, changed) => {
-    if (!isActiveGM()) return;
+hooks.on("updateCombat", async (combat, changed) => {
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
     // Going back through the turn order doesn't start a turn
     const previous = combat.previous;
     if (previous?.round !== null && previous?.round !== undefined) {
         if (combat.round < previous.round || (combat.round === previous.round && combat.turn < previous.turn)) return;
     }
-    onTurnStart(combat).catch(log);
+    // The aura's area is measured on the canvas, so a session viewing the combatant's scene does it
+    const { combatant, round } = combat;
+    if (!(await confirmActiveGM({ scene: combatant.token?.parent }))) return;
+    onTurnStart(combat, { combatant, round }).catch(log);
 });
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (!isActiveGM()) return;
+        if (!["sepulchralMask", "sepulchralMaskDamage"].includes(data?.action) || !(await confirmActiveGM())) return;
         if (data?.action === "sepulchralMask") await resolveSave(data).catch(log);
         if (data?.action === "sepulchralMaskDamage") await resolveDamage(data).catch(log);
     });

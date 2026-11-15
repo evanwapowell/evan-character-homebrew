@@ -8,9 +8,9 @@ import { auraFiles, finchAuraRules, playAura } from "./lib/finch.js";
 import {
     canAnimate,
     canAnimateFinch,
+    confirmActiveGM,
     createdHere,
     featureHooks,
-    isActiveGM,
     isEnabled,
     isFinchVersion,
 } from "./settings.js";
@@ -351,20 +351,23 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
     // Players can't edit creatures they don't own, so the active GM moves the aura for them
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "moveManifestWill" || !isActiveGM()) return;
+        if (data?.action !== "moveManifestWill" || !(await confirmActiveGM())) return;
         await moveAuraEffect(data.effectUuid, data.centerUuid);
     });
 });
 
-hooks.on("updateCombat", (combat, changed) => {
-    if (!isActiveGM()) return;
+hooks.on("updateCombat", async (combat, changed) => {
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
-    onTurnStart(combat.combatant).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
+    // The aura's area is measured on the canvas, so a session viewing the combatant's scene does it
+    const combatant = combat.combatant;
+    if (!(await confirmActiveGM({ scene: combatant.token?.parent }))) return;
+    onTurnStart(combatant).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
 });
 
 Hooks.on("deleteCombat", async (combat) => {
-    if (!isActiveGM()) return;
-    for (const actor of new Set(combat.combatants.map((c) => c.actor).filter((a) => a))) {
+    const actors = [...new Set(combat.combatants.map((c) => c.actor).filter((a) => a))];
+    if (!actors.some((actor) => getManifestWillEffects(actor).length > 0) || !(await confirmActiveGM())) return;
+    for (const actor of actors) {
         const ids = getManifestWillEffects(actor).map((e) => e.id);
         if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
     }

@@ -5,7 +5,7 @@
  * Intelligence modifier, which then become their charges.
  */
 
-import { canAnimate, createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
+import { canAnimate, confirmActiveGM, createdHere, featureHooks, guardApi } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -234,7 +234,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "designateCharge" || !isActiveGM()) return;
+        if (data?.action !== "designateCharge" || !(await confirmActiveGM())) return;
         await designateCharges(data.witchUuid, data.targetTokenUuids, data.requestId);
     });
 });

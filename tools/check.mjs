@@ -185,11 +185,18 @@ for (const [file, text] of codes) {
     }
 }
 
-// 4. A user can be connected more than once: isActiveGM() and createdHere() in place of comparing users
+// 4. A user can be connected more than once: confirmActiveGM() and createdHere() in place of comparing users, and
+// the work given to a user waits for confirmActiveGM() or confirmPrimarySession(), not what isActiveGM() or
+// isPrimarySession() know now (they'd drop work in a new session's first seconds or while a vanished one is chosen)
 const sessionRules = [
     {
         pattern: /game\.user\s*[!=]==?\s*game\.users\.activeGM|game\.users\.activeGM\s*[!=]==?\s*game\.user\b/g,
-        message: "compares game.user with game.users.activeGM: use isActiveGM()",
+        message: "compares game.user with game.users.activeGM: use await confirmActiveGM()",
+    },
+    {
+        pattern: /\b(isActiveGM|isPrimarySession)\(/g,
+        message: "decides on what the session knows now: use await confirmActiveGM() or confirmPrimarySession()",
+        scriptsOnly: true,
     },
     {
         pattern: /\buserId\s*[!=]==?\s*game\.user\.id\b|game\.user\.id\s*[!=]==?\s*userId\b/g,
@@ -198,7 +205,8 @@ const sessionRules = [
 ];
 for (const [file, text] of codes) {
     if (relative(file) === path.join("scripts", "lib", "session.js")) continue;
-    for (const { pattern, message } of sessionRules) {
+    for (const { pattern, message, scriptsOnly } of sessionRules) {
+        if (scriptsOnly && !relative(file).startsWith(`scripts${path.sep}`)) continue;
         for (const match of text.matchAll(pattern))
             problems.push(`${relative(file)}:${lineOf(text, match.index)} ${message}`);
     }

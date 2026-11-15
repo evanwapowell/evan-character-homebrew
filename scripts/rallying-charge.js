@@ -12,7 +12,7 @@
  * miss, or the end of the marshal's turn spends the charge with no effect.
  */
 
-import { canAnimate, createdHere, featureHooks, guardApi, isActiveGM } from "./settings.js";
+import { canAnimate, confirmActiveGM, createdHere, featureHooks, guardApi } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -324,7 +324,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "rallyingCharge" || !isActiveGM()) return;
+        if (data?.action !== "rallyingCharge" || !(await confirmActiveGM())) return;
         await applyEffects(data).catch(log);
     });
 });

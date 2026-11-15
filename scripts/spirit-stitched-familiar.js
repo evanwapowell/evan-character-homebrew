@@ -19,7 +19,7 @@
  * play each step.
  */
 
-import { canAnimate, createdHere, guardApi, hasModuleData, isActiveGM, isEnabled } from "./settings.js";
+import { canAnimate, confirmActiveGM, createdHere, guardApi, hasModuleData, isEnabled } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const SOCKET = `module.${MODULE_ID}`;
@@ -758,7 +758,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (!isActiveGM()) return;
+        if (!["familiarStrikeSave", "shedSpiritHeal"].includes(data?.action) || !(await confirmActiveGM())) return;
         if (data?.action === "familiarStrikeSave") await resolveSave(data).catch(log);
         else if (data?.action === "shedSpiritHeal") await resolveHeal(data).catch(log);
     });

@@ -11,7 +11,7 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
-import { createdHere, featureHooks, guardApi, hasModuleData, isActiveGM } from "./settings.js";
+import { confirmActiveGM, createdHere, featureHooks, guardApi, hasModuleData } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -72,13 +72,21 @@ async function sustainEffects(caster, data) {
     game.socket.emit(SOCKET, { action: "recordSustained", effectUuids: uuids });
 }
 
+/**
+ * The turn a combat update moved to, read when the update arrives: the work waits for the session to be confirmed, and
+ * the combat may have moved on by then
+ */
+function turnOf(combat) {
+    const { previous, round, turn, combatant } = combat;
+    return { previous: previous ? { ...previous } : previous, round, turn, combatant };
+}
+
 /** At the end of a caster's turn, end their sustained effects that weren't cast or Sustained that round */
-async function endUnsustained(combat) {
-    const previous = combat.previous;
+async function endUnsustained(combat, { previous, round, turn } = turnOf(combat)) {
     const caster = combat.combatants.get(previous?.combatantId ?? "")?.actor;
     if (!caster || previous.round === null) return;
     // Going back through the turn order doesn't end anything
-    if (combat.round < previous.round || (combat.round === previous.round && combat.turn < previous.turn)) return;
+    if (round < previous.round || (round === previous.round && turn < previous.turn)) return;
 
     for (const effect of getSustainedEffects(caster, combat.scene ?? canvas.scene)) {
         const record = effect.flags[MODULE_ID]?.sustained;
@@ -306,21 +314,21 @@ function isSystemSustain(message) {
 const REMINDER_ROWS = "ehb-sustain-reminder";
 
 /** Whether the turn order moved forward, rather than back */
-function movedForward(combat) {
-    const previous = combat.previous;
+function movedForward({ previous, round, turn }) {
     if (previous?.round === null || previous?.round === undefined) return true;
-    return combat.round > previous.round || (combat.round === previous.round && combat.turn > previous.turn);
+    return round > previous.round || (round === previous.round && turn > previous.turn);
 }
 
-async function postReminder(combat) {
-    const actor = combat.combatant?.actor;
-    if (!actor?.hasPlayerOwner || !movedForward(combat)) return;
+async function postReminder(combat, current = turnOf(combat)) {
+    const { combatant, round } = current;
+    const actor = combatant?.actor;
+    if (!actor?.hasPlayerOwner || !movedForward(current)) return;
     const spells = getSustainedSpells(actor, combat.scene ?? canvas.scene);
     if (spells.length === 0) return;
     // Once per turn, even if the turn is set again
     const posted = game.messages.contents.slice(-50).some((m) => {
         const r = m.flags[MODULE_ID]?.sustainReminder;
-        return r?.combat === combat.id && r.round === combat.round && r.actorUuid === actor.uuid;
+        return r?.combat === combat.id && r.round === round && r.actorUuid === actor.uuid;
     });
     if (posted) return;
 
@@ -329,7 +337,7 @@ async function postReminder(combat) {
         ? `<p style="font-size: var(--font-size-12)"><em>Spells not Sustained this turn end at its end.</em></p>`
         : "";
     await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor, token: combat.combatant.token }),
+        speaker: ChatMessage.getSpeaker({ actor, token: combatant.token }),
         content: `<p><strong>${esc(actor.name)}</strong> can Sustain:</p><div class="${REMINDER_ROWS}"></div>${ends}`,
         whisper: game.users.filter((u) => actor.testUserPermission(u, "OWNER")).map((u) => u.id),
         flags: {
@@ -337,7 +345,7 @@ async function postReminder(combat) {
                 sustainReminder: {
                     actorUuid: actor.uuid,
                     combat: combat.id,
-                    round: combat.round,
+                    round,
                     spells: spells.map(({ effect, name }) => ({ effectUuid: effect.uuid, name })),
                 },
             },
@@ -445,26 +453,28 @@ hooks.on("renderActorSheet", (sheet, html) => addSheetSustainButtons(sheet, html
 hooks.on("renderApplicationV2", (app, element) => addHudSustainButtons(app, element));
 
 // A sustained effect cast during an encounter counts as cast that round
-hooks.on("createItem", (item) => {
+hooks.on("createItem", async (item) => {
     const combat = game.combat;
-    if (!isActiveGM() || !combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) {
-        return;
-    }
+    if (!combat?.started || !game.settings.get(MODULE_ID, "sustainedDurations")) return;
     if (item.type !== "effect" || !item.system.duration.sustained || item.flags[MODULE_ID]?.sustained) return;
-    item.update({ [`flags.${MODULE_ID}.sustained`]: { combat: combat.id, round: combat.round } });
+    const round = combat.round;
+    if (!(await confirmActiveGM()) || item.flags[MODULE_ID]?.sustained) return;
+    item.update({ [`flags.${MODULE_ID}.sustained`]: { combat: combat.id, round } });
 });
 
 // The end of a turn ends what wasn't Sustained, then the next creature's turn starts with its reminder
 hooks.on("updateCombat", async (combat, changed) => {
-    if (!isActiveGM() || !combat.started || !("turn" in changed || "round" in changed)) return;
+    if (!combat.started || !("turn" in changed || "round" in changed)) return;
+    const current = turnOf(combat);
+    if (!(await confirmActiveGM())) return;
     const log = (error) => console.error(`${MODULE_ID} | Sustain`, error);
-    if (game.settings.get(MODULE_ID, "sustainedDurations")) await endUnsustained(combat).catch(log);
-    if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat).catch(log);
+    if (game.settings.get(MODULE_ID, "sustainedDurations")) await endUnsustained(combat, current).catch(log);
+    if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat, current).catch(log);
 });
 
 Hooks.once("ready", () => {
     game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "recordSustained" || !isActiveGM()) return;
+        if (data?.action !== "recordSustained" || !(await confirmActiveGM())) return;
         await recordSustained(data.effectUuids);
     });
 });
