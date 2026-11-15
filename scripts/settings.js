@@ -15,6 +15,7 @@ import {
     isActiveGM,
     isPrimarySession,
 } from "./lib/session.js";
+import { askGM, onGMRequest, warnGM } from "./lib/gm.js";
 
 const MODULE_ID = "evan-character-homebrew";
 
@@ -419,6 +420,7 @@ Hooks.once("init", () => {
 
 export {
     FEATURES,
+    askGM,
     confirmActiveGM,
     confirmPrimarySession,
     createdHere,
@@ -432,7 +434,9 @@ export {
     isFinchVersion,
     isPrimarySession,
     menuContent,
+    onGMRequest,
     saveMenu,
     switchKey,
+    warnGM,
     wireMenu,
 };

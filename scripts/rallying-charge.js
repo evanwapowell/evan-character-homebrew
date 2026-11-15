@@ -12,12 +12,11 @@
  * miss, or the end of the marshal's turn spends the charge with no effect.
  */
 
-import { canAnimate, confirmActiveGM, createdHere, featureHooks, guardApi } from "./settings.js";
+import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest, warnGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("rallyingCharge");
-const SOCKET = `module.${MODULE_ID}`;
 /** IDs of pf2e's Rallying Charge (Marshal) and Effect: Rallying Charge (Marshal), the same in every pf2e version */
 const FEAT_ID = "df4cBV3qZn3qNUmP";
 const FEAT_SLUG = "rallying-charge-marshal";
@@ -233,13 +232,13 @@ async function rally({ marshalToken, feat = null, target = null, card = null, da
     };
     playRallyAnimation(recipients);
     if (recipients.every((t) => t.actor.isOwner)) return applyEffects(data);
-    if (game.users.activeGM) return game.socket.emit(SOCKET, { action: "rallyingCharge", ...data });
+    // Players can't edit creatures they don't own, so the active GM gives the effect to everyone
+    const answer = await askGM("rallyingCharge", data);
+    if (answer.ok) return;
 
     const owned = recipients.filter((t) => t.actor.isOwner);
     const others = recipients.filter((t) => !t.actor.isOwner);
-    ui.notifications.warn(
-        `${TITLE}: a GM must be logged in to give the temporary Hit Points to ${others.map((t) => t.name).join(", ")}.`,
-    );
+    warnGM(answer, TITLE, `give the temporary Hit Points to ${others.map((t) => t.name).join(", ")}`);
     if (owned.length > 0) await applyEffects({ ...data, recipients: owned.map((t) => t.uuid) });
 }
 
@@ -322,9 +321,4 @@ Hooks.once("init", () => {
     };
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "rallyingCharge" || !(await confirmActiveGM())) return;
-        await applyEffects(data).catch(log);
-    });
-});
+onGMRequest("rallyingCharge", (data) => applyEffects(data));

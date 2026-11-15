@@ -7,12 +7,11 @@
  * lasts 5 minutes or until the kineticist's kinetic aura ends. Each element has its own animation.
  */
 
-import { canAnimate, confirmActiveGM, createdHere, featureHooks } from "./settings.js";
+import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("extractElement");
-const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** IDs of pf2e's Extract Element action and Effect: Kinetic Aura, the same in every pf2e version */
 const ACTION_ID = "low5ORd87QeA9Oug";
@@ -413,9 +412,8 @@ async function onSave({ card, kineticist, item, targetToken, outcome, total }) {
         total,
         cardId: card?.id ?? null,
     };
-    if (game.user.isGM) return resolveExtraction(data);
     // Players can't edit creatures they don't own, so the active GM applies the result
-    game.socket.emit(SOCKET, { action: "extractElement", ...data });
+    await askGM("extractElement", data, { title: "Extract Element", task: "apply the result" });
 }
 
 /** A save message rolled against Extract Element, from the card's Fortitude check */
@@ -470,9 +468,4 @@ Hooks.on("deleteItem", async (item) => {
     }
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "extractElement" || !(await confirmActiveGM())) return;
-        await resolveExtraction(data).catch(log);
-    });
-});
+onGMRequest("extractElement", (data) => resolveExtraction(data));

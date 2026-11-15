@@ -6,6 +6,7 @@
 
 import { auraFiles, finchAuraRules, playAura } from "./lib/finch.js";
 import {
+    askGM,
     canAnimate,
     canAnimateFinch,
     confirmActiveGM,
@@ -13,6 +14,7 @@ import {
     featureHooks,
     isEnabled,
     isFinchVersion,
+    onGMRequest,
 } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -157,7 +159,6 @@ hooks.on("createItem", (item, options, userId) => {
 /* Seneschal: "When you cast or Sustain manifest will, as long as your charge is within 30 feet, you can choose to
  * center the spell's emanation on your charge instead of yourself." */
 
-const SOCKET = `module.${MODULE_ID}`;
 /** ID of pf2e's Effect: Witch's Charge, the same in every pf2e version */
 const CHARGE_EFFECT_ID = "ugeStF0Rj8phBPWL";
 const CHARGE_RANGE = 30;
@@ -249,13 +250,10 @@ async function offerRecenter(caster, { spell, effect }) {
     const center = centers[Number(choice)].actor;
     if (center === auraEffect.actor) return;
 
-    if (auraEffect.isOwner && center.isOwner) {
-        await moveAuraEffect(auraEffect.uuid, center.uuid);
-    } else if (game.users.activeGM) {
-        game.socket.emit(SOCKET, { action: "moveManifestWill", effectUuid: auraEffect.uuid, centerUuid: center.uuid });
-    } else {
-        ui.notifications.warn("Manifest Will: a GM must be logged in to center it on that creature.");
-    }
+    if (auraEffect.isOwner && center.isOwner) return moveAuraEffect(auraEffect.uuid, center.uuid);
+    // Players can't edit creatures they don't own, so the active GM moves the aura for them
+    const data = { effectUuid: auraEffect.uuid, centerUuid: center.uuid };
+    await askGM("moveManifestWill", data, { title: "Manifest Will", task: "center it on that creature" });
 }
 
 /* Concealment: "You are concealed from creatures beyond the edge of the emanation". The creature at its center is
@@ -348,13 +346,7 @@ Hooks.once("init", () => {
     ];
 });
 
-Hooks.once("ready", () => {
-    // Players can't edit creatures they don't own, so the active GM moves the aura for them
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "moveManifestWill" || !(await confirmActiveGM())) return;
-        await moveAuraEffect(data.effectUuid, data.centerUuid);
-    });
-});
+onGMRequest("moveManifestWill", (data) => moveAuraEffect(data.effectUuid, data.centerUuid));
 
 hooks.on("updateCombat", async (combat, changed) => {
     if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;

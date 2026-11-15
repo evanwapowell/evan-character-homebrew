@@ -7,6 +7,7 @@
 
 import { playCurse } from "./lib/finch.js";
 import {
+    askGM,
     canAnimate,
     canAnimateFinch,
     confirmActiveGM,
@@ -14,12 +15,12 @@ import {
     featureHooks,
     guardApi,
     isEnabled,
+    onGMRequest,
 } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("ongoingMisery");
-const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the pf2e compendium items, the same in every pf2e version */
 const ABILITY_ID = "mu9OL8v4rmr9311e";
 const RESENTMENT_ID = "9OwWgOP8ZWxTAqbg";
@@ -223,11 +224,10 @@ async function promptOngoingMisery(actor) {
     }
     // Played here, where the tokens are on screen; Sequencer shows it to everyone
     playCurseAnimation(familiarToken, token);
-    if (canExtend) {
-        await extendEffect(effect, extension);
-    } else {
-        game.socket.emit(SOCKET, { action: "ongoingMisery", effectUuid: effect.uuid, ...extension });
-    }
+    if (canExtend) return extendEffect(effect, extension);
+    // Players can't update effects on creatures they don't own, so the active GM extends those
+    const data = { effectUuid: effect.uuid, ...extension };
+    await askGM("ongoingMisery", data, { title: "Familiar of Ongoing Misery", task: "curse that creature" });
 }
 
 hooks.on("createChatMessage", (message, options, userId) => {
@@ -257,11 +257,8 @@ Hooks.once("init", () => {
     module.api = { ...module.api, ongoingMisery: guardApi("ongoingMisery", (actor) => promptOngoingMisery(actor)) };
 });
 
-Hooks.once("ready", () => {
-    // Players can't update effects on creatures they don't own, so the active GM extends those
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "ongoingMisery" || !(await confirmActiveGM())) return;
-        const effect = await fromUuid(data.effectUuid);
-        if (effect) await extendEffect(effect, data);
-    });
+onGMRequest("ongoingMisery", async (data) => {
+    const effect = await fromUuid(data.effectUuid);
+    if (!effect) throw new Error("the condition has ended");
+    await extendEffect(effect, data);
 });
