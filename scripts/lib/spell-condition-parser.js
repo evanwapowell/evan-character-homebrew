@@ -289,10 +289,25 @@ function readConditions(text, { namePattern, slugsByName, fallback }) {
             });
             if (duration.value) lastDuration = duration;
         });
-        for (const { start, anchor } of links) {
-            assignBackwards(start, (mention) => {
-                if (mention.slug !== anchor && !mention.duration) mention.linkedTo = anchor;
-            });
+        // "While it's sickened, it's also slowed 1": a link with no condition before it applies to the one after it
+        const assignForwards = (position, assign) => {
+            let index = mentions.findIndex((m) => m.start >= position);
+            if (index === -1) return;
+            const between = sentence.slice(position, mentions[index].start);
+            if (/[;.]|\bthen\b/.test(between) || between.length > 40) return;
+            assign(mentions[index]);
+            while (index < mentions.length - 1) {
+                const next = mentions[index + 1];
+                if (!isListJoin(sentence.slice(mentions[index].end, next.start))) break;
+                assign(next);
+                index += 1;
+            }
+        };
+        for (const { start, end, anchor } of links) {
+            const link = (mention) => {
+                if (mention.slug !== anchor && !mention.duration && !mention.linkedTo) mention.linkedTo = anchor;
+            };
+            if (!assignBackwards(start, link)) assignForwards(end, link);
         }
 
         for (const mention of mentions) {

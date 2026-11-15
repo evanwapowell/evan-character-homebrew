@@ -59,6 +59,8 @@ const CONDITIONS = {
         failure: ["sickened 1"],
         criticalFailure: ["sickened 2", "slowed 1 while sickened"],
     },
+    // "while it's sickened, it's also Slowed 1": the link comes before the condition
+    "Divine Wrath": { failure: ["sickened 1"], criticalFailure: ["sickened 2", "slowed 1 while sickened"] },
     // pf2e 8.x links an effect for each degree, which grants the critical failure's stunned 2; 7.x links none
     Synesthesia: {
         v13: { criticalFailure: ["stunned 2"] },

@@ -124,6 +124,15 @@ describe("parseSpellOutcome on other phrasings", () => {
         ]);
     });
 
+    it("links a condition to one named before it ('while it's sickened, it's also slowed 1')", () => {
+        const html =
+            "<p><strong>Critical Failure</strong> The creature is sickened 2; while it's sickened, it's also slowed 1.</p>";
+        assert.deepEqual(parse(html, "criticalFailure").conditions, [
+            condition("sickened", 2),
+            condition("slowed", 1, null, { linkedTo: "sickened" }),
+        ]);
+    });
+
     it("uses the spell's duration for a condition with no timer of its own, but not for self-ending ones", () => {
         const html = "<p><strong>Failure</strong> The target is dazzled and frightened 1.</p>";
         assert.deepEqual(parse(html, "failure", "1 minute").conditions, [
