@@ -296,10 +296,10 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   server. `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
   `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included),
   and pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. `tests/guards.test.js`
-  checks that pf2e's messages reach the features and the module's own don't, `tests/session.test.js` the session helpers,
-  `tests/gm-requests.test.js` the requests to the GM, and `tests/turns.test.js` the turns of an encounter with
-  Manifest Will's and Sustain's work on them. Fix a hook-driven bug with a test here; export what a test needs from a
-  script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
+  checks that pf2e's messages reach the features and the module's own don't, `tests/session.test.js` the session
+  helpers, `tests/gm-requests.test.js` the requests to the GM, and `tests/turns.test.js` the turns of an encounter
+  with Manifest Will's and Sustain's work on them. Fix a hook-driven bug with a test here; export what a test needs
+  from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
 from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say
