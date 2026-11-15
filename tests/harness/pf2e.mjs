@@ -4,7 +4,7 @@
  * each builder names the file it follows.
  */
 
-import { Collection } from "./foundry.mjs";
+import { Collection, isNewerVersion } from "./foundry.mjs";
 
 let next = 0;
 const makeId = (prefix) => `${prefix}${String(++next).padStart(16 - prefix.length, "0")}`;
@@ -41,7 +41,7 @@ export function makeActor(
         type,
         flags: {},
         system: { details: { level: { value: 1 } } },
-        items: new Map(),
+        items: new Collection(),
         get itemTypes() {
             const types = {};
             for (const item of this.items.values()) (types[item.type] ??= []).push(item);
@@ -92,6 +92,8 @@ export function makeActor(
                 const options = {};
                 const draft = {
                     ...source,
+                    actor: this,
+                    parent: this,
                     slug: source.system?.slug ?? null,
                     _source: source,
                     updateSource: (changes) => foundry.utils.mergeObject(source, changes),
@@ -221,6 +223,13 @@ export function addItem(
         },
         async update(changes) {
             const userId = game.user.id;
+            changes = foundry.utils.expandObject(changes);
+            // EffectPF2e#_preUpdate (src/module/item/effect/document.ts): a timed duration's missing expiry is turn-start
+            const duration = changes.system?.duration;
+            if (type === "effect" && typeof duration?.unit === "string") {
+                if (duration.unit === "unlimited") Object.assign(duration, { expiry: null, value: -1 });
+                else if (duration.unit !== "encounter") duration.expiry ||= "turn-start";
+            }
             await serverTrip();
             foundry.utils.mergeObject(this, changes);
             world.callAll("updateItem", () => [this, foundry.utils.expandObject(changes), {}, userId]);
@@ -329,6 +338,21 @@ export function itemCard(item) {
         content: `<div class="pf2e chat-card item-card"><header class="card-header"><h3>${item.name}</h3></header></div>`,
         flags: { pf2e: { origin: originData(item) } },
     };
+}
+
+/**
+ * A spell's card (SpellPF2e#toMessage in src/module/item/spell/document.ts): the item card, its origin with the rank,
+ * `flags.pf2e.casting` when it's from a spellcasting entry, and a spell-cast context when it has a save. `actualCast`:
+ * it was cast, rather than sent to chat, which pf2e marks from 8.5.0 (v14-dev) and v13-dev doesn't.
+ */
+export function spellCard(world, spell, { actualCast = true, castRank = 1, entryId = "entry", save = null } = {}) {
+    const card = itemCard(spell);
+    const origin = { ...card.flags.pf2e.origin, castRank };
+    const marks = !isNewerVersion("8.5.0", world.systemVersion);
+    if (actualCast && marks) origin.rollOptions.push("origin:action:slug:cast-a-spell");
+    const flags = { origin, casting: entryId ? { id: entryId, tradition: "occult" } : undefined };
+    if (entryId && save) flags.context = { type: "spell-cast", domains: ["spell-dc"], options: [] };
+    return { ...card, flags: { pf2e: JSON.parse(JSON.stringify(flags)) } };
 }
 
 /**

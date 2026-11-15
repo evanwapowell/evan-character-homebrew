@@ -46,12 +46,16 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       encounter, the active GM posts a chat reminder whispered to its owners listing its sustained spells, each with a
       Sustain button (it shows Sustained or Ended as that changes).
     - `ongoing-misery.js`: Familiar of Ongoing Misery.
+    - `lib/casting.js`: whether a spell's card is from casting it or only sent to chat (`isSpellCast`). pf2e marks a
+      cast from 8.5.0 (`origin:action:slug:cast-a-spell` in the card's `flags.pf2e.origin.rollOptions`); before that
+      the two can't be told apart, so the hex familiars take any card from a spellcasting entry for a cast, and
+      Protector Tree and Sepulchral Mask fall back on the card's button or the effect's drag.
     - `witch-charge.js`: the Designate Witch's Charge action.
     - `extract-element.js`: the kineticist's Extract Element action: checks the target, applies the save's result
       (damage, and Effect: Extract Element with the impulse bypasses), plays each element's animation, and ends the
       effects when the kinetic aura ends.
     - `protector-tree.js`: Timber Sentinel (wood kineticist) and the Protector Tree spell it casts. Using the impulse
-      (or casting the spell, which pf2e 8.x marks; otherwise the card's Place Tree button) has its user pick a square
+      (or casting the spell, which pf2e 8.5 marks; otherwise the card's Place Tree button) has its user pick a square
       within 30 feet; the active GM makes the tree, a hazard actor (AC 10, 10 HP per rank: half the kineticist's level
       rounded up, or the cast rank) in a "Protector Trees" folder, owned by the caster's players, and gives the caster
       Effect: Protector Tree (1 minute). pf2e's `applyDamage` is wrapped (through libWrapper when it's active): damage
@@ -60,7 +64,7 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       and actor are removed; when the effect ends otherwise (duration, or the impulse used again), it stays as an
       ordinary tree, and deleting its token removes its actor.
     - `sepulchral-mask.js`: Sepulchral Mask (psychopomp sorcerer): puts Aura: Sepulchral Mask on the caster when the
-      spell is cast (pf2e 8.x marks real casts) or when pf2e's spell effect is dragged from the card, posts a card for
+      spell is cast (pf2e 8.5 marks real casts) or when pf2e's spell effect is dragged from the card, posts a card for
       each enemy that starts its turn in the emanation (the caster rolls the damage, the creature its Will save), and
       applies the damage and Will penalty for the save's result.
     - `parasitic-might.js`: Familiar of Parasitic Might (Devourer of Decay witch): on a hex's Cast or Sustain, the witch
@@ -125,11 +129,12 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       Foundry dependencies.
 - `scripts/lib/finch.js` and `animations/finch/`: the "Finch version" (a world setting in the menu's Module section, on
   by default): custom animations made for one character, a changeling witch whose theme is lost things, in place of
-  JB2A's. Manifest Will (divine, occult and primal; arcane keeps JB2A's): an intro that builds the aura, then a
-  seamless loop, played by Sequencer attached to the token and tied to the aura effect, whose own texture is removed
-  (without Sequencer, the loop becomes the aura's texture). Familiar of Ongoing Misery: a wisp that drifts from the
-  familiar, then a marionette's control bar drawing a fey sigil up out of the creature. They need Sequencer but not
-  JB2A. `tools/check.mjs` checks every file the scripts play from the module exists.
+  JB2A's. Manifest Will (divine, occult and primal; arcane keeps JB2A's): an intro that builds the aura, then a seamless
+  loop, played by Sequencer attached to the token and tied to the aura effect, whose own texture is removed (without
+  Sequencer, or when the session creating the aura isn't viewing its scene and so plays nothing, the loop becomes the
+  aura's texture). Familiar of Ongoing Misery: a wisp that drifts from the familiar, then a marionette's control bar
+  drawing a fey sigil up out of the creature. They need Sequencer but not JB2A. `tools/check.mjs` checks every file the
+  scripts play from the module exists.
 - `art/finch/`: the Finch animations' source (Gemini-painted sprites, the Blender scenes that render them, and the
   export to WebM with alpha); not part of the release.
 - `token-subjects/`: token art.
@@ -287,29 +292,33 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
 - Tests of the real scripts on a Foundry stand-in (`tests/harness/`): `foundry.mjs` fakes the globals the scripts touch
   (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`, `foundry.utils`,
   `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session, `fromUuid`, `Roll`
-  (each die rolls its middle), and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds pf2e-shaped actors, items,
-  effects, scenes, tokens, encounters and chat messages, following pf2e's source (each builder names its file).
-  `createWorld({ users })` then `world.connect(userId, { scripts })` opens a session with its own copy of the scripts
-  and globals, so one user can be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]`
-  has the script's exports, `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep
-  each session's own. `session.setShown`, `session.viewScene(scene)`, `session.disconnect({ silently })`,
-  `session.latency` (socket messages to and from it are delivered that many milliseconds later, on the timers) and
-  `session.unreachable` (socket messages to and from it are lost while its user stays active: a frozen window) set up
-  the session cases. Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as the running
-  session sees it, and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their effects' Aura
-  rules (their tokens' `auras` have `containsToken`); items have `update` and `delete`, which come back a tick later, as
-  from the server. `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`,
-  `previousTurn`, `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index
-  shifting included), and pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. The
-  world's time (`game.time.worldTime`) moves 6 seconds with each round, and an effect made with
-  `createEmbeddedDocuments` starts at it and expires as pf2e's do (`remainingDuration`, pf2e's
-  `calculateRemainingDuration`); expired effects stay on their actor. `tests/guards.test.js` checks that pf2e's messages
-  reach the features and the module's own don't, `tests/session.test.js` the session helpers,
-  `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js` the turns of an encounter with Manifest
-  Will's and Sustain's work on them, and `tests/spell-conditions.test.js` the Apply button's timers, from a save's
-  message through its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers
-  unchecked). Fix a hook-driven bug with a test here; export what a test needs from a script (a patch bump), or drive
-  it through the hook, and add to the stand-in as tests need it.
+  (each die rolls its middle; `toMessage` reads `rollMode` on v13 and `messageMode` on v14, as Foundry does), and jsdom
+  for `document` and `DOMParser`); `pf2e.mjs` builds pf2e-shaped actors, items, effects, scenes, tokens, encounters and
+  chat messages, following pf2e's source (each builder names its file). `createWorld({ users, version, systemVersion })`
+  (Foundry "v13" or "v14", and pf2e's exact version) then `world.connect(userId, { scripts })` opens a session with its
+  own copy of the scripts and globals, so one user can be connected twice; `session.run(fn)` runs code as that session,
+  `session.scripts[name]` has the script's exports, `world.flush()` delivers socket messages, and `useFakeTimers(t)`
+  gives fake timers that keep each session's own. `session.setShown`, `session.viewScene(scene)`, `session.disconnect({
+  silently })`, `session.latency` (socket messages to and from it are delivered that many milliseconds later, on the
+  timers) and `session.unreachable` (socket messages to and from it are lost while its user stays active: a frozen
+  window) set up the session cases. Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as
+  the running session sees it, and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their
+  effects' Aura rules (their tokens' `auras` have `containsToken`); items have `update` (an effect's as pf2e's
+  `_preUpdate` fills a duration's expiry) and `delete`, which come back a tick later, as from the server.
+  `spellCard(world, spell, { actualCast })` is a spell's card, marked as cast where the pf2e version does.
+  `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
+  `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included), and
+  pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. The world's time
+  (`game.time.worldTime`) moves 6 seconds with each round, and an effect made with `createEmbeddedDocuments` starts at
+  it and expires as pf2e's do (`remainingDuration`, pf2e's `calculateRemainingDuration`); expired effects stay on their
+  actor. `tests/guards.test.js` checks that pf2e's messages reach the features and the module's own don't,
+  `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js`
+  the turns of an encounter with Manifest Will's and Sustain's work on them, `tests/manifest-will.test.js` Manifest
+  Will's flat check, re-centering and Finch aura, `tests/hex-casts.test.js` casts told from cards sent to chat and the
+  hex familiars on each, and `tests/spell-conditions.test.js` the Apply button's timers, from a save's message through
+  its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers unchecked). Fix a
+  hook-driven bug with a test here; export what a test needs from a script (a patch bump), or drive it through the hook,
+  and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
 from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say
