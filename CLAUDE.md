@@ -91,14 +91,18 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       Points until the start of their next turn. A miss, a ranged Strike or the end of the marshal's turn spends it.
       Damage rolled while viewing another scene leaves the charge active, to be rolled again on the marshal's scene.
     - `recall-knowledge.js` with `lib/recall-knowledge-facts.js`: Recall Knowledge about creatures, from pf2e's action
-      or Basic Action Macros' (which rolls one d20 for every skill and Lore). The roller's player picks a question (or
-      writes one); the GM gets a card with the degree of success against the creature's identification DCs (harder for
-      each later attempt), reviews what's learned (success: name and answer; critical success: the lore entry too;
-      critical failure: a false name and a lie; Dubious Knowledge: the answer and a lie) and sends it as a whisper.
-      What's learned is recorded per creature, for the party or (world setting) only the character, and revealed in PF2E
-      Bestiary Tracking. Exploit Vulnerability's check is read too: its weaknesses by degree of success, off-guard on a
-      critical failure (Effect: Exploit Vulnerability (Critical Failure)), and with Diverse Lore, Recall Knowledge's
-      information. The facts library has no Foundry dependencies.
+      or Basic Action Macros' (which rolls one d20 for every skill and Lore: each skill's modifier is worked out from
+      its statistic without rolling, and a Lore is listed but isn't the default). The roller's player picks a question
+      (or writes one); the GM gets a card with the degree of success against the creature's identification DCs (harder
+      for each later attempt, counted again when the card is reviewed), reviews what's learned (success: name and
+      answer; critical success: the lore entry too; critical failure: a name (the one already known, else a false one,
+      else the true one) and a lie; Dubious Knowledge: the answer and a wrong answer to the same question) and sends it
+      as a whisper. What's learned is recorded per creature, for the party or (world setting) only the character, by
+      card (sending a card again replaces what it recorded; which facts are false stays on the GM's card, not in the
+      world setting), and revealed in PF2E Bestiary Tracking. pf2e's reroll updates the card of the roll it replaces.
+      Exploit Vulnerability's check is read too: its weaknesses by degree of success, off-guard on a critical failure
+      (Effect: Exploit Vulnerability (Critical Failure)), and with Diverse Lore, Recall Knowledge's information. The
+      facts library has no Foundry dependencies.
     - `spell-target-effects.js` with `lib/spell-effect-links.js`: an Apply button on the card of a spell without a save
       (Heroism, Stoke the Heart, Shield) for the spell effects it links. The caster checks which creatures get each
       effect: by default themselves for an aura (named "Aura:" or with an Aura rule, like Bless) or a spell with no
@@ -324,16 +328,20 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. The world's time
   (`game.time.worldTime`) moves 6 seconds with each round, and an effect made with `createEmbeddedDocuments` starts at
   it and expires as pf2e's do (`remainingDuration`, pf2e's `calculateRemainingDuration`); expired effects stay on their
-  actor. `tests/guards.test.js` checks that pf2e's messages reach the features and the module's own don't,
-  `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM, `tests/turns.test.js`
-  the turns of an encounter with Manifest Will's and Sustain's work on them, `tests/manifest-will.test.js` Manifest
-  Will's flat check, re-centering and Finch aura, `tests/hex-casts.test.js` casts told from cards sent to chat and the
-  hex familiars on each, and `tests/spell-conditions.test.js` the Apply button's timers, from a save's message through
-  its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers unchecked;
-  `tests/spell-conditions-apply.test.js`: applying once, scroll spells, values asked for, spell effects), and
-  `tests/spell-target-effects.test.js` the no-save Apply button (who gets each effect, choices, applying once). Fix a
-  hook-driven bug with a test here; export what a test needs from a script (a patch bump), or drive it through the hook,
-  and add to the stand-in as tests need it.
+  actor. `addSkills(actor, skills)` gives a creature pf2e's skill statistics (`withRollOptions`, a `check` whose
+  modifiers are tested against roll options, `roll` recorded in `actor.skillRolls`), totalled by
+  `game.pf2e.StatisticModifier`. `tests/guards.test.js` checks that pf2e's messages reach the features and the module's
+  own don't, `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM,
+  `tests/turns.test.js` the turns of an encounter with Manifest Will's and Sustain's work on them,
+  `tests/manifest-will.test.js` Manifest Will's flat check, re-centering and Finch aura, `tests/hex-casts.test.js` casts
+  told from cards sent to chat and the hex familiars on each, `tests/spell-conditions.test.js` the Apply button's
+  timers, from a save's message through its dialog to the turn the effect expires at
+  (`tests/spell-conditions-later.test.js`: what it offers unchecked; `tests/spell-conditions-apply.test.js`: applying
+  once, scroll spells, values asked for, spell effects), `tests/spell-target-effects.test.js` the no-save Apply button
+  (who gets each effect, choices, applying once), and `tests/recall-knowledge.test.js` Recall Knowledge from the check
+  through the card's review to the whisper and the record (sending again, rerolls, attempts, Basic Action Macros' roll,
+  names on critical failures). Fix a hook-driven bug with a test here; export what a test needs from a script (a patch
+  bump), or drive it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
 from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say

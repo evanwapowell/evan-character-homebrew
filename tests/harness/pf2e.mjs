@@ -94,6 +94,10 @@ export function makeActor(
         get isOwner() {
             return isOwner ?? (!!game.user?.isGM || owners.includes(game.user?.id));
         },
+        /** Foundry's: a GM, or the users in `owners`, own it; no one has a lower level */
+        testUserPermission(user, _level) {
+            return !!user?.isGM || owners.includes(user?.id);
+        },
         set isOwner(value) {
             isOwner = value;
         },
@@ -157,6 +161,74 @@ export function makeActor(
     world.add(actor);
     for (const item of items) addItem(world, actor, item);
     return actor;
+}
+
+/**
+ * A modifier (Modifier in src/module/actor/modifiers.ts): enabled while its predicate (plain roll options) holds for
+ * the options it's tested with.
+ */
+function makeModifier({ slug, label = slug, modifier, predicate = [] }) {
+    return {
+        slug,
+        label,
+        modifier,
+        predicate,
+        enabled: true,
+        test(options) {
+            this.enabled = predicate.every((option) => options.has(option));
+        },
+        clone() {
+            return makeModifier({ slug, label, modifier, predicate });
+        },
+    };
+}
+
+/**
+ * Skills on a creature (`actor.skills`), as pf2e's Statistic and StatisticCheck (src/module/system/statistic/
+ * statistic.ts, the same in v13-dev and v14-dev): each with its domains, and a check whose modifiers (copies) are
+ * tested against the roll options the statistic's config gives (`createRollOptions`: the actor's own, the target's as
+ * "target:", and `extraRollOptions`), with its total as `mod`. `withRollOptions(config)` makes it again with that
+ * config. `roll` is recorded in `actor.skillRolls`, so a test can see none was made. `skills`: `{ slug, label, lore,
+ * modifiers: [{ slug, modifier, predicate }] }`, where `modifiers` are the skill's own, unconditional or not.
+ */
+export function addSkills(actor, skills) {
+    actor.skillRolls = [];
+    const make = ({ slug, label, lore = false, modifiers = [] }, config = {}) => {
+        const domains = [slug, "int-based", lore ? "lore-skill-check" : null, "skill-check", "check", "all"].filter(
+            Boolean,
+        );
+        const createRollOptions = (args = config) =>
+            new Set([
+                ...actor.getRollOptions(domains),
+                ...(args.target?.getSelfRollOptions?.("target") ?? []),
+                ...(args.extraRollOptions ?? []),
+            ]);
+        const checkModifiers = modifiers.map((m) => makeModifier(m));
+        const options = createRollOptions(config);
+        for (const modifier of checkModifiers) modifier.test(options);
+        const statistic = {
+            slug,
+            label,
+            lore,
+            domains,
+            check: {
+                domains,
+                modifiers: checkModifiers,
+                mod: checkModifiers.filter((m) => m.enabled).reduce((total, m) => total + m.modifier, 0),
+                createRollOptions,
+            },
+            withRollOptions: (more = {}) => make({ slug, label, lore, modifiers }, { ...config, ...more }),
+            roll: async (args) => {
+                actor.skillRolls.push({ slug, args });
+                return null;
+            },
+        };
+        statistic.mod = statistic.check.mod;
+        return statistic;
+    };
+    actor.skills = Object.fromEntries(skills.map((skill) => [skill.slug, make(skill)]));
+    actor.getStatistic = (slug) => actor.skills[slug] ?? null;
+    return actor.skills;
 }
 
 /** A scene, with its tokens */

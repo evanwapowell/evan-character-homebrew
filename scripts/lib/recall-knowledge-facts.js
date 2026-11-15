@@ -419,15 +419,19 @@ function falseName(profile, candidates, random = Math.random) {
 }
 
 /**
- * What a Recall Knowledge check tells the character, for the GM to approve: { name, lore, answers }.
+ * What a Recall Knowledge check tells the character, for the GM to approve: { name, lore, answers }. Whatever the
+ * result, the whisper reads the same, so a player can't tell a lie from the truth by its shape:
  *
  * - Success: the creature's name and the answer to the question. Critical success: its lore entry too.
- * - Critical failure: a false name (when one can be found) and a lie in answer to the question.
- * - Failure: nothing, or with Dubious Knowledge, the true answer and a lie about something else, in either order.
+ * - Critical failure: a name and a lie in answer to the question. The name is the one the character already knows
+ *   (`knownName`, true or not, so a later check doesn't contradict an earlier one), else a false name (from `names`),
+ *   else, when none can be found, its true name: the lie is then only in the answer.
+ * - Failure: nothing, or with Dubious Knowledge, the true answer and a wrong answer to the same question, in either
+ *   order. Where the question has no wrong answer to give, the wrong answer is about something else.
  *
  * Each answer is { question, text, false, reveal, fake }. `random` makes the lies repeatable in tests.
  */
-function draft({ profile, degree, question, dubious = false, names = [], random = Math.random }) {
+function draft({ profile, degree, question, dubious = false, names = [], knownName = null, random = Math.random }) {
     const outcome = typeof degree === "number" ? DEGREES[degree] : degree;
     const truth = () => ({ question, false: false, fake: {}, ...answer(profile, question) });
     const untruth = (about = question) => {
@@ -443,17 +447,52 @@ function draft({ profile, degree, question, dubious = false, names = [], random 
         };
     }
     if (outcome === "criticalFailure") {
-        const name = falseName(profile, names, random);
-        return { name: name ? { text: name, false: true } : null, lore: false, answers: [untruth()] };
+        const text = knownName || falseName(profile, names, random) || profile.name;
+        return { name: { text, false: lower(text) !== lower(profile.name) }, lore: false, answers: [untruth()] };
     }
     if (dubious) {
-        // A lie about another subject, so the two don't contradict each other outright
-        const others = QUESTIONS.map((q) => q.id).filter((id) => id !== "other" && id !== question && LIES[id]);
-        const told = untruth(pick(others, random));
+        // A wrong answer to the same question, unless there's none to give
+        let told = untruth();
+        if (!told.text || told.text === truth().text) {
+            const others = QUESTIONS.map((q) => q.id).filter((id) => id !== "other" && id !== question && LIES[id]);
+            told = untruth(pick(others, random));
+        }
         const answers = random() < 0.5 ? [truth(), told] : [told, truth()];
         return { name: null, lore: false, answers };
     }
     return { name: null, lore: false, answers: [] };
+}
+
+/**
+ * What an answer still tells once the GM has edited its text: the parts of `told.reveal` and `told.fake` (as `answer`
+ * and `lie` give them) that the text still names, so the Bestiary reveals only what the character was told. "None"
+ * ("*") is kept while the text still says no, none or doesn't.
+ */
+function trimReveal(profile, told, text) {
+    const said = lower(text);
+    const names = (label) => !!label && said.includes(lower(label));
+    const negative = /\b(?:no|none|nothing|doesn't|does not|isn't|can't)\b/.test(said);
+    const labelOf = {
+        weaknesses: (type) => profile.weaknesses.find((w) => w.type === type)?.label,
+        resistances: (type) => profile.resistances.find((r) => r.type === type)?.label,
+        immunities: (type) => profile.immunities.find((i) => i.type === type)?.label,
+        saves: (slug) => profile.saves[slug]?.label,
+        abilities: (id) => profile.abilities.find((a) => a.id === id)?.name,
+        spells: (id) => profile.spellcasting.find((e) => e.id === id)?.traditionLabel,
+        senses: (type) => profile.senses.find((s) => s.type === type)?.label,
+        speeds: (type) => (type === "land" ? "speed" : profile.speeds.find((s) => s.type === type)?.label),
+    };
+    const reveal = {};
+    for (const [category, entries] of Object.entries(told.reveal ?? {})) {
+        const kept = entries.filter((entry) => (entry === "*" ? negative : names(labelOf[category]?.(entry))));
+        if (kept.length > 0) reveal[category] = kept;
+    }
+    const fake = {};
+    for (const [category, types] of Object.entries(told.fake ?? {})) {
+        const kept = types.filter((type) => names(profile.lieTypes.find((t) => t.type === type)?.label));
+        if (kept.length > 0) fake[category] = kept;
+    }
+    return { reveal, fake };
 }
 
 /**
@@ -521,4 +560,5 @@ export {
     lie,
     ordinal,
     rankAbilities,
+    trimReveal,
 };

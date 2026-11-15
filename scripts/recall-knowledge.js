@@ -8,13 +8,16 @@
  *
  * - Success: the creature's name and the answer to their question. Critical success: its lore entry (the public notes)
  *   too.
- * - Critical failure: a false name, when another creature of its type and level can be found, and a lie in answer to
- *   the question. Dubious Knowledge (which Esoteric Lore grants) turns a failure into the true answer and a lie.
+ * - Critical failure: a name and a lie in answer to the question. The name is the one the character already knows, or a
+ *   false one (another creature of its type and level), or when there's none, its own. Dubious Knowledge (which
+ *   Esoteric Lore grants) turns a failure into the true answer and a wrong one to the same question.
  *
  * The GM reviews it, can change the check, result or text, and sends it: a whisper to the party (or, with the world
  * setting off, only the character who rolled), worded the same whether it's true or not. What was learned is recorded
  * per creature, shared by every token of that creature, and with PF2E Bestiary Tracking active it's revealed in the
- * Bestiary (lies are added as fake entries).
+ * Bestiary (lies are added as fake entries). The record is a world setting every client can read, so which facts are
+ * false is kept on the GM's card, not in it. A card sent again replaces what it recorded, and a reroll (pf2e's, from
+ * a Hero Point) updates the card of the roll it replaces.
  *
  * Exploit Vulnerability: its Esoteric Lore check against the creature's level DC tells the thaumaturge its highest
  * weakness, or on a critical success all its weaknesses, resistances and immunities. With Diverse Lore, the same
@@ -29,8 +32,9 @@ import {
     draft,
     exploitResult,
     ordinal,
+    trimReveal,
 } from "./lib/recall-knowledge-facts.js";
-import { askGM, confirmActiveGM, createdHere, hasModuleData, isEnabled, onGMRequest } from "./settings.js";
+import { askGM, confirmActiveGM, createdHere, guardApi, hasModuleData, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const TITLE = "Recall Knowledge";
@@ -103,7 +107,12 @@ function dieOf(roll) {
 
 /**
  * A Recall Knowledge or Exploit Vulnerability check in a new message: { kind, slug, macro }. `macro` is Basic Action
- * Macros' Recall Knowledge, which rolls a bare d20 for every skill at once, so it has no statistic.
+ * Macros' Recall Knowledge, which rolls a bare d20 for every skill at once, so it has no statistic. Its message (the
+ * "XDY DO_NOT_IMPORT Recall_Knowledge" macro PF2e Workbench runs, from symonsch/my-foundryvtt-macros) is made with
+ * ChatMessage.create, not pf2e's Check.roll: a whispered, blind table, the d20 as its only roll, and
+ * `flags.pf2e.context` of type "skill-check" with the options "action:recall-knowledge", "check:type:skill" and
+ * "secret", the roller as `origin`, and the target when there's exactly one. It has no `modifierName` (which
+ * Check.roll always writes) and no domains.
  */
 function getCheck(message) {
     const flags = message.flags.pf2e ?? {};
@@ -152,14 +161,43 @@ function inScope(entries, actorUuid) {
     return isShared() ? entries : entries.filter((e) => e.actor === actorUuid);
 }
 
-async function addToRecord(key, name, { attempt = null, facts = [] }) {
+/**
+ * Record what a card told: its attempt and facts, in place of what it recorded before (when it's sent again). Facts
+ * are recorded without whether they're true, which stays on the card (`truthOf`).
+ */
+async function addToRecord(key, name, { card, attempt = null, facts = [] }) {
     const records = foundry.utils.deepClone(game.settings.get(MODULE_ID, RECORDS_SETTING) ?? {});
     const record = records[key] ?? { name, attempts: [], facts: [] };
     record.name = name;
-    if (attempt) record.attempts.push(attempt);
-    record.facts.push(...facts);
+    record.attempts = record.attempts.filter((a) => !card || a.card !== card);
+    record.facts = record.facts.filter((f) => !card || f.card !== card);
+    if (attempt) record.attempts.push({ ...attempt, card });
+    record.facts.push(...facts.map(({ false: _false, ...fact }, i) => ({ ...fact, card, i })));
     records[key] = record;
     await game.settings.set(MODULE_ID, RECORDS_SETTING, records);
+}
+
+/** Whether a recorded fact is false: from the card that told it (the GM's), or the fact itself in older records */
+function truthOf(fact) {
+    if (typeof fact.false === "boolean") return !fact.false;
+    const told = game.messages.get(fact.card)?.flags[MODULE_ID]?.recallKnowledge?.told;
+    const known = told?.[fact.i];
+    return known ? !known.false : null;
+}
+
+/** "(false) " before a fact the GM knows is false, "(?) " when the card that told it is gone */
+function truthMarker(fact) {
+    const truth = truthOf(fact);
+    return truth === false ? "(false) " : truth === null ? "(?) " : "";
+}
+
+/**
+ * Which attempt a check is about the creature: the attempts recorded in its scope from checks rolled before it (by
+ * other cards: one sent again doesn't count itself)
+ */
+function attemptNumber({ key, actor, card = null, rolledAt }) {
+    const earlier = (a) => a.kind === "recall" && (!card || a.card !== card) && !(a.rolledAt > rolledAt);
+    return inScope(getRecord(key).attempts, actor).filter(earlier).length;
 }
 
 /* The creature, as the answers need it */
@@ -305,97 +343,143 @@ function getAdjustments(actor, domains, options, total, die, dc) {
     return record;
 }
 
-/**
- * A skill's modifier for Recall Knowledge against the creature, with the conditional bonuses that apply, as Basic
- * Action Macros works it out: a roll that isn't posted. Its domains and roll options are for degree adjustments.
- */
-async function silentCheck(actor, statistic, target) {
-    let context = null;
-    const roll = await statistic.roll({
-        createMessage: false,
-        skipDialog: true,
-        extraRollOptions: [RK_OPTION, `${RK_OPTION}:${statistic.slug}`, ...target.getSelfRollOptions("target")],
-        callback: (_roll, _outcome, message) => {
-            context = message?.flags?.pf2e?.context ?? null;
-        },
-    });
-    return {
-        modifier: roll?.options?.totalModifier ?? statistic.check?.mod ?? statistic.mod ?? 0,
-        domains: context?.domains ?? [],
-        options: context?.options ?? [],
-    };
-}
-
-/**
- * Every way the roll could be read: each skill that applies, against each DC that fits it. Basic Action Macros' roll
- * is read for every Recall Knowledge skill and Lore the character has; pf2e's for the skill that was rolled.
- */
-async function getRecallChecks({ actor, target, message, check, attempt }) {
-    const roll = message.rolls[0];
-    const die = dieOf(roll);
+/** The creature's identification DCs for this attempt, by kind */
+function dcsFor(target, attempt) {
     const dcs = target.identificationDCs;
-    const kinds = {
+    return {
         standard: dcFor(dcs.standard, attempt),
         unspecific: dcFor(dcs.lore[0], attempt),
         specific: dcFor(dcs.lore[1], attempt),
     };
-    const primary = new Set(dcs.skills);
+}
+
+/**
+ * A skill's modifier for Recall Knowledge against the creature, with the conditional bonuses that apply, without
+ * rolling: a roll, even one that isn't posted, runs every rule element's afterRoll, which removes effects that last
+ * for one roll (Instructive Strike's, for example). The statistic is made again with the roll options a Recall
+ * Knowledge check about the creature has (Statistic#withRollOptions, the same in pf2e 7.x and 8.x), RollOption rules
+ * add theirs as before a roll, and the modifiers' total is worked out with them, as Check.roll does. The domains and
+ * roll options are for degree adjustments.
+ */
+function recallModifier(actor, statistic, target) {
+    const extraRollOptions = [
+        RK_OPTION,
+        `${RK_OPTION}:${statistic.slug}`,
+        `check:statistic:${statistic.slug}`,
+        "check:type:skill",
+        "secret",
+    ];
+    const config = { target, extraRollOptions };
+    const check = (statistic.withRollOptions?.(config) ?? statistic).check ?? statistic.check;
+    const domains = [...(check?.domains ?? statistic.domains ?? [])];
+    const options = new Set(check?.createRollOptions?.(config) ?? extraRollOptions);
+    for (const rule of actor.rules ?? []) {
+        if (rule.key === "RollOption" && !rule.ignored) rule.beforeRoll?.(domains, options);
+    }
+    const StatisticModifier = game.pf2e?.StatisticModifier;
+    const modifier =
+        StatisticModifier && check?.modifiers
+            ? new StatisticModifier(statistic.slug, check.modifiers, options).totalModifier
+            : (check?.mod ?? statistic.mod ?? 0);
+    return { modifier, domains, options: [...options] };
+}
+
+/** The skills that identify the creature, with Arcana for a character with Unified Theory */
+function identifyingSkills(actor, target) {
+    const primary = new Set(target.identificationDCs.skills);
     // Unified Theory: Arcana for anything Nature, Occultism or Religion identifies
     const unified = hasFeat(actor, "unified-theory") && ["nature", "occultism", "religion"].some((s) => primary.has(s));
     if (unified) primary.add("arcana");
+    return primary;
+}
 
-    const kindsFor = (statistic) => {
-        if (statistic.slug === ESOTERIC_LORE) return ["standard", "unspecific"];
-        if (statistic.lore) return ["unspecific", "specific"];
-        return ["standard"];
-    };
-
+/**
+ * How the roll reads for each skill it applies to: [{ slug, label, total, lore, esoteric, unusual, preferred, domains,
+ * options }]. Basic Action Macros' roll is read for every Recall Knowledge skill and Lore the character has; pf2e's for
+ * the skill that was rolled. Of the macro's, a Lore isn't preferred: whether it applies to the creature is the GM's
+ * call, and the character may have Lores that have nothing to do with it.
+ */
+function readSkills({ actor, target, message, check }) {
+    const roll = message.rolls[0];
+    const die = dieOf(roll);
+    const primary = identifyingSkills(actor, target);
     const statistics = check.macro
         ? [
               ...[...primary].map((s) => actor.skills?.[s]).filter(Boolean),
               ...Object.values(actor.skills ?? {}).filter((s) => s.lore),
           ]
         : [actor.skills?.[check.slug] ?? actor.getStatistic?.(check.slug)].filter(Boolean);
-
     const context = message.flags.pf2e?.context ?? {};
+    return statistics.map((statistic) => {
+        const esoteric = statistic.slug === ESOTERIC_LORE;
+        const read = check.macro ? recallModifier(actor, statistic, target) : null;
+        return {
+            slug: statistic.slug,
+            label: statistic.label,
+            total: read ? die + read.modifier : roll.total,
+            lore: !!statistic.lore && !esoteric,
+            esoteric,
+            unusual: !statistic.lore && !primary.has(statistic.slug),
+            preferred: !check.macro || !statistic.lore || esoteric,
+            domains: read?.domains ?? context.domains ?? [],
+            options: read?.options ?? context.options ?? [],
+        };
+    });
+}
+
+/** A row's degree of success against a DC, with the character's degree adjustments for the roll's options */
+function grade(actor, row, reading, dc) {
+    const adjustments = getAdjustments(actor, reading?.domains ?? [], reading?.options ?? [], row.total, row.die, dc);
+    return { ...row, dc, ...degreeOfSuccess({ total: row.total, die: row.die, dc, adjustments }) };
+}
+
+/**
+ * Every way the roll could be read: each skill that applies, against each DC that fits it: [{ slug, label, total,
+ * die, kind, dc, degree, adjustment, unusual, lore, preferred }]
+ */
+function getRecallChecks({ actor, target, message, check, attempt }) {
+    const die = dieOf(message.rolls[0]);
+    const dcs = dcsFor(target, attempt);
     const rows = [];
-    for (const statistic of statistics) {
-        let total = roll.total;
-        let domains = context.domains ?? [];
-        let options = context.options ?? [];
-        if (check.macro) {
-            const silent = await silentCheck(actor, statistic, target);
-            total = die + silent.modifier;
-            ({ domains, options } = silent);
-        }
-        const unusual = !statistic.lore && !primary.has(statistic.slug);
-        kindsFor(statistic).forEach((kind, index) => {
-            const dc = kinds[kind];
-            const adjustments = getAdjustments(actor, domains, options, total, die, dc);
-            const { degree, adjustment } = degreeOfSuccess({ total, die, dc, adjustments });
+    for (const skill of readSkills({ actor, target, message, check })) {
+        const kinds = skill.esoteric
+            ? ["standard", "unspecific"]
+            : skill.lore
+              ? ["unspecific", "specific"]
+              : ["standard"];
+        kinds.forEach((kind, index) => {
+            const { slug, label, total, unusual, lore } = skill;
             // The first DC that fits is the one the card starts with: specific Lore, or a Lore DC for Esoteric Lore,
             // is the GM's call
-            const preferred = index === 0;
-            rows.push({
-                slug: statistic.slug,
-                label: statistic.label,
-                total,
-                die,
-                kind,
-                dc,
-                degree,
-                adjustment,
-                unusual,
-                preferred,
-            });
+            const preferred = skill.preferred && index === 0;
+            const row = { slug, label, total, die, kind, unusual, lore, preferred };
+            rows.push(grade(actor, row, skill, dcs[kind]));
         });
     }
     return rows;
 }
 
 /**
+ * The card's rows graded again for another attempt: its DCs are that attempt's. The totals are the card's; the roll
+ * options are read again for degree adjustments (none when the roll's message is gone).
+ */
+function regrade(record, { actor, target, attempt }) {
+    const message = game.messages.get(record.message);
+    const check = message ? getCheck(message) : null;
+    const readings = new Map();
+    if (check?.kind === "recall") {
+        for (const skill of readSkills({ actor, target, message, check })) readings.set(skill.slug, skill);
+    } else if (message) {
+        const context = message.flags.pf2e?.context ?? {};
+        for (const row of record.checks) readings.set(row.slug, context);
+    }
+    const dcs = dcsFor(target, attempt);
+    return record.checks.map((row) => grade(actor, row, readings.get(row.slug), dcs[row.kind]));
+}
+
+/**
  * The check the card starts with: the best result among each skill's usual DC (unspecific for a Lore, standard for
- * Esoteric Lore). The GM can pick another in the review.
+ * Esoteric Lore), of the skills that identify the creature. The GM can pick another in the review.
  */
 function defaultCheck(rows) {
     let best = -1;
@@ -411,7 +495,7 @@ function defaultCheck(rows) {
 
 function describeCheck(row, attempt) {
     const kind = row.kind === "standard" ? "" : `, ${DC_KINDS[row.kind]}`;
-    const unusual = row.unusual ? " (not a usual skill for this creature)" : "";
+    const unusual = row.unusual ? " (not a usual skill for this creature)" : row.lore ? " (if this Lore applies)" : "";
     const adjusted = row.adjustment ? ` (${row.adjustment})` : "";
     return (
         `${row.label}${unusual} ${row.total} vs DC ${row.dc} (${ordinal(attempt + 1)} attempt${kind}): ` +
@@ -463,25 +547,35 @@ async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
 
 /**
  * Send to the active GM, or handle it here when this is the active GM's session that acts (the cards are kept by the
- * session that made them). Resolves to whether it was handled.
+ * session that made them). Resolves to askGM's answer.
  */
 async function toGM({ action, ...data }, { quiet = false } = {}) {
     const here = await confirmActiveGM();
-    const answer = await askGM(action, data, { here, title: quiet ? null : TITLE, task: "answer" });
-    return answer.ok;
+    return askGM(action, data, { here, title: quiet ? null : TITLE, task: "answer" });
 }
 
-/** A check this user rolled: tell the GM, then ask what the player wants to know */
+/**
+ * A check this user rolled: tell the GM, then ask what the player wants to know. A reroll (pf2e's, which deletes the
+ * roll's message and posts the new one with `isReroll`) updates the card of the roll it replaces, and the question
+ * asked for that roll stands.
+ */
 async function onRolled(message, check) {
     const actor = getRoller(message);
     if (!actor?.isOfType?.("creature")) return;
     const targets = getTargets(message);
     if (targets.length === 0) return;
     if (!game.users.activeGM) return ui.notifications.warn(`${TITLE}: a GM must be logged in to answer.`);
+    const reroll = !!message.flags.pf2e?.context?.isReroll;
 
     // The GM's cards are started at once, and each question is sent once its card's start is answered
     const started = targets.map((tokenDoc) =>
-        toGM({ action: "recallKnowledgeStart", messageId: message.id, tokenUuid: tokenDoc.uuid, kind: check.kind }),
+        toGM({
+            action: "recallKnowledgeStart",
+            messageId: message.id,
+            tokenUuid: tokenDoc.uuid,
+            kind: check.kind,
+            reroll,
+        }),
     );
 
     for (const [i, tokenDoc] of targets.entries()) {
@@ -490,11 +584,13 @@ async function onRolled(message, check) {
             const roll = message.rolls[0];
             if (!hasFeat(actor, "diverse-lore") || roll.total < levelDC(tokenDoc.actor)) continue;
         }
+        // A reroll whose card was found keeps its question
+        if (reroll && (await started[i]).result?.rerolled) continue;
         const asked = await askQuestion(actor, tokenDoc, { exploit: check.kind === "exploit" });
         if (!asked) continue;
         // Sent even when the card's start went unanswered (a GM on an earlier version makes it without answering),
         // without warning twice
-        const quiet = !(await started[i]);
+        const quiet = !(await started[i]).ok;
         const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, ...asked };
         await toGM({ action: "recallKnowledgeQuestion", ...data }, { quiet });
     }
@@ -516,21 +612,78 @@ function findCard(messageId, tokenUuid) {
     });
 }
 
-async function createCard({ messageId, tokenUuid, kind }) {
+/** The card of the roll a reroll replaces: the latest by the same character about the creature whose roll is gone */
+function findReplaced({ actor, tokenUuid, kind }) {
+    return game.messages.contents.findLast((m) => {
+        const record = m.flags[MODULE_ID]?.recallKnowledge;
+        return (
+            record?.actor === actor.uuid &&
+            record.token === tokenUuid &&
+            record.kind === kind &&
+            !game.messages.get(record.message)
+        );
+    });
+}
+
+/** What the card reads from the roll: { die, checks, chosen, exploit }, or null when no skill reads it */
+function readRoll({ kind, message, check, actor, target, attempt }) {
+    const roll = message.rolls[0];
+    const die = dieOf(roll);
+    const data = { die, checks: null, chosen: null, exploit: null };
+    if (kind === "exploit") {
+        const context = message.flags.pf2e?.context ?? {};
+        const dc = levelDC(target);
+        const adjustments = getAdjustments(actor, context.domains ?? [], context.options ?? [], roll.total, die, dc);
+        const { degree, adjustment } = degreeOfSuccess({ total: roll.total, die, dc, adjustments });
+        data.exploit = { total: roll.total, dc, degree, adjustment };
+        // Diverse Lore: the same result against the Recall Knowledge DC
+        if (hasFeat(actor, "diverse-lore")) {
+            const row = {
+                slug: check?.slug ?? ESOTERIC_LORE,
+                label: actor.skills?.[ESOTERIC_LORE]?.label ?? "Esoteric Lore",
+                total: roll.total,
+                die,
+                kind: "standard",
+                unusual: false,
+                lore: false,
+                preferred: true,
+            };
+            data.checks = [grade(actor, row, context, dcsFor(target, attempt).standard)];
+            data.chosen = 0;
+        }
+        return data;
+    }
+    data.checks = getRecallChecks({ actor, target, message, check, attempt });
+    if (data.checks.length === 0) return null;
+    data.chosen = defaultCheck(data.checks);
+    return data;
+}
+
+/** Make the card for a roll about a creature, or for a reroll, update the card of the roll it replaces */
+async function createCard({ messageId, tokenUuid, kind, reroll = false }) {
     const message = game.messages.get(messageId);
     const tokenDoc = await fromUuid(tokenUuid);
     const target = tokenDoc?.actor;
     const actor = message ? getRoller(message) : null;
     if (!message || !target?.isOfType("npc") || !actor) return null;
     const existing = findCard(messageId, tokenUuid);
-    if (existing) return existing;
+    if (existing) return { card: existing, rerolled: false };
 
     const check = getCheck(message);
     const key = creatureKey(tokenDoc);
-    const record = getRecord(key);
-    const attempt = inScope(record.attempts, actor.uuid).filter((a) => a.kind === "recall").length;
-    const roll = message.rolls[0];
-    const die = dieOf(roll);
+    const replaced = reroll ? findReplaced({ actor, tokenUuid, kind }) : null;
+    // A reroll is the same attempt as the roll it replaces
+    const rolledAt = replaced?.flags[MODULE_ID].recallKnowledge.rolledAt ?? message.timestamp ?? Date.now();
+    const attempt = attemptNumber({ key, actor: actor.uuid, card: replaced?.id, rolledAt });
+    const read = readRoll({ kind, message, check, actor, target, attempt });
+    if (!read) return null;
+
+    if (replaced) {
+        await replaced.update({
+            [`flags.${MODULE_ID}.recallKnowledge`]: { ...read, message: messageId, attempt, rerolled: true },
+        });
+        return { card: replaced, rerolled: true };
+    }
 
     const data = {
         kind,
@@ -540,47 +693,15 @@ async function createCard({ messageId, tokenUuid, kind }) {
         actorName: actor.name,
         key,
         attempt,
-        die,
+        rolledAt,
+        ...read,
         question: null,
         other: "",
         status: "pending",
         sent: null,
     };
-
-    if (kind === "exploit") {
-        const context = message.flags.pf2e?.context ?? {};
-        const dc = levelDC(target);
-        const adjustments = getAdjustments(actor, context.domains ?? [], context.options ?? [], roll.total, die, dc);
-        const { degree, adjustment } = degreeOfSuccess({ total: roll.total, die, dc, adjustments });
-        data.exploit = { total: roll.total, dc, degree, adjustment };
-        // Diverse Lore: the same result against the Recall Knowledge DC
-        if (hasFeat(actor, "diverse-lore")) {
-            const recallDC = dcFor(target.identificationDCs.standard, attempt);
-            const result = degreeOfSuccess({ total: roll.total, die, dc: recallDC });
-            data.checks = [
-                {
-                    slug: check?.slug ?? ESOTERIC_LORE,
-                    label: actor.skills?.[ESOTERIC_LORE]?.label ?? "Esoteric Lore",
-                    total: roll.total,
-                    die,
-                    kind: "standard",
-                    dc: recallDC,
-                    degree: result.degree,
-                    adjustment: null,
-                    unusual: false,
-                    preferred: true,
-                },
-            ];
-            data.chosen = 0;
-        }
-    } else {
-        data.checks = await getRecallChecks({ actor, target, message, check, attempt });
-        if (data.checks.length === 0) return null;
-        data.chosen = defaultCheck(data.checks);
-    }
-
     const title = kind === "exploit" ? EXPLOIT_TITLE : TITLE;
-    return ChatMessage.create({
+    const card = await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor }),
         whisper: ChatMessage.getWhisperRecipients("GM"),
         content: [
@@ -589,8 +710,10 @@ async function createCard({ messageId, tokenUuid, kind }) {
         ].join(""),
         flags: { [MODULE_ID]: { recallKnowledge: data } },
     });
+    return card ? { card, rerolled: false } : null;
 }
 
+/** Start a card, once per roll and creature: resolves to { card, rerolled }, or null */
 async function onStart(data) {
     const key = cardKey(data.messageId, data.tokenUuid);
     if (cards.has(key)) return cards.get(key);
@@ -603,7 +726,7 @@ async function onStart(data) {
 }
 
 async function onQuestion({ messageId, tokenUuid, question, other }) {
-    const card = (await cards.get(cardKey(messageId, tokenUuid))) ?? findCard(messageId, tokenUuid);
+    const card = (await cards.get(cardKey(messageId, tokenUuid)))?.card ?? findCard(messageId, tokenUuid);
     if (!card || !QUESTIONS.some((q) => q.id === question)) return;
     await card.update({
         [`flags.${MODULE_ID}.recallKnowledge.question`]: question,
@@ -628,8 +751,8 @@ function options(list, selected) {
 }
 
 /** The review dialog's form, filled in by `wire` (in `review`) from the draft for the chosen result and question */
-function reviewContent(record, { target, recall }) {
-    const parts = [];
+function reviewContent(record, { target, recall, notes = [] }) {
+    const parts = notes.map((note) => `<p class="hint">${esc(note)}</p>`);
     if (record.kind === "exploit") {
         const { total, dc, degree } = record.exploit;
         parts.push(
@@ -680,21 +803,50 @@ function reviewContent(record, { target, recall }) {
  * forth keeps the same lies.
  */
 async function review(card) {
-    const record = card.flags[MODULE_ID]?.recallKnowledge;
+    let record = card.flags[MODULE_ID]?.recallKnowledge;
     const tokenDoc = record?.token ? await fromUuid(record.token) : null;
     const target = tokenDoc?.actor;
     const actor = record?.actor ? await fromUuid(record.actor) : null;
     if (!target || !actor) return ui.notifications.warn(`${TITLE}: the creature or character is gone.`);
 
+    const notes = [];
+    if (record.checks) {
+        // The attempt, and so the DCs, as the record now stands: checks about the creature rolled earlier may have been
+        // sent since the card was made
+        const rolledAt = record.rolledAt ?? card.timestamp;
+        const attempt = attemptNumber({ key: record.key, actor: record.actor, card: card.id, rolledAt });
+        if (attempt !== record.attempt) {
+            const checks = regrade(record, { actor, target, attempt });
+            await card.update({
+                [`flags.${MODULE_ID}.recallKnowledge.attempt`]: attempt,
+                [`flags.${MODULE_ID}.recallKnowledge.checks`]: checks,
+            });
+            record = card.flags[MODULE_ID].recallKnowledge;
+            notes.push(`It's now the ${ordinal(attempt + 1)} attempt: the record changed since the card was made.`);
+        }
+        const earlier = unsentEarlier(card, record);
+        if (earlier) {
+            notes.push(
+                `${earlier.actorName} rolled an earlier check about this creature that hasn't been sent: once it ` +
+                    "is, this one is a later attempt, with a higher DC.",
+            );
+        }
+    }
+
     const profile = buildProfile(target);
     // False names for critical failures come from pf2e's bestiaries, unless they're turned off
     const names = game.settings.get(MODULE_ID, FALSE_NAMES_SETTING) ? await getNameCandidates().catch(() => []) : [];
+    // A name the character already knows, true or not, which a critical failure doesn't contradict
+    const knownName =
+        inScope(getRecord(record.key).facts, record.actor)
+            .filter((f) => f.kind === "name" && f.card !== card.id)
+            .at(-1)?.text ?? null;
     const dubious = hasFeat(actor, "dubious-knowledge");
     const recall = record.kind === "recall" || !!record.checks;
     const drafts = new Map();
     const getDraft = (degree, question) => {
         const key = `${degree}|${question}`;
-        if (!drafts.has(key)) drafts.set(key, draft({ profile, degree, question, dubious, names }));
+        if (!drafts.has(key)) drafts.set(key, draft({ profile, degree, question, dubious, names, knownName }));
         return drafts.get(key);
     };
     let current = null;
@@ -753,6 +905,14 @@ async function review(card) {
             fillExploit();
         }
         if (field("check")) {
+            // Writing in a box includes it
+            for (const [box, text] of [
+                ["includeName", "name"],
+                ["include0", "answer0"],
+                ["include1", "answer1"],
+            ]) {
+                field(text).addEventListener("input", () => (field(box).checked = !!field(text).value.trim()));
+            }
             const setDegree = () => {
                 const row = record.checks[Number(field("check").value)];
                 let degree = row?.degree ?? 1;
@@ -768,7 +928,7 @@ async function review(card) {
         }
     };
 
-    const content = reviewContent(record, { target, recall });
+    const content = reviewContent(record, { target, recall, notes });
     const result = await foundry.applications.api.DialogV2.wait({
         window: { title: `${record.kind === "exploit" ? EXPLOIT_TITLE : TITLE}: ${tokenDoc.name}` },
         position: { width: 560 },
@@ -790,6 +950,10 @@ async function review(card) {
     await send(card, result, { tokenDoc, target, actor, profile });
 }
 
+/**
+ * What the GM sends, from the form: the answer boxes as they are (one the GM wrote where the draft had none is told as
+ * true), each with the draft's truth, and what it reveals in the Bestiary, trimmed to what an edited answer still says
+ */
 function readForm(form, { record, recall, profile, current }) {
     const value = (name) => form.elements[name]?.value ?? "";
     const checked = (name) => !!form.elements[name]?.checked;
@@ -798,19 +962,25 @@ function readForm(form, { record, recall, profile, current }) {
         const degree = Number(value("exploitDegree"));
         result.exploit = { degree, text: value("exploitText").trim(), offGuard: degree === 0 && checked("offGuard") };
     }
-    const drafted = current();
-    if (recall && drafted) {
-        const degree = Number(value("degree"));
-        const answers = drafted.answers
-            .map((a, i) => ({ ...a, text: value(`answer${i}`).trim(), include: checked(`include${i}`) }))
-            .filter((a) => a.include && a.text);
+    const degree = Number(value("degree"));
+    if (recall && degree >= 0) {
+        const drafted = current()?.answers ?? [];
+        const question = value("question");
+        const answers = [0, 1]
+            .map((i) => {
+                const text = value(`answer${i}`).trim();
+                if (!checked(`include${i}`) || !text) return null;
+                const told = drafted[i] ?? { question, false: false, reveal: {}, fake: {}, text: "" };
+                return text === told.text ? { ...told } : { ...told, text, ...trimReveal(profile, told, text) };
+            })
+            .filter(Boolean);
         // The name told is false unless it's the creature's, whatever the GM typed
         const name = checked("includeName") ? value("name").trim() : "";
         const isTrue = name.toLowerCase() === String(profile.name).toLowerCase();
         result.recall = {
             degree,
             check: Number(value("check")),
-            question: value("question"),
+            question,
             other: value("other").trim(),
             name: name ? { text: name, false: !isTrue } : null,
             lore: checked("includeLore"),
@@ -818,6 +988,25 @@ function readForm(form, { record, recall, profile, current }) {
         };
     }
     return result;
+}
+
+/** An earlier check by a character in the card's scope about the same creature, whose card hasn't been sent */
+function unsentEarlier(card, record) {
+    const rolledAt = record.rolledAt ?? card.timestamp;
+    return (
+        game.messages.contents
+            .filter((m) => m.id !== card.id)
+            .map((m) => m.flags[MODULE_ID]?.recallKnowledge)
+            .find(
+                (other) =>
+                    other?.key === record.key &&
+                    other.checks &&
+                    other.status !== "sent" &&
+                    (isShared() || other.actor === record.actor) &&
+                    (other.rolledAt ?? Infinity) < rolledAt &&
+                    !!game.messages.get(other.message),
+            ) ?? null
+    );
 }
 
 /* Sending it */
@@ -835,7 +1024,7 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
     if (record.status === "sent") {
         const again = await foundry.applications.api.DialogV2.confirm({
             window: { title: TITLE },
-            content: "<p>This was already sent. Send it again?</p>",
+            content: "<p>This was already sent. Send it again? What it told replaces what it told before.</p>",
             rejectClose: false,
         });
         if (!again) return;
@@ -848,7 +1037,11 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
 
     if (result.exploit) {
         lines.push(`<p><strong>${EXPLOIT_TITLE}</strong> ${esc(result.exploit.text)}</p>`);
-        facts.push({ actor: actor.uuid, kind: "exploit", text: result.exploit.text, false: false, at: now });
+        // Only a success tells something about the creature: a failure, which way to exploit it, a critical failure,
+        // that the thaumaturge is off-guard
+        if (result.exploit.degree >= 2) {
+            facts.push({ actor: actor.uuid, kind: "exploit", text: result.exploit.text, false: false, at: now });
+        }
     }
 
     const recall = result.recall;
@@ -861,6 +1054,7 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
             degree: DEGREES[recall.degree],
             skill: row?.slug ?? null,
             at: now,
+            rolledAt: record.rolledAt ?? card.timestamp,
         };
         const told = [];
         if (recall.name) {
@@ -877,7 +1071,7 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
             const asked = esc(questionLabel(recall.question, recall.other));
             const answers = recall.answers.map((a) => esc(a.text)).join("<br>");
             told.push(`<p><em>${asked}</em><br>${answers}</p>`);
-            // Each under its own subject: a lie from Dubious Knowledge is about something else
+            // Each under its own subject: Dubious Knowledge's wrong answer can be about something else
             for (const a of recall.answers) {
                 const question = a.question === "other" ? recall.other || "other" : a.question;
                 facts.push({ actor: actor.uuid, kind: "answer", question, text: a.text, false: !!a.false, at: now });
@@ -906,11 +1100,14 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
         content: lines.join(""),
         flags: { [MODULE_ID]: { recallKnowledgeResult: { card: card.id } } },
     });
-    await addToRecord(record.key, target.name, { attempt, facts });
+    await addToRecord(record.key, target.name, { card: card.id, attempt, facts });
+    let bestiaryAttempt = record.bestiaryAttempt ?? null;
     if (isShared()) {
-        await updateBestiary({ tokenDoc, actor, profile, result, attempt }).catch((error) => {
+        const slot = bestiaryAttempt;
+        bestiaryAttempt = await updateBestiary({ tokenDoc, actor, profile, result, attempt, slot }).catch((error) => {
             log(error);
             ui.notifications.warn(`${TITLE}: the Bestiary couldn't be updated. See the console for details.`);
+            return slot;
         });
     }
 
@@ -920,9 +1117,16 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
     ]
         .filter(Boolean)
         .join("; ");
+    // What it told, with what's false, stays here on the GM's card, not in the record every client can read
     await card.update({
         [`flags.${MODULE_ID}.recallKnowledge.status`]: "sent",
         [`flags.${MODULE_ID}.recallKnowledge.sent`]: summary || "Nothing learned",
+        [`flags.${MODULE_ID}.recallKnowledge.rerolled`]: false,
+        [`flags.${MODULE_ID}.recallKnowledge.told`]: facts.map(({ kind, false: isFalse }) => ({
+            kind,
+            false: isFalse,
+        })),
+        [`flags.${MODULE_ID}.recallKnowledge.bestiaryAttempt`]: bestiaryAttempt,
     });
 }
 
@@ -1032,13 +1236,17 @@ function revealUpdate(page, reveal = {}, fake = {}, { values = false } = {}) {
     return update;
 }
 
-async function updateBestiary({ tokenDoc, actor, profile, result, attempt }) {
-    if (!game.settings.get(MODULE_ID, BESTIARY_SETTING)) return;
+/**
+ * Reveal what was told in the Bestiary, and record the attempt in its tracker: in `slot` when the card was sent before
+ * (so sending again replaces it), else the next one. Resolves to the slot used.
+ */
+async function updateBestiary({ tokenDoc, actor, profile, result, attempt, slot = null }) {
+    if (!game.settings.get(MODULE_ID, BESTIARY_SETTING)) return slot;
     const bestiary = getBestiary();
-    if (!bestiary) return;
+    if (!bestiary) return slot;
     const baseActor = tokenDoc.baseActor ?? tokenDoc.actor;
     const page = findPage(bestiary, baseActor) ?? (await addToBestiary(bestiary, tokenDoc));
-    if (!page) return;
+    if (!page) return slot;
 
     const update = {};
     if (result.exploit) {
@@ -1058,16 +1266,18 @@ async function updateBestiary({ tokenDoc, actor, profile, result, attempt }) {
         for (const told of recall.answers) Object.assign(update, revealUpdate(page, told.reveal, told.fake));
     }
     // The attempt in the Bestiary's Recall Knowledge tracker, for characters
-    if (attempt && actor.isOfType("character")) {
+    let used = slot;
+    if (actor.isOfType("character") && (attempt || slot !== null)) {
         const attempts = page.system.recallKnowledge?.[actor.id]?.attempts ?? {};
-        const used = Object.keys(attempts).filter((k) => attempts[k] !== "none");
-        const next = used.length > 0 ? Math.max(...used.map(Number)) + 1 : 0;
-        update[`system.recallKnowledge.${actor.id}.attempts.${next}`] = attempt.degree;
+        const taken = Object.keys(attempts).filter((k) => attempts[k] !== "none");
+        used = slot ?? (taken.length > 0 ? Math.max(...taken.map(Number)) + 1 : 0);
+        update[`system.recallKnowledge.${actor.id}.attempts.${used}`] = attempt?.degree ?? "none";
     }
-    if (Object.keys(update).length === 0) return;
+    if (Object.keys(update).length === 0) return used;
     await page.update(update);
     game.socket.emit(`module.${BESTIARY_ID}`, { action: "UpdateBestiary", data: {} });
     Hooks.callAll("UpdateBestiary", {});
+    return used;
 }
 
 /* The card's controls */
@@ -1103,13 +1313,19 @@ function renderCard(message, html) {
         line(record.question ? `Question: ${questionLabel(record.question, record.other)}` : "No question asked yet.");
     }
 
-    const known = inScope(getRecord(record.key).facts, record.actor);
+    const known = inScope(getRecord(record.key).facts, record.actor).filter((f) => f.card !== message.id);
     if (known.length > 0) {
-        const told = known.map((f) => `${f.false ? "(false) " : ""}${f.text}`).join(" | ");
+        const told = known.map((f) => `${truthMarker(f)}${f.text}`).join(" | ");
         line(`Known already: ${told}`);
     }
 
-    if (record.status === "sent") line(`Sent: ${record.sent}`);
+    if (record.status === "sent" && record.rerolled) {
+        line(`Rerolled. Sent before the reroll: ${record.sent}. Sending again replaces it.`);
+    } else if (record.status === "sent") {
+        line(`Sent: ${record.sent}`);
+    } else if (record.rerolled) {
+        line("Rerolled: this is the new roll.");
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.innerHTML = `<i class="fa-solid fa-book-open"></i> ${record.status === "sent" ? "Send Again" : "Review and Send"}`;
@@ -1134,7 +1350,9 @@ async function showKnown(tokenDoc = game.user.targets.first()?.document) {
     let facts = record.facts;
     if (!isShared() && !game.user.isGM) facts = facts.filter((f) => f.actor === character?.uuid);
     const describe = (f) => {
-        const marker = game.user.isGM && f.false ? " <em>(false)</em>" : "";
+        const truth = game.user.isGM ? truthOf(f) : true;
+        const marker =
+            truth === false ? " <em>(false)</em>" : truth === null ? " <em>(true or false: its card is gone)</em>" : "";
         const subject = {
             name: "Name: ",
             lore: "",
@@ -1183,7 +1401,8 @@ Hooks.once("init", () => {
         name: "False names on critical failures",
         hint:
             "A critical failure names another creature of the same type and about the same level, from pf2e's " +
-            "bestiaries. When off, a critical failure gives only the lie in answer to the question.",
+            "bestiaries. When off, or when there's no such creature, a critical failure gives the creature's true " +
+            "name, and only the answer is a lie. Either way, a name the character already knows is kept.",
         scope: "world",
         config: false,
         type: Boolean,
@@ -1211,22 +1430,19 @@ Hooks.once("init", () => {
         ...module.api,
         recallKnowledge: {
             /** Show what's known about the targeted creature */
-            known: (tokenDoc) =>
-                isEnabled("recallKnowledge")
-                    ? showKnown(tokenDoc)
-                    : ui.notifications.warn(`${TITLE} is turned off in the module's settings.`),
+            known: guardApi("recallKnowledge", (tokenDoc) => showKnown(tokenDoc)),
             /** Forget everything learned about the targeted creature (GM only) */
-            forget: async (tokenDoc = game.user.targets.first()?.document) => {
+            forget: guardApi("recallKnowledge", async (tokenDoc = game.user.targets.first()?.document) => {
                 if (!game.user.isGM || !tokenDoc) return;
                 const records = foundry.utils.deepClone(game.settings.get(MODULE_ID, RECORDS_SETTING) ?? {});
                 delete records[creatureKey(tokenDoc)];
                 await game.settings.set(MODULE_ID, RECORDS_SETTING, records);
-            },
+            }),
         },
     };
 });
 
-onGMRequest("recallKnowledgeStart", async (data) => void (await onStart(data)));
+onGMRequest("recallKnowledgeStart", async (data) => ({ rerolled: !!(await onStart(data))?.rerolled }));
 onGMRequest("recallKnowledgeQuestion", (data) => onQuestion(data));
 
 export { getCheck };
