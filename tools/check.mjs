@@ -212,6 +212,21 @@ for (const [file, text] of codes) {
     }
 }
 
+// 4b. The GM's work goes through scripts/lib/gm.js, which waits for a GM session to say it's done: a bare emit on the
+// module socket carries on as if it was done (other modules' sockets are fine)
+const MODULE_SOCKET =
+    /game\.socket\.(?:on|emit)\(\s*(?:SOCKET\b|`module\.\$\{MODULE_ID\}`|["'`]module\.evan-character-homebrew["'`])/g;
+const socketFiles = ["session.js", "gm.js"].map((name) => path.join("scripts", "lib", name));
+for (const [file, text] of codes) {
+    if (!relative(file).startsWith(`scripts${path.sep}`) || socketFiles.includes(relative(file))) continue;
+    for (const match of text.matchAll(MODULE_SOCKET)) {
+        problems.push(
+            `${relative(file)}:${lineOf(text, match.index)} uses the module socket directly: ask the active GM with ` +
+                `askGM() and handle it with onGMRequest()`,
+        );
+    }
+}
+
 // 5. Compendium links are by ID: a name only resolves in pf2e's own build. Literal links only: templated ones
 // (`${PACK}.${ID}`) are checked by 6.
 const LINK = /Compendium\.([\w-]+)\.([\w-]+)\.([A-Z]\w*)\.([^\s"'`\]}),.]*)/g;

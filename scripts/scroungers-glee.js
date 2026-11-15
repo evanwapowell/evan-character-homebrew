@@ -10,12 +10,11 @@
  * at a Strike against a creature with the effect, the caster's user is asked whether to Dismiss the spell to heal them.
  */
 
-import { canAnimate, confirmActiveGM, confirmPrimarySession, featureHooks, isEnabled } from "./settings.js";
+import { askGM, canAnimate, confirmPrimarySession, featureHooks, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("scroungersGlee");
-const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Effect: Scrounger's Glee */
 const EFFECT_ID = "AxUfnmwrn1XTPTNU";
@@ -117,11 +116,8 @@ async function promptDismiss({ caster, effect, attacker, attackerToken, target }
     const data = { effectUuid: effect.uuid, allyTokenUuid: allyToken?.uuid ?? null, healing: roll.total };
     const canDoItAll = effect.canUserModify(game.user, "delete") && (!allyToken || attacker.isOwner);
     if (canDoItAll) return dismissSpell(data);
-    if (!game.users.activeGM) {
-        return ui.notifications.warn(`${TITLE}: a GM must be logged in to end the spell and apply the healing.`);
-    }
     // Players can't edit creatures they don't own, so the active GM ends the spell and heals the ally
-    game.socket.emit(SOCKET, { action: "scroungersGlee", ...data });
+    await askGM("scroungersGlee", data, { title: TITLE, task: "end the spell and apply the healing" });
 }
 
 /** End the spell's effect and heal the ally */
@@ -156,9 +152,4 @@ Hooks.once("init", () => {
     ];
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "scroungersGlee" || !(await confirmActiveGM())) return;
-        await dismissSpell(data).catch(log);
-    });
-});
+onGMRequest("scroungersGlee", (data) => dismissSpell(data));

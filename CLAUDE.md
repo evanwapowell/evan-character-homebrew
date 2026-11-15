@@ -13,14 +13,22 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `settings.js`: the Features settings menu (Configure Settings → this module → Configure Features), with an
       on/off switch for each feature and the features' own settings, and the helpers the other scripts import:
       `featureHooks`, `isEnabled`, `guardApi`, `canAnimate`, for the Finch version, `canAnimateFinch` and
-      `isFinchVersion`, and from `lib/session.js`, `confirmActiveGM`, `confirmPrimarySession`, `createdHere` and
-      `hasModuleData` (and `isActiveGM` and `isPrimarySession`, for tests).
+      `isFinchVersion`, from `lib/session.js`, `confirmActiveGM`, `confirmPrimarySession`, `createdHere` and
+      `hasModuleData` (and `isActiveGM` and `isPrimarySession`, for tests), and from `lib/gm.js`, `askGM`,
+      `onGMRequest` and `warnGM`.
     - `lib/session.js`: a user (the GM especially) can be connected more than once, in two windows or on two devices,
       and each session runs the hooks. A user's sessions announce themselves over the module socket (whether they're
       shown, and the scene they view), and one of them is chosen to act for the user: for work on a scene, one viewing
       it, then a shown one, then the oldest. Work reaches every session; each waits until it has heard from the
       others, and one that isn't chosen asks the chosen one whether it's there and takes over when it doesn't answer
       within 2 seconds. Messages and items are marked with the session that created them.
+    - `lib/gm.js`: work a player's client hands to the active GM. `askGM(action, data, { title, task })` sends the
+      request with an ID on the module socket and waits: the GM session that acts (`confirmActiveGM`) answers that it
+      took the request (within 10 seconds), then that it's done (within 60), with what the handler registered by
+      `onGMRequest(action, handler)` returned, or its error. It resolves to `{ ok: true, result }` or
+      `{ ok: false, reason }` ("absent": no GM logged in; "unanswered"; "failed"), warning the user when `title` is
+      given (`warnGM` for a warning of one's own). A GM's own requests run in their session. Requests keep each
+      action's payload, so a GM session on an earlier version still does the work during an update.
     - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
       re-centering on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
@@ -182,7 +190,9 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
 - Code against pf2e's real APIs, checked in its source for every supported version: `foundryvtt/pf2e` branches `v13-dev`
   (pf2e 7.x) and `v14-dev` (pf2e 8.x). Don't rely on memory for pf2e internals.
 - Players can't edit creatures they don't own. When a change has to reach another creature, the user's client asks the
-  active GM over the module socket (`module.evan-character-homebrew`), as the existing socket actions do.
+  active GM with `askGM`, and the script registers the GM's side with `onGMRequest` at its top level; don't use the
+  module socket directly. Record the work as done (on a card, in a flag) only when the answer is `ok`, and return from
+  the handler what the asker needs to know (Counteract's handler returns what it removed).
 - A user can have more than one session, so check `await confirmActiveGM()` for the active GM's work, never
   `game.user === game.users.activeGM`, and `createdHere(document, options, userId)` in `createChatMessage` and
   `createItem` hooks, never `userId === game.user.id`. Work given to a user (a prompt for whoever answers for a
@@ -235,7 +245,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   conventions above that reading the files can confirm: relative imports resolve to files that export each name, every
   top-level script is in `esmodules`, no test of the bare `flags[MODULE_ID]` on a message, no comparing `game.user`
   with `game.users.activeGM` or `userId` with `game.user.id` outside `lib/session.js`, no `isActiveGM()` or
-  `isPrimarySession()` in `scripts/` (`confirmActiveGM()` and `confirmPrimarySession()` instead), compendium links (in
+  `isPrimarySession()` in `scripts/` (`confirmActiveGM()` and `confirmPrimarySession()` instead), no direct use of the
+  module socket in `scripts/` outside `lib/session.js` and `lib/gm.js` (`askGM` and `onGMRequest`), compendium links (in
   `src/packs/` and string literals in `scripts/`) end in a 16-character ID, and the module's own items the scripts use
   exist in `src/packs/`.
 - Prettier's check.
@@ -262,10 +273,13 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   `world.connect(userId, { scripts })` opens a session with its own copy of the scripts and globals, so one user can
   be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]` has the script's exports,
   `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep each session's own.
-  `session.setShown`, `session.viewScene(scene)`, `session.disconnect({ silently })` and `session.latency` (socket
-  messages to and from it are delivered that many milliseconds later, on the timers) set up the session cases.
-  `tests/guards.test.js` checks that pf2e's messages reach the features and the module's own don't, and
-  `tests/session.test.js` checks the session helpers. Fix a hook-driven bug with a test here; export what a test
+  `session.setShown`, `session.viewScene(scene)`, `session.disconnect({ silently })`, `session.latency` (socket
+  messages to and from it are delivered that many milliseconds later, on the timers) and `session.unreachable`
+  (socket messages to and from it are lost while its user stays active: a frozen window) set up the session cases.
+  Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as the running session sees it,
+  and have `deleteEmbeddedDocuments`. `tests/guards.test.js` checks that pf2e's messages reach the features and the
+  module's own don't, `tests/session.test.js` checks the session helpers, and `tests/gm-requests.test.js` the
+  requests to the GM. Fix a hook-driven bug with a test here; export what a test
   needs from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned

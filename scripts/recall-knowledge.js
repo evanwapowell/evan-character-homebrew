@@ -30,10 +30,9 @@ import {
     exploitResult,
     ordinal,
 } from "./lib/recall-knowledge-facts.js";
-import { confirmActiveGM, createdHere, hasModuleData, isEnabled } from "./settings.js";
+import { askGM, confirmActiveGM, createdHere, hasModuleData, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
-const SOCKET = `module.${MODULE_ID}`;
 const TITLE = "Recall Knowledge";
 const EXPLOIT_TITLE = "Exploit Vulnerability";
 /** ID of pf2e's Exploit Vulnerability action, the same in every pf2e version */
@@ -462,14 +461,14 @@ async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
     return result && typeof result === "object" ? result : null;
 }
 
-/** Send to the active GM, or handle it here when this is the active GM's session that acts */
-async function toGM(data) {
-    if (await confirmActiveGM()) return Promise.resolve(onGMEvent(data)).catch(log);
-    if (!game.users.activeGM) {
-        ui.notifications.warn(`${TITLE}: a GM must be logged in to answer.`);
-        return null;
-    }
-    game.socket.emit(SOCKET, data);
+/**
+ * Send to the active GM, or handle it here when this is the active GM's session that acts (the cards are kept by the
+ * session that made them). Resolves to whether it was handled.
+ */
+async function toGM({ action, ...data }, { quiet = false } = {}) {
+    const here = await confirmActiveGM();
+    const answer = await askGM(action, data, { here, title: quiet ? null : TITLE, task: "answer" });
+    return answer.ok;
 }
 
 /** A check this user rolled: tell the GM, then ask what the player wants to know */
@@ -480,12 +479,12 @@ async function onRolled(message, check) {
     if (targets.length === 0) return;
     if (!game.users.activeGM) return ui.notifications.warn(`${TITLE}: a GM must be logged in to answer.`);
 
-    for (const tokenDoc of targets) {
-        const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, kind: check.kind };
-        await toGM({ action: "recallKnowledgeStart", ...data });
-    }
+    // The GM's cards are started at once, and each question is sent once its card's start is answered
+    const started = targets.map((tokenDoc) =>
+        toGM({ action: "recallKnowledgeStart", messageId: message.id, tokenUuid: tokenDoc.uuid, kind: check.kind }),
+    );
 
-    for (const tokenDoc of targets) {
+    for (const [i, tokenDoc] of targets.entries()) {
         if (check.kind === "exploit") {
             // Diverse Lore: a check good enough for Exploit Vulnerability may be enough to Recall Knowledge too
             const roll = message.rolls[0];
@@ -493,8 +492,11 @@ async function onRolled(message, check) {
         }
         const asked = await askQuestion(actor, tokenDoc, { exploit: check.kind === "exploit" });
         if (!asked) continue;
+        // Sent even when the card's start went unanswered (a GM on an earlier version makes it without answering),
+        // without warning twice
+        const quiet = !(await started[i]);
         const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, ...asked };
-        await toGM({ action: "recallKnowledgeQuestion", ...data });
+        await toGM({ action: "recallKnowledgeQuestion", ...data }, { quiet });
     }
 }
 
@@ -607,11 +609,6 @@ async function onQuestion({ messageId, tokenUuid, question, other }) {
         [`flags.${MODULE_ID}.recallKnowledge.question`]: question,
         [`flags.${MODULE_ID}.recallKnowledge.other`]: String(other ?? "").slice(0, 500),
     });
-}
-
-function onGMEvent(data) {
-    if (data?.action === "recallKnowledgeStart") return onStart(data);
-    if (data?.action === "recallKnowledgeQuestion") return onQuestion(data);
 }
 
 /* The GM's review */
@@ -1229,11 +1226,7 @@ Hooks.once("init", () => {
     };
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (!String(data?.action ?? "").startsWith("recallKnowledge") || !(await confirmActiveGM())) return;
-        await Promise.resolve(onGMEvent(data)).catch(log);
-    });
-});
+onGMRequest("recallKnowledgeStart", async (data) => void (await onStart(data)));
+onGMRequest("recallKnowledgeQuestion", (data) => onQuestion(data));
 
 export { getCheck };

@@ -11,14 +11,13 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
-import { confirmActiveGM, createdHere, featureHooks, guardApi, hasModuleData } from "./settings.js";
+import { askGM, confirmActiveGM, createdHere, featureHooks, guardApi, hasModuleData, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("sustain");
 /** ID of the pf2e Sustain action item, the same in every pf2e version */
 const SUSTAIN_ID = "3f5DMFu8fPiqHpRg";
-const SOCKET = `module.${MODULE_ID}`;
 
 function sustainTitle() {
     return game.i18n.localize("PF2E.Actions.Sustain.Title");
@@ -67,9 +66,10 @@ function getEffectsToSustain(caster, { spell, effect }) {
 async function sustainEffects(caster, data) {
     const uuids = getEffectsToSustain(caster, data).map((e) => e.uuid);
     if (uuids.length === 0 || !game.combat?.started) return;
-    if (game.user.isGM) return recordSustained(uuids);
-    // Players can't edit effects on creatures they don't own, so the active GM records them
-    game.socket.emit(SOCKET, { action: "recordSustained", effectUuids: uuids });
+    // Players can't edit effects on creatures they don't own, so the active GM records them. Not waited for: the
+    // Sustain's other reactions (a hex's familiar) needn't wait on the GM
+    const request = askGM("recordSustained", { effectUuids: uuids }, { title: "Sustain", task: "record the Sustain" });
+    if (game.user.isGM) await request;
 }
 
 /**
@@ -472,12 +472,7 @@ hooks.on("updateCombat", async (combat, changed) => {
     if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat, current).catch(log);
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "recordSustained" || !(await confirmActiveGM())) return;
-        await recordSustained(data.effectUuids);
-    });
-});
+onGMRequest("recordSustained", (data) => recordSustained(data.effectUuids ?? []));
 
 Hooks.once("init", () => {
     game.settings.register(MODULE_ID, "sustainedDurations", {

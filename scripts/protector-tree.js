@@ -17,13 +17,12 @@
  * spell says when it's in soil; deleting its token removes it.
  */
 
-import { confirmActiveGM, createdHere, featureHooks, guardApi, isEnabled } from "./settings.js";
+import { askGM, confirmActiveGM, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const FEATURE = "protectorTree";
 const hooks = featureHooks(FEATURE);
-const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Effect: Protector Tree, on the caster while the tree stands */
 const EFFECT_UUID = `${PACK}.yHoBoom9axaemxWS`;
@@ -315,9 +314,8 @@ async function placeTree({ kind, actor, token = null, item = null, rank, message
         y: square.y,
         messageId,
     };
-    if (game.user.isGM) return createTree(data);
     // Players can't make actors or tokens, so the active GM does
-    game.socket.emit(SOCKET, { action: "protectorTreeCreate", ...data });
+    await askGM("protectorTreeCreate", data, { title: TITLE, task: "grow the tree" });
 }
 
 async function getFolder() {
@@ -541,12 +539,24 @@ async function getRemainder(roll, absorbed) {
     return remainder;
 }
 
-/** Damage the tree: this user's own if they own it, or the active GM's */
+/**
+ * Damage the tree: this user's own if they own it, or the active GM's. The ally's damage doesn't wait for the GM (it's
+ * applied inside pf2e's `applyDamage`): when no GM session damages the tree, the user is told to do it by hand.
+ */
 async function damageTree(treeToken, amount) {
     const tree = treeToken.actor;
     if (tree.isOwner) return tree.applyDamage({ damage: amount, token: treeToken });
-    if (!game.users.activeGM) return warn(`a GM must be logged in to apply ${amount} damage to the tree.`);
-    game.socket.emit(SOCKET, { action: "protectorTreeDamage", tokenUuid: treeToken.uuid, amount });
+    askGM("protectorTreeDamage", { tokenUuid: treeToken.uuid, amount })
+        .then((answer) => {
+            if (answer.ok) return;
+            const why = {
+                absent: "no GM is logged in",
+                unanswered: "no GM session answered",
+                failed: `the GM's session couldn't (${answer.error})`,
+            }[answer.reason];
+            warn(`the tree didn't take its ${amount} damage (${why}): apply it to the tree by hand.`);
+        })
+        .catch(log);
 }
 
 /** The tree interposes its branches: it takes the damage, and the ally whatever's left */
@@ -719,20 +729,12 @@ Hooks.once("setup", () => {
     }
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (!["protectorTreeCreate", "protectorTreeDamage"].includes(data?.action) || !(await confirmActiveGM())) {
-            return;
-        }
-        if (data?.action === "protectorTreeCreate") await createTree(data).catch(log);
-        if (data?.action === "protectorTreeDamage") {
-            const token = await fromUuid(data.tokenUuid);
-            const amount = Math.trunc(Number(data.amount));
-            if (token?.actor && treeData(token.actor) && amount > 0) {
-                await token.actor.applyDamage({ damage: amount, token }).catch(log);
-            }
-        }
-    });
+onGMRequest("protectorTreeCreate", (data) => createTree(data));
+onGMRequest("protectorTreeDamage", async (data) => {
+    const token = await fromUuid(data.tokenUuid);
+    const amount = Math.trunc(Number(data.amount));
+    if (!token?.actor || !treeData(token.actor)) throw new Error("the tree is gone");
+    if (amount > 0) await token.actor.applyDamage({ damage: amount, token });
 });
 
 export { distanceBetween, getRemainder, isAdjacent, isStrikeHit, spaceOf };

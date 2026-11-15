@@ -19,10 +19,9 @@
  * play each step.
  */
 
-import { canAnimate, confirmActiveGM, createdHere, guardApi, hasModuleData, isEnabled } from "./settings.js";
+import { askGM, canAnimate, createdHere, guardApi, hasModuleData, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
-const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Effect: Stitching Strike (immobilized for 1 round, or until an Escape) */
 const IMMOBILIZED_EFFECT_UUID = `${PACK}.4vnb6uF59O5c4qNh`;
@@ -574,9 +573,8 @@ async function chooseAlly(card) {
         allyToken = allies[index].token;
     }
     const data = { cardId: card.id, allyTokenUuid: allyToken?.uuid ?? null };
-    if (game.user.isGM) return resolveHeal(data);
     // Players can't edit creatures they don't own, so the active GM restores the Hit Points
-    game.socket.emit(SOCKET, { action: "shedSpiritHeal", ...data });
+    await askGM("shedSpiritHeal", data, { title: "Shed Spirit", task: "restore the Hit Points" });
 }
 
 /** Restore the ally's Hit Points, or send the spirit back if there's no ally. Run by a GM. */
@@ -672,9 +670,9 @@ Hooks.on("createChatMessage", (message, options, userId) => {
         );
     }
     const data = { cardId, outcome: context.outcome };
-    if (game.user.isGM) return void resolveSave(data).catch(log);
     // Players can't edit the familiar's card, or creatures they don't own, so the active GM applies the result
-    game.socket.emit(SOCKET, { action: "familiarStrikeSave", ...data });
+    const title = KINDS[record.kind]?.title ?? "Familiar";
+    askGM("familiarStrikeSave", data, { title, task: "apply the result" }).catch(log);
 });
 
 /** The card's controls: the save button, then the result, then (Shed Spirit) the healing button */
@@ -756,12 +754,7 @@ Hooks.once("init", () => {
     };
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (!["familiarStrikeSave", "shedSpiritHeal"].includes(data?.action) || !(await confirmActiveGM())) return;
-        if (data?.action === "familiarStrikeSave") await resolveSave(data).catch(log);
-        else if (data?.action === "shedSpiritHeal") await resolveHeal(data).catch(log);
-    });
-});
+onGMRequest("familiarStrikeSave", (data) => resolveSave(data));
+onGMRequest("shedSpiritHeal", (data) => resolveHeal(data));
 
 export { degreeOf, getCardKind, getDice, getKind };

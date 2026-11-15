@@ -7,12 +7,11 @@
  * sickened 1. A Fortitude save rolled from the box pf2e adds to the hex's card is handled too.
  */
 
-import { canAnimate, confirmActiveGM, createdHere, featureHooks, guardApi, isEnabled } from "./settings.js";
+import { askGM, canAnimate, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("parasiticMight");
-const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the pf2e compendium items, the same in every pf2e version */
 const ABILITY_ID = "J5Wyh1EPmk848ivR";
 const DEVOURER_OF_DECAY_ID = "T9wA833bzZVlB3Lo";
@@ -318,9 +317,8 @@ hooks.on("createChatMessage", (message, options, userId) => {
     const identifier = typeof context.identifier === "string" ? context.identifier : "";
     if (identifier.startsWith(SAVE_IDENTIFIER)) {
         const data = { cardId: identifier.slice(SAVE_IDENTIFIER.length), outcome: context.outcome };
-        if (game.user.isGM) return void resolveSave(data).catch(log);
         // Players can't edit the witch's card, or creatures they don't own, so the active GM applies the result
-        return void game.socket.emit(SOCKET, { action: "parasiticMight", ...data });
+        return void askGM("parasiticMight", data, { title: TITLE, task: "apply the result" }).catch(log);
     }
     if (FAILED.has(context.outcome) && isInlineSave(message, context)) onInlineSave(message).catch(log);
 });
@@ -384,9 +382,4 @@ Hooks.once("init", () => {
     };
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "parasiticMight" || !(await confirmActiveGM())) return;
-        await resolveSave(data).catch(log);
-    });
-});
+onGMRequest("parasiticMight", (data) => resolveSave(data));

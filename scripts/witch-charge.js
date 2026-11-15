@@ -5,12 +5,11 @@
  * Intelligence modifier, which then become their charges.
  */
 
-import { canAnimate, confirmActiveGM, createdHere, featureHooks, guardApi } from "./settings.js";
+import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("witchCharge");
-const SOCKET = `module.${MODULE_ID}`;
 /** IDs of the action in this module's compendium, pf2e's feats, and pf2e's Effect: Witch's Charge */
 const ACTION_ID = "f0BUHuiZLiODSsg3";
 const COMMUNION_ID = "4IeAAmx2vZEHmRLX";
@@ -208,9 +207,9 @@ function requestCharge(witch, requestId = foundry.utils.randomID()) {
     }
     // Played here, where the tokens are on screen; Sequencer shows it to everyone
     playChargeAnimation(witch, targetTokens);
-    if (game.user.isGM) return designateCharges(witch.uuid, targetTokenUuids, requestId);
     // Players can't edit other creatures, so the active GM applies and removes the effects
-    game.socket.emit(SOCKET, { action: "designateCharge", witchUuid: witch.uuid, targetTokenUuids, requestId });
+    const data = { witchUuid: witch.uuid, targetTokenUuids, requestId };
+    return askGM("designateCharge", data, { title: "Witch's Charge", task: "designate the charge" });
 }
 
 hooks.on("createChatMessage", (message, options, userId) => {
@@ -232,9 +231,4 @@ Hooks.once("init", () => {
     };
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "designateCharge" || !(await confirmActiveGM())) return;
-        await designateCharges(data.witchUuid, data.targetTokenUuids, data.requestId);
-    });
-});
+onGMRequest("designateCharge", (data) => designateCharges(data.witchUuid, data.targetTokenUuids, data.requestId));

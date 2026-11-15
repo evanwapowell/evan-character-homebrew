@@ -18,9 +18,14 @@ export const pf2eItemUuid = (pack, id) => `Compendium.pf2e.${pack}.Item.${id}`;
 
 /**
  * An actor (src/module/actor/base.ts): `itemTypes` by type, `isOfType`, and no tokens on a scene. Added to the world so
- * messages and fromUuid find it.
+ * messages and fromUuid find it. `isOwner` is true for a GM and the users in `owners` (as the session running sees it),
+ * unless a test sets it.
  */
-export function makeActor(world, { id = makeId("actor"), name = "Creature", type = "character", items = [] } = {}) {
+export function makeActor(
+    world,
+    { id = makeId("actor"), name = "Creature", type = "character", items = [], owners = [] } = {},
+) {
+    let isOwner = null;
     const actor = {
         documentName: "Actor",
         id,
@@ -43,6 +48,23 @@ export function makeActor(world, { id = makeId("actor"), name = "Creature", type
         getActiveTokens: () =>
             [...world.documents.values()].filter((d) => d.documentName === "Token" && d.actor === actor),
         getSelfRollOptions: (prefix = "self") => [`${prefix}:type:${type}`],
+        get isOwner() {
+            return isOwner ?? (!!game.user?.isGM || owners.includes(game.user?.id));
+        },
+        set isOwner(value) {
+            isOwner = value;
+        },
+        /** Foundry's: delete the items, then deleteItem in every session */
+        async deleteEmbeddedDocuments(_type, ids) {
+            const deleted = ids.map((itemId) => this.items.get(itemId)).filter((item) => item);
+            for (const item of deleted) {
+                this.items.delete(item.id);
+                world.documents.delete(item.uuid);
+            }
+            const userId = game.user.id;
+            for (const item of deleted) world.callAll("deleteItem", () => [item, {}, userId]);
+            return deleted;
+        },
     };
     world.add(actor);
     for (const item of items) addItem(world, actor, item);

@@ -408,6 +408,11 @@ class Session {
     connected = false;
     /** How long socket messages to and from this session take, in milliseconds: a slow connection */
     latency = 0;
+    /**
+     * Socket messages to and from this session are lost, while Foundry still counts its user as active: a frozen
+     * window, or a connection that dropped and hasn't timed out yet
+     */
+    unreachable = false;
 
     constructor(world, user) {
         this.world = world;
@@ -644,11 +649,12 @@ class World {
      */
     emit(from, event, data) {
         const payload = structuredClone(data);
+        if (from.unreachable) return;
         for (const session of this.connected()) {
-            if (session === from) continue;
+            if (session === from || session.unreachable) continue;
             const latency = Math.max(from.latency, session.latency);
             for (const handler of session.socketHandlers.get(event) ?? []) {
-                const deliver = () => session.connected && session.run(() => handler(payload));
+                const deliver = () => session.connected && !session.unreachable && session.run(() => handler(payload));
                 if (latency > 0) {
                     setTimeout(deliver, latency);
                     continue;

@@ -9,10 +9,9 @@
  */
 
 import { defaultEffects, parseLinks } from "./lib/spell-effect-links.js";
-import { confirmActiveGM, featureHooks } from "./settings.js";
+import { askGM, featureHooks, onGMRequest, warnGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
-const SOCKET = `module.${MODULE_ID}`;
 const TOOLBELT_ID = "pf2e-toolbelt";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("spellTargetEffects");
@@ -210,21 +209,24 @@ async function applyChoices(message, spell, choices) {
     }
     if (byActor.size === 0) return;
 
-    const needGm = [...byActor.keys()].some((actor) => !actor.isOwner);
-    if (needGm && !game.users.activeGM) {
-        ui.notifications.warn("A GM must be logged in to apply effects to creatures you don't own.");
-    }
     const applied = [];
+    const asked = [];
     for (const [actor, { sources, deleteIds, names }] of byActor) {
         if (actor.isOwner) {
             await applyToActor(actor, sources, deleteIds);
-        } else if (game.users.activeGM) {
-            // Players can't edit creatures they don't own, so the active GM applies them
-            game.socket.emit(SOCKET, { action: "applySpellTargetEffects", actorUuid: actor.uuid, sources, deleteIds });
-        } else {
+            applied.push({ actor, names });
             continue;
         }
-        applied.push({ actor, names });
+        // Players can't edit creatures they don't own, so the active GM applies them: all asked at once
+        const data = { actorUuid: actor.uuid, sources, deleteIds };
+        asked.push(askGM("applySpellTargetEffects", data).then((answer) => ({ actor, names, answer })));
+    }
+    const answers = await Promise.all(asked);
+    applied.push(...answers.filter((a) => a.answer.ok));
+    const failed = answers.find((a) => !a.answer.ok);
+    if (failed) {
+        const names = answers.filter((a) => !a.answer.ok).map((a) => a.actor.name);
+        warnGM(failed.answer, spell.name, `apply its effects to ${names.join(", ")}`);
     }
     if (applied.length === 0) return;
 
@@ -288,11 +290,8 @@ hooks.on("renderChatMessageHTML", (message, html) => {
     }
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "applySpellTargetEffects" || !(await confirmActiveGM())) return;
-        const actor = await fromUuid(data.actorUuid);
-        if (!(actor instanceof Actor)) return;
-        await applyToActor(actor, data.sources ?? [], data.deleteIds ?? []).catch(log);
-    });
+onGMRequest("applySpellTargetEffects", async (data) => {
+    const actor = await fromUuid(data.actorUuid);
+    if (!(actor instanceof Actor)) throw new Error("the creature is gone");
+    await applyToActor(actor, data.sources ?? [], data.deleteIds ?? []);
 });

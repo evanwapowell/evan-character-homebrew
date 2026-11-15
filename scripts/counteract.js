@@ -28,10 +28,9 @@ import {
     rankFromText,
     spellRankDC,
 } from "./lib/counteract-rules.js";
-import { confirmActiveGM, createdHere, featureHooks, guardApi } from "./settings.js";
+import { askGM, createdHere, featureHooks, guardApi, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
-const SOCKET = `module.${MODULE_ID}`;
 const TOOLBELT_ID = "pf2e-toolbelt";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("counteract");
@@ -640,16 +639,41 @@ async function removeItems(uuids) {
         }
     }
     if (forGM.length > 0) {
-        if (game.users.activeGM) {
-            // Players can't edit creatures they don't own, so the active GM removes them
-            game.socket.emit(SOCKET, { action: "counteractRemove", uuids: forGM });
-            forGM.forEach((uuid) => done.add(uuid));
-        } else {
-            ui.notifications.warn("Counteract: a GM must be logged in to end effects on creatures you don't own.");
+        // Players can't edit creatures they don't own, so the active GM removes them, and says which it removed
+        const answer = await askGM(
+            "counteractRemove",
+            { uuids: forGM },
+            { title: "Counteract", task: "end effects on creatures you don't own" },
+        );
+        if (answer.ok && Array.isArray(answer.result)) {
+            answer.result.filter((uuid) => forGM.includes(uuid)).forEach((uuid) => done.add(uuid));
         }
     }
     return done;
 }
+
+/** The GM's side of `removeItems`: delete what it can, and answer with the UUIDs of what's gone */
+async function removeForGM({ uuids }) {
+    const byActor = new Map();
+    for (const uuid of Array.isArray(uuids) ? uuids : []) {
+        const item = await fromUuid(uuid).catch(() => null);
+        if (!item?.actor || !REMOVABLE_TYPES.includes(item.type)) continue;
+        if (!byActor.has(item.actor)) byActor.set(item.actor, []);
+        byActor.get(item.actor).push(item);
+    }
+    const removed = [];
+    for (const [actor, items] of byActor) {
+        try {
+            const ids = items.map((i) => i.id).filter((id) => actor.items.has(id));
+            if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
+            removed.push(...items.map((i) => i.uuid));
+        } catch (error) {
+            log(error);
+        }
+    }
+    return removed;
+}
+onGMRequest("counteractRemove", removeForGM);
 
 /** One target's line on the result card */
 function resultLine(target, result, rank) {
@@ -664,7 +688,7 @@ function resultLine(target, result, rank) {
     if (result.success && result.removed) {
         text = `counteracted and ended.`;
     } else if (result.success && target.removable) {
-        text = `counteracted: end it by hand (a GM must be logged in to end it on a creature you don't own).`;
+        text = `counteracted, but not ended: end it by hand (only a GM can end it on a creature you don't own).`;
     } else if (result.success) {
         text = target.kind === "creature" ? `counteracted: dismiss it.` : `counteracted: end it by hand.`;
     } else if (result.outcome === "criticalFailure") {
@@ -690,7 +714,7 @@ function cardContent({ request, results, rolled, sourceName }) {
  * Work out what the roll counteracts, end it, and post (or, after a reroll, update) the result card. A reroll ends
  * what the new result counteracts; what the earlier one ended stays ended, with a note to restore it by hand.
  */
-async function resolve(message, request, { sourceName = null } = {}) {
+async function resolveNow(message, request, { sourceName = null } = {}) {
     const rolled = readRoll(message);
     if (!rolled) return;
     const outcomes = getOutcomes(request, message, rolled);
@@ -709,7 +733,10 @@ async function resolve(message, request, { sourceName = null } = {}) {
     if (toRemove.length > 0) {
         const done = await removeItems(toRemove);
         request.targets.forEach((t, i) => {
-            if (results[i].success && t.removable && t.items.some((uuid) => done.has(uuid))) results[i].removed = true;
+            if (!results[i].success || !t.removable || results[i].removed) return;
+            // Ended now, or already gone (a GM session that answered too late still removed it)
+            const gone = t.items.length > 0 && t.items.every((uuid) => !resolveSync(uuid));
+            if (gone || t.items.some((uuid) => done.has(uuid))) results[i].removed = true;
         });
     }
 
@@ -727,6 +754,19 @@ async function resolve(message, request, { sourceName = null } = {}) {
         whisper,
         flags: { [MODULE_ID]: { counteract: flag } },
     });
+}
+
+/** Each request's resolving, so a reroll waits for the roll before it (whose removal can wait on the GM) */
+const resolving = new Map();
+
+function resolve(message, request, options) {
+    const next = (resolving.get(request.id) ?? Promise.resolve())
+        .catch(() => {})
+        .then(() => resolveNow(message, request, options));
+    resolving.set(request.id, next);
+    const forget = () => resolving.get(request.id) === next && resolving.delete(request.id);
+    next.then(forget, forget);
+    return next;
 }
 
 /* Entry points */
@@ -910,18 +950,4 @@ Hooks.once("init", () => {
     module.api = { ...module.api, counteract: guardApi("counteract", (options) => counteractManually(options)) };
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (data?.action !== "counteractRemove" || !(await confirmActiveGM())) return;
-        const byActor = new Map();
-        for (const uuid of data.uuids ?? []) {
-            const item = await fromUuid(uuid).catch(() => null);
-            if (!item?.actor || !REMOVABLE_TYPES.includes(item.type)) continue;
-            if (!byActor.has(item.actor)) byActor.set(item.actor, []);
-            byActor.get(item.actor).push(item.id);
-        }
-        for (const [actor, ids] of byActor) await actor.deleteEmbeddedDocuments("Item", ids).catch(log);
-    });
-});
-
-export { describeSource, getCandidates, getOutcomes, isOtherCounteractRoll, readForm };
+export { describeSource, getCandidates, getOutcomes, isOtherCounteractRoll, readForm, removeItems, resolve };

@@ -10,12 +10,11 @@
  * from the card for every creature in the area, as usual.
  */
 
-import { canAnimate, confirmActiveGM, createdHere, featureHooks } from "./settings.js";
+import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("sepulchralMask");
-const SOCKET = `module.${MODULE_ID}`;
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Aura: Sepulchral Mask, for the caster, and Effect: Sepulchral Mask, the penalty on a failed save */
 const AURA_UUID = `${PACK}.JZzkqIbry9lR8y0P`;
@@ -295,9 +294,8 @@ async function rollTurnDamage(card, event) {
     if (!message) return;
 
     const data = { cardId: card.id, damageMessageId: message.id };
-    if (game.user.isGM) return resolveDamage(data);
     // Players can't edit the card or the creature, so the active GM records the roll and applies it
-    game.socket.emit(SOCKET, { action: "sepulchralMaskDamage", ...data });
+    await askGM("sepulchralMaskDamage", data, { title: "Sepulchral Mask", task: "apply the damage" });
 }
 
 /** Record the damage rolled for a turn-start card, and apply it if the save is in. Run by a GM. */
@@ -497,11 +495,8 @@ async function onSave({ card = null, caster, spell, targetToken, outcome, total,
         cardId: card?.id ?? null,
         fromTurnCard,
     };
-    if (game.user.isGM) return resolveSave(data);
-    if (!game.users.activeGM)
-        return ui.notifications.warn("Sepulchral Mask: a GM must be logged in to apply the result.");
     // Players can't edit creatures they don't own, so the active GM applies the result
-    game.socket.emit(SOCKET, { action: "sepulchralMask", ...data });
+    await askGM("sepulchralMask", data, { title: "Sepulchral Mask", task: "apply the result" });
 }
 
 /** A save message rolled against Sepulchral Mask */
@@ -643,10 +638,5 @@ hooks.on("updateCombat", async (combat, changed) => {
     onTurnStart(combat, { combatant, round }).catch(log);
 });
 
-Hooks.once("ready", () => {
-    game.socket.on(SOCKET, async (data) => {
-        if (!["sepulchralMask", "sepulchralMaskDamage"].includes(data?.action) || !(await confirmActiveGM())) return;
-        if (data?.action === "sepulchralMask") await resolveSave(data).catch(log);
-        if (data?.action === "sepulchralMaskDamage") await resolveDamage(data).catch(log);
-    });
-});
+onGMRequest("sepulchralMask", (data) => resolveSave(data));
+onGMRequest("sepulchralMaskDamage", (data) => resolveDamage(data));
