@@ -179,6 +179,11 @@ const LINKS = {
         defaults: { 1: ["Spell Effect: Tailwind"], 2: ["Spell Effect: Tailwind (8 hours)"] },
     },
     // The aura, not the cover linked in its text
+    // The 24-hour effect is linked beside the plain one, and heightened to 5th the duration changes (issue #53)
+    Darkvision: {
+        listed: ["Spell Effect: Darkvision", "Spell Effect: Darkvision (24 hours)"],
+        defaults: { 2: ["Spell Effect: Darkvision"], 5: ["Spell Effect: Darkvision (24 hours)"] },
+    },
     "Manifest Will (this module)": { listed: ["Aura: Manifest Will"], defaults: { 1: ["Aura: Manifest Will"] } },
     // A battle form's variants: the user picks
     "Dinosaur Form": {

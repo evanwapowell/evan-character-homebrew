@@ -22,7 +22,7 @@ import { pathToFileURL } from "node:url";
 import * as prettier from "prettier";
 
 import { OUTCOMES, getGrantedConditions, parseSpellOutcome } from "../scripts/lib/spell-condition-parser.js";
-import { defaultEffects, parseLinks } from "../scripts/lib/spell-effect-links.js";
+import { defaultEffects, parseHeightened, parseLinks } from "../scripts/lib/spell-effect-links.js";
 import { PINS, hasData, loadData } from "./pf2e-data.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -103,8 +103,9 @@ export function linkedEffects(spell, { byUuid }) {
     const defaults = {};
     let previous = null;
     const base = Math.max(1, spell.system.level?.value ?? 1);
+    const heightened = parseHeightened(spell.system.description.value);
     for (let rank = base; rank <= 10; rank++) {
-        const chosen = defaultEffects(effects, rank).map((uuid) => nameOf(byUuid, uuid));
+        const chosen = defaultEffects(effects, rank, { heightened }).map((uuid) => nameOf(byUuid, uuid));
         const key = JSON.stringify(chosen);
         if (key !== previous) defaults[rank] = chosen;
         previous = key;

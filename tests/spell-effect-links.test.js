@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { defaultEffects, parseLinks } from "../scripts/lib/spell-effect-links.js";
+import { defaultEffects, parseHeightened, parseLinks } from "../scripts/lib/spell-effect-links.js";
 
 const uuid = (id) => `Compendium.pf2e.spell-effects.Item.${id}`;
 const link = (id, name) => `@UUID[${uuid(id)}]{${name}}`;
@@ -11,7 +11,8 @@ function effectsIn(html) {
     return parseLinks(html).map((l) => ({ ...l, name: l.label }));
 }
 
-const chosen = (html, rank) => defaultEffects(effectsIn(html), rank).map((u) => u.split(".").at(-1));
+const chosen = (html, rank) =>
+    defaultEffects(effectsIn(html), rank, { heightened: parseHeightened(html) }).map((u) => u.split(".").at(-1));
 
 describe("parseLinks", () => {
     it("tells links in paragraphs of their own from links inside sentences", () => {
@@ -114,5 +115,37 @@ describe("defaultEffects", () => {
     it("falls back on links in the text when no effect stands in a paragraph of its own", () => {
         const html = `<p>The target gains ${link("inline0000000000", "Spell Effect: Inline")} for 1 minute.</p>`;
         assert.deepEqual(chosen(html, 1), ["inline0000000000"]);
+    });
+
+    it("chooses the longer-lasting version where a heightened entry changes the duration (Darkvision)", () => {
+        const html = [
+            `<p>You gain darkvision.</p>`,
+            `<p>${link("darkvision000000", "Spell Effect: Darkvision")}</p>`,
+            `<p>${link("darkvision24hour", "Spell Effect: Darkvision (24 hours)")}</p>`,
+            `<hr />`,
+            `<p><strong>Heightened (3rd)</strong> The spell's range is touch and it targets 1 willing creature.</p>`,
+            `<p><strong>Heightened (5th)</strong> The duration is until your next daily preparations.</p>`,
+        ].join("");
+        assert.deepEqual(chosen(html, 2), ["darkvision000000"]);
+        assert.deepEqual(chosen(html, 4), ["darkvision000000"]);
+        assert.deepEqual(chosen(html, 5), ["darkvision24hour"]);
+        assert.deepEqual(chosen(html, 7), ["darkvision24hour"]);
+    });
+});
+
+describe("parseHeightened", () => {
+    it("lists the fixed-rank heightened entries with their text, not amps or +1 entries", () => {
+        const html = [
+            `<p>Body. <strong>Heightened (2nd)</strong> isn't an entry before the rule.</p>`,
+            `<hr />`,
+            `<p><strong>Heightened (3rd)</strong> The range is <em>touch</em>.</p>`,
+            `<p><strong>Heightened (+1)</strong> One more target.</p>`,
+            `<p><strong>Amp Heightened (4th)</strong> Stronger.</p>`,
+            `<p><strong>Heightened (5th)</strong> The duration is 24 hours.</p>`,
+        ].join("");
+        assert.deepEqual(parseHeightened(html), [
+            { rank: 3, text: "The range is touch." },
+            { rank: 5, text: "The duration is 24 hours." },
+        ]);
     });
 });

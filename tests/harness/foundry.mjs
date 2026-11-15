@@ -54,6 +54,7 @@ const GLOBALS = [
     "canvas",
     "ChatMessage",
     "Roll",
+    "Actor",
     "fromUuid",
     "fromUuidSync",
     "document",
@@ -266,7 +267,8 @@ const STRINGS = {
 
 /**
  * A chat message, as pf2e's ChatMessagePF2e reads it (src/module/chat-message/document.ts, the same in v13-dev and
- * v14-dev): `item` from the origin flag (not a compendium's), `actor` from the speaker.
+ * v14-dev): `item` from the origin flag (not a compendium's), or the spell a scroll or wand's card carries
+ * (`flags.pf2e.casting.embeddedSpell`), `actor` from the speaker.
  */
 class FakeChatMessage {
     constructor(data = {}, world) {
@@ -314,6 +316,9 @@ class FakeChatMessage {
     get item() {
         const flags = this.flags.pf2e ?? {};
         if (flags.context?.type === "self-effect") return this.actor?.items.get(flags.context.item) ?? null;
+        // A spell cast from a scroll or wand: pf2e makes it from the card's copy, not from the actor's items
+        const embedded = flags.casting?.embeddedSpell;
+        if (embedded && this.actor) return this.world.embeddedItems.get(embedded._id) ?? null;
         const uuid = flags.origin?.uuid;
         return uuid && !uuid.startsWith("Compendium.") ? (this.world.fromUuidSync(uuid) ?? null) : null;
     }
@@ -343,6 +348,32 @@ class FakeChatMessage {
         this.world.messages.delete(this._id);
         this.world.callAll("deleteChatMessage", () => [this, {}, currentSession().user.id]);
         return this;
+    }
+}
+
+/**
+ * pf2e's Predicate (src/module/system/predication.ts): a list of statements that must all hold for a set of roll
+ * options, given as arguments or as one array. Only plain statements (a roll option that must be there) and `not` are
+ * modelled.
+ */
+class FakePredicate extends Array {
+    /** The statements, or one array of them */
+    constructor(...statements) {
+        super(...(Array.isArray(statements[0]) ? statements[0] : statements));
+    }
+
+    test(options) {
+        const set = options instanceof Set ? options : new Set(options);
+        return this.every((statement) =>
+            typeof statement === "string" ? set.has(statement) : statement?.not ? !set.has(statement.not) : false,
+        );
+    }
+}
+
+/** Foundry's Actor, for `instanceof` tests: an actor made by pf2e.mjs's makeActor is one */
+class FakeActor {
+    static [Symbol.hasInstance](value) {
+        return value?.documentName === "Actor";
     }
 }
 
@@ -516,7 +547,7 @@ class Session {
                     return world.time;
                 },
             },
-            pf2e: { ConditionManager: { conditions: new Map() }, actions: {} },
+            pf2e: { ConditionManager: { conditions: new Map() }, actions: {}, Predicate: FakePredicate },
             ready: false,
         };
         return {
@@ -533,6 +564,8 @@ class Session {
             canvas: { ready: false, scene: null, tokens: { controlled: [], placeables: [] } },
             ChatMessage,
             Roll: FakeRoll,
+            // Foundry's Actor class, for `instanceof`: the stand-in's actors (pf2e.mjs's makeActor)
+            Actor: FakeActor,
             fromUuid: async (uuid) => world.fromUuidSync(uuid),
             fromUuidSync: (uuid) => world.fromUuidSync(uuid),
             document: this.dom.window.document,
@@ -598,6 +631,8 @@ class Session {
 class World {
     actors = new Collection();
     documents = new Map();
+    /** Spells of scrolls and wands, which pf2e makes in memory: by their ID, for the cards that carry them */
+    embeddedItems = new Map();
     messages = new Collection();
     settings = new Map();
     sessions = [];

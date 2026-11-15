@@ -57,6 +57,27 @@ export function parseLinks(html) {
     return links.filter((link, i) => links.findIndex((l) => l.uuid === link.uuid) === i);
 }
 
+/**
+ * The heightened entries with a fixed rank, like "Heightened (5th)", each with its text (without tags), in order: what
+ * the spell gains at that rank and above. Amp entries and "+1" entries aren't included.
+ */
+export function parseHeightened(html) {
+    html = String(html ?? "");
+    const firstRule = html.search(/<hr\b/i);
+    if (firstRule < 0) return [];
+    const sections = [...html.matchAll(SECTION)].filter((m) => m.index > firstRule && !/^amp/i.test(m[1]));
+    return sections.flatMap((match) => {
+        const rank = fixedRank(match[2]);
+        if (!rank) return [];
+        const end = html.indexOf("</p>", match.index);
+        const text = stripTags(html.slice(match.index + match[0].length, end >= 0 ? end : undefined)).trim();
+        return [{ rank, text }];
+    });
+}
+
+/** A version of an effect that lasts longer, like "Spell Effect: Darkvision (24 hours)" */
+const LASTING = /\((?:\d+|an?|one)\s+(?:round|minute|hour|day)s?\)\s*$/i;
+
 /** "Spell Effect: Dinosaur Form (Ankylosaurus)" → "Spell Effect: Dinosaur Form" */
 function stem(name) {
     return String(name ?? "")
@@ -97,10 +118,12 @@ function isHeightenedVersion(effect, effects) {
  * - Base effects are the ones in paragraphs of their own, or when there are none, the effects linked in the text. When
  *   several are versions of one effect, like a battle form's, none is chosen and the user picks, unless one is the
  *   plain effect (Magic's Vessel rather than Magic's Vessel (Resistance)).
+ * - A version of the effect that lasts longer, linked beside it in the spell's text (Darkvision (24 hours)), replaces it
+ *   at the ranks where a heightened entry changes the duration (`heightened`, from `parseHeightened`).
  * - Amp effects, one degree of success's effects and immunities (Shield's starts later) aren't chosen, nor the effect an
  *   aura hands out to creatures in it (Spell Effect: Manifest Will beside Aura: Manifest Will).
  */
-export function defaultEffects(effects, castRank) {
+export function defaultEffects(effects, castRank, { heightened = [] } = {}) {
     const chosen = new Set();
     const versions = effects.filter((e) => e.standalone && isHeightenedVersion(e, effects));
     const reached = versions.filter((e) => e.section.rank <= (castRank ?? 0));
@@ -121,6 +144,7 @@ export function defaultEffects(effects, castRank) {
     const auras = new Set(effects.filter((e) => /^Aura:/i.test(e.name ?? "")).map((e) => bareName(e.name)));
     const standalone = eligible.filter((e) => e.standalone && (/^Aura:/i.test(e.name) || !auras.has(bareName(e.name))));
     const base = standalone.length > 0 || versions.length > 0 ? standalone : eligible;
+    const longer = heightened.some((h) => h.rank <= (castRank ?? 0) && /\bduration\b/i.test(h.text));
     const groups = new Map();
     for (const effect of base) {
         const key = stem(effect.name);
@@ -129,7 +153,9 @@ export function defaultEffects(effects, castRank) {
     }
     for (const [key, group] of groups) {
         const plain = group.find((e) => String(e.name ?? "").trim() === key);
+        const lasting = group.find((e) => e !== plain && LASTING.test(e.name ?? ""));
         if (group.length === 1) chosen.add(group[0].uuid);
+        else if (plain && lasting && group.length === 2) chosen.add((longer ? lasting : plain).uuid);
         else if (plain) chosen.add(plain.uuid);
     }
     return effects.filter((e) => chosen.has(e.uuid)).map((e) => e.uuid);

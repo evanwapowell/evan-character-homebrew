@@ -22,14 +22,22 @@ export const PF2E_IDS = {
 export const pf2eItemUuid = (pack, id) => `Compendium.pf2e.${pack}.Item.${id}`;
 
 /**
- * An actor (src/module/actor/base.ts): `itemTypes` by type, `isOfType`, and no tokens on a scene. Added to the world so
+ * An actor (src/module/actor/base.ts): `itemTypes` by type, `isOfType`, its `alliance` ("party" for a character,
+ * "opposition" for an NPC, unless given) with `isAllyOf`, and no tokens on a scene. Added to the world so
  * messages and fromUuid find it. `isOwner` is true for a GM and the users in `owners` (as the session running sees it),
  * unless a test sets it. `auras` are those of its effects' Aura rules (src/module/rules/rule-element/aura.ts), a rule
  * counting when its predicate's roll options are the ones its effect's ChoiceSet rules chose.
  */
 export function makeActor(
     world,
-    { id = makeId("actor"), name = "Creature", type = "character", items = [], owners = [] } = {},
+    {
+        id = makeId("actor"),
+        name = "Creature",
+        type = "character",
+        items = [],
+        owners = [],
+        alliance = type === "npc" ? "opposition" : "party",
+    } = {},
 ) {
     let isOwner = null;
     const actor = {
@@ -54,6 +62,13 @@ export function makeActor(
         getActiveTokens: () =>
             [...world.documents.values()].filter((d) => d.documentName === "Token" && d.actor === actor),
         getSelfRollOptions: (prefix = "self") => [`${prefix}:type:${type}`],
+        /** Its roll options (ActorPF2e#getRollOptions), here only its type */
+        getRollOptions: () => [`self:type:${type}`],
+        /** Its side (ActorPF2e#alliance, from system.details.alliance), and whether another creature is on it */
+        alliance,
+        isAllyOf(other) {
+            return this.alliance !== null && this !== other && this.alliance === other?.alliance;
+        },
         get level() {
             return this.system.details.level.value;
         },
@@ -353,6 +368,26 @@ export function spellCard(world, spell, { actualCast = true, castRank = 1, entry
     const flags = { origin, casting: entryId ? { id: entryId, tradition: "occult" } : undefined };
     if (entryId && save) flags.context = { type: "spell-cast", domains: ["spell-dc"], options: [] };
     return { ...card, flags: { pf2e: JSON.parse(JSON.stringify(flags)) } };
+}
+
+/**
+ * A spell on a scroll or wand, and the card casting it posts. pf2e makes the spell in memory from the consumable
+ * (ConsumablePF2e#embeddedSpell in src/module/item/consumable/document.ts), with an ID that isn't on the actor, and the
+ * card carries its source in `flags.pf2e.casting.embeddedSpell`, from which ChatMessagePF2e#item makes it again. Its
+ * UUID finds nothing, so a save rolled from the card (whose origin is the spell) has no item. `data` is the spell's
+ * (as addItem takes it, with its `rank`).
+ */
+export function embeddedSpellCard(world, actor, { rank = 1, ...data }, { castRank = rank } = {}) {
+    const spell = addItem(world, actor, { type: "spell", ...data });
+    spell.rank = rank;
+    actor.items.delete(spell.id);
+    world.documents.delete(spell.uuid);
+    world.embeddedItems.set(spell.id, spell);
+    const card = itemCard(spell);
+    const origin = { ...card.flags.pf2e.origin, castRank };
+    const embeddedSpell = { _id: spell.id, name: spell.name, type: "spell", system: structuredClone(spell.system) };
+    const casting = { id: "scroll", tradition: "arcane", embeddedSpell };
+    return { spell, card: { ...card, flags: { pf2e: JSON.parse(JSON.stringify({ origin, casting })) } } };
 }
 
 /**

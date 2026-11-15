@@ -101,10 +101,16 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       information. The facts library has no Foundry dependencies.
     - `spell-target-effects.js` with `lib/spell-effect-links.js`: an Apply button on the card of a spell without a save
       (Heroism, Stoke the Heart, Shield) for the spell effects it links. The caster checks which creatures get each
-      effect (their targets or PF2e Toolbelt's, or themselves for an aura or a spell with no targets or area); the
-      effects are made as pf2e makes them when dragged from the card (cast rank, caster as origin, the spell's traits),
-      so Sustain tracks them. The link parser picks the defaults (a heightened entry's version of the effect, not a
-      battle form's variants, amp or immunity effects) and has no Foundry dependencies.
+      effect: by default themselves for an aura (named "Aura:" or with an Aura rule, like Bless) or a spell with no
+      targets or area, themselves and their allies in an emanation (Courageous Anthem), otherwise their targets or PF2e
+      Toolbelt's. The effects are made as pf2e makes them when dragged from the card (`lib/spell-effect-source.js`:
+      cast rank, caster as origin with the spellcasting, the spell's traits), so Sustain tracks them; for a creature
+      the caster's player doesn't own, the player makes the effect's choices (ChoiceSet rules with a list, like Resist
+      Energy's damage type) before the GM creates it, since pf2e asks whoever creates it. Once applied, the card is
+      marked (`flags.evan-character-homebrew.spellTargetEffects.applied`): its button says Applied and nothing is
+      checked when it's used again. The link parser picks the defaults (a heightened entry's version of the effect, a
+      longer-lasting version where a heightened entry changes the duration (Darkvision (24 hours)), not a battle
+      form's variants, amp or immunity effects) and has no Foundry dependencies.
     - `spell-conditions.js` with `lib/spell-condition-parser.js`: the "Apply" buttons that read a spell's text for a
       save result and apply its conditions. What the text gives later or only if something happens ("If it's asleep,
       it wakes up and is Paralyzed", Petrify's petrified) is offered unchecked. The parser has no Foundry
@@ -113,7 +119,12 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       ("until its next turn begins", "until the end of its next turn") is an effect with the target as origin, of the
       rounds pf2e's expiry needs when it's created: 0 when the target's turn is still to come this round (pf2e ends an
       effect at its origin's turn only once its rounds are up, and time moves on with the round), 1 when it has acted,
-      on its own turn (unless the timer is "for that turn") or outside an encounter.
+      on its own turn (unless the timer is "for that turn") or outside an encounter. A condition with a value the text
+      doesn't give as a number ("drained [[/r 1d4]]") asks for it, and isn't applied without one. Spell effects are
+      made as pf2e makes them when dragged from the save's message (`lib/spell-effect-source.js`). A save against a
+      spell cast from a scroll or wand finds its spell on the cast's card (pf2e's save message can't). Whom it was
+      applied to is recorded on the message (`flags.evan-character-homebrew.spellConditions.applied`), so the button
+      says Applied and the dialog checks nothing for them again.
     - `counteract.js` with `lib/counteract-rules.js`: counteracting. pf2e's Counteract button on spell cards (spells
       with `system.counteraction`, like Dispel Magic) only rolls the check; this takes it over (removing its
       `data-action` in `renderChatMessageHTML`, which runs before pf2e attaches its listeners). The caster checks what
@@ -305,7 +316,9 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   the running session sees it, and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their
   effects' Aura rules (their tokens' `auras` have `containsToken`); items have `update` (an effect's as pf2e's
   `_preUpdate` fills a duration's expiry) and `delete`, which come back a tick later, as from the server.
-  `spellCard(world, spell, { actualCast })` is a spell's card, marked as cast where the pf2e version does.
+  `spellCard(world, spell, { actualCast })` is a spell's card, marked as cast where the pf2e version does, and
+  `embeddedSpellCard(world, actor, spell)` a scroll or wand's spell with its card (the spell's UUID finds nothing, as in
+  pf2e). Actors have pf2e's `alliance` and `isAllyOf`, and `game.pf2e.Predicate` tests plain roll options.
   `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
   `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included), and
   pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. The world's time
@@ -316,7 +329,9 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   the turns of an encounter with Manifest Will's and Sustain's work on them, `tests/manifest-will.test.js` Manifest
   Will's flat check, re-centering and Finch aura, `tests/hex-casts.test.js` casts told from cards sent to chat and the
   hex familiars on each, and `tests/spell-conditions.test.js` the Apply button's timers, from a save's message through
-  its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers unchecked). Fix a
+  its dialog to the turn the effect expires at (`tests/spell-conditions-later.test.js`: what it offers unchecked;
+  `tests/spell-conditions-apply.test.js`: applying once, scroll spells, values asked for, spell effects), and
+  `tests/spell-target-effects.test.js` the no-save Apply button (who gets each effect, choices, applying once). Fix a
   hook-driven bug with a test here; export what a test needs from a script (a patch bump), or drive it through the hook,
   and add to the stand-in as tests need it.
 
