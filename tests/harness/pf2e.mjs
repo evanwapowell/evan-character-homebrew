@@ -4,8 +4,13 @@
  * each builder names the file it follows.
  */
 
+import { Collection } from "./foundry.mjs";
+
 let next = 0;
 const makeId = (prefix) => `${prefix}${String(++next).padStart(16 - prefix.length, "0")}`;
+
+/** A change made through the server comes back later, not in the same tick */
+const serverTrip = () => new Promise((resolve) => setImmediate(resolve));
 
 /** pf2e's compendium IDs, the same in every version */
 export const PF2E_IDS = {
@@ -19,7 +24,8 @@ export const pf2eItemUuid = (pack, id) => `Compendium.pf2e.${pack}.Item.${id}`;
 /**
  * An actor (src/module/actor/base.ts): `itemTypes` by type, `isOfType`, and no tokens on a scene. Added to the world so
  * messages and fromUuid find it. `isOwner` is true for a GM and the users in `owners` (as the session running sees it),
- * unless a test sets it.
+ * unless a test sets it. `auras` are those of its effects' Aura rules (src/module/rules/rule-element/aura.ts), a rule
+ * counting when its predicate's roll options are the ones its effect's ChoiceSet rules chose.
  */
 export function makeActor(
     world,
@@ -48,11 +54,65 @@ export function makeActor(
         getActiveTokens: () =>
             [...world.documents.values()].filter((d) => d.documentName === "Token" && d.actor === actor),
         getSelfRollOptions: (prefix = "self") => [`${prefix}:type:${type}`],
+        get level() {
+            return this.system.details.level.value;
+        },
+        get auras() {
+            const auras = new Map();
+            for (const item of this.items.values()) {
+                const rules = item.system.rules ?? [];
+                const chosen = rules
+                    .filter((rule) => rule.key === "ChoiceSet" && rule.rollOption && rule.selection)
+                    .map((rule) => `${rule.rollOption}:${rule.selection}`);
+                for (const rule of rules) {
+                    if (rule.key !== "Aura" || !(rule.predicate ?? []).every((option) => chosen.includes(option)))
+                        continue;
+                    auras.set(rule.slug ?? item.slug, { slug: rule.slug ?? item.slug, radius: rule.radius });
+                }
+            }
+            return auras;
+        },
         get isOwner() {
             return isOwner ?? (!!game.user?.isGM || owners.includes(game.user?.id));
         },
         set isOwner(value) {
             isOwner = value;
+        },
+        /** Foundry's: preCreateItem in the creating session, then the items, then createItem in every session */
+        async createEmbeddedDocuments(_type, sources) {
+            const session = game;
+            const userId = game.user.id;
+            const pending = [];
+            for (const data of sources) {
+                const source = structuredClone(data);
+                const options = {};
+                const draft = {
+                    ...source,
+                    slug: source.system?.slug ?? null,
+                    _source: source,
+                    updateSource: (changes) => foundry.utils.mergeObject(source, changes),
+                };
+                if (Hooks.call("preCreateItem", draft, source, options, userId) !== false)
+                    pending.push({ source, options });
+            }
+            await serverTrip();
+            const created = pending.map(({ source, options }) => {
+                const item = addItem(world, this, {
+                    name: source.name,
+                    type: source.type,
+                    slug: source.system?.slug ?? null,
+                    source: source._stats?.compendiumSource ?? null,
+                    system: source.system ?? {},
+                    flags: source.flags ?? {},
+                });
+                world.callAll("createItem", (s) => [
+                    item,
+                    s.game === session ? options : structuredClone(options),
+                    userId,
+                ]);
+                return item;
+            });
+            return created;
         },
         /** Foundry's: delete the items, then deleteItem in every session */
         async deleteEmbeddedDocuments(_type, ids) {
@@ -78,7 +138,9 @@ export function makeScene(world, { id = makeId("scene"), name = "Scene" } = {}) 
 
 /**
  * A token of an actor on a scene (a TokenDocument), with its placeable as `object`: its center and `distanceTo` (pf2e's
- * TokenPF2e#distanceTo, in feet, here 5 feet a square on a grid with no diagonals rule).
+ * TokenPF2e#distanceTo, in feet, here 5 feet a square on a grid with no diagonals rule). Its `auras` are its actor's,
+ * each with `containsToken` (TokenAura in src/module/scene/token-document/aura/index.ts, here by distance alone). `x`
+ * and `y` are in squares, and can be set to move it.
  */
 export function addToken(world, scene, actor, { id = makeId("token"), x = 0, y = 0, hidden = false } = {}) {
     const token = {
@@ -92,11 +154,24 @@ export function addToken(world, scene, actor, { id = makeId("token"), x = 0, y =
         hidden,
         x,
         y,
+        get auras() {
+            const auras = new Map();
+            for (const [slug, data] of actor.auras ?? []) {
+                const containsToken = (other) =>
+                    !token.hidden &&
+                    !other.hidden &&
+                    (other === token || token.object.distanceTo(other.object) <= data.radius);
+                auras.set(slug, { ...data, token, containsToken });
+            }
+            return auras;
+        },
     };
     token.object = {
         document: token,
-        center: { x: x * 100 + 50, y: y * 100 + 50 },
-        distanceTo: (other) => 5 * Math.max(Math.abs(other.document.x - x), Math.abs(other.document.y - y)),
+        get center() {
+            return { x: token.x * 100 + 50, y: token.y * 100 + 50 };
+        },
+        distanceTo: (other) => 5 * Math.max(Math.abs(other.document.x - token.x), Math.abs(other.document.y - token.y)),
     };
     scene.tokens.push(token);
     return world.add(token);
@@ -104,9 +179,14 @@ export function addToken(world, scene, actor, { id = makeId("token"), x = 0, y =
 
 /**
  * An item on an actor (src/module/item/base/document.ts): `slug` is `system.slug`, and `sourceId` the compendium
- * item it was copied from (`_stats.compendiumSource`).
+ * item it was copied from (`_stats.compendiumSource`). `update` and `delete` come back from the server a tick later,
+ * with updateItem and deleteItem in every session.
  */
-export function addItem(world, actor, { id = makeId("item"), name, type, slug = null, source = null, system = {} }) {
+export function addItem(
+    world,
+    actor,
+    { id = makeId("item"), name, type, slug = null, source = null, system = {}, flags = {} },
+) {
     const item = {
         documentName: "Item",
         id,
@@ -116,11 +196,32 @@ export function addItem(world, actor, { id = makeId("item"), name, type, slug = 
         type,
         actor,
         parent: actor,
-        flags: {},
+        flags: structuredClone(flags),
         _stats: { compendiumSource: source, duplicateSource: null },
-        system: { slug, ...system },
+        system: { slug, ...structuredClone(system) },
+        get _source() {
+            return { name: this.name, type, system: this.system, flags: this.flags };
+        },
         get slug() {
             return this.system.slug;
+        },
+        toObject() {
+            return structuredClone({ _id: id, name: this.name, type, system: this.system, flags: this.flags });
+        },
+        async update(changes) {
+            const userId = game.user.id;
+            await serverTrip();
+            foundry.utils.mergeObject(this, changes);
+            world.callAll("updateItem", () => [this, foundry.utils.expandObject(changes), {}, userId]);
+            return this;
+        },
+        async delete() {
+            const userId = game.user.id;
+            await serverTrip();
+            if (!actor.items.delete(id)) return this;
+            world.documents.delete(this.uuid);
+            world.callAll("deleteItem", () => [this, {}, userId]);
+            return this;
         },
         get sourceId() {
             return this._stats.duplicateSource ?? this._stats.compendiumSource;
@@ -232,7 +333,9 @@ export function checkMessage({
 
 /**
  * An effect (src/module/item/effect/data.ts and src/module/item/abstract-effect/data.ts): its duration (with
- * `sustained`) and its context, where it came from.
+ * `sustained`), its level, its rules and its context, where it came from. `origin` is the actor it came from, its own
+ * when it has none (AbstractEffectPF2e#origin in src/module/item/abstract-effect/document.ts), and it never expires:
+ * time doesn't pass in the stand-in.
  */
 export function addEffect(
     world,
@@ -243,14 +346,20 @@ export function addEffect(
         source = null,
         duration = { value: 1, unit: "minutes", expiry: "turn-start", sustained: false },
         origin = null,
+        level = 1,
+        rules = [],
+        flags = {},
     } = {},
 ) {
-    return addItem(world, actor, {
+    const effect = addItem(world, actor, {
         name,
         type: "effect",
         slug,
         source,
+        flags,
         system: {
+            level: { value: level },
+            rules,
             duration,
             context: origin
                 ? {
@@ -267,4 +376,183 @@ export function addEffect(
                 : null,
         },
     });
+    // Each can be set by a test
+    const derived = {
+        level: () => effect.system.level.value,
+        origin: () => {
+            const uuid = effect.system.context?.origin?.actor;
+            return !uuid || uuid === actor.uuid ? actor : world.fromUuidSync(uuid);
+        },
+        remainingDuration: () => ({ expired: false, remaining: Infinity }),
+    };
+    for (const [key, get] of Object.entries(derived)) {
+        const set = (value) => Object.defineProperty(effect, key, { value, writable: true, configurable: true });
+        Object.defineProperty(effect, key, { get, set, configurable: true, enumerable: true });
+    }
+    return effect;
+}
+
+/**
+ * An encounter: Foundry's Combat with pf2e's turn records. The turns are the combatants by initiative; `previous` and
+ * `current` are the round, turn and combatant before and after the last change of turn, as Foundry keeps them
+ * (CombatHistoryData in types/foundry/client/documents/combat.d.mts). Start it, then move through it as the tracker's
+ * buttons do: each is an update of the round and turn that comes back from the server a tick later, with updateCombat
+ * in every session.
+ *
+ * A change to the combatants (one removed, or its initiative set) sets the turns up again at the same index, then
+ * commits the index that keeps the current combatant's turn (Combat#_manageTurnEvents's `adjustedTurn`; pf2e's
+ * EncounterPF2e#setMultipleInitiatives in src/module/encounter/document.ts does the same): between the two, the
+ * combatant at the old index is the current one, and that's what `previous` then holds.
+ *
+ * After an update that moved the turn or round forward, pf2e ends the previous combatant's turn and starts the current
+ * one's, each unless its record is already that round's, and records the round on the combatant
+ * (`flags.pf2e.roundOfLastTurnEnd` and `roundOfLastTurn`: EncounterPF2e#_onUpdate on v13-dev, #_onEndTurn and
+ * #_onStartTurn on v14-dev, and CombatantPF2e in src/module/encounter/combatant.ts). The records are written after
+ * updateCombat has run, as the real ones are.
+ *
+ * `combatants`: `{ actor, token, initiative }`, the token on the encounter's scene. It becomes every connected
+ * session's `game.combat`.
+ */
+export function makeCombat(world, { id = makeId("combat"), scene = null, combatants = [] } = {}) {
+    const state = () => {
+        const combatant = combat.combatant;
+        return {
+            round: combat.round,
+            turn: combat.turn,
+            combatantId: combatant?.id ?? null,
+            tokenId: combatant?.tokenId ?? null,
+        };
+    };
+
+    /** pf2e's turn events, once the update is in */
+    async function turnEvents(changed) {
+        if (!combat.started) return;
+        const { previous } = combat;
+        const isNextRound =
+            typeof changed.round === "number" && (previous.round === null || changed.round > previous.round);
+        const isNextTurn = typeof changed.turn === "number" && (previous.turn === null || changed.turn > previous.turn);
+        if (!(isNextRound || isNextTurn)) return;
+        const before = combat.combatants.get(previous.combatantId ?? "");
+        if (before?.actor && typeof previous.round === "number" && previous.round > 0) {
+            if (before.flags.pf2e.roundOfLastTurnEnd !== previous.round) {
+                await serverTrip();
+                before.flags.pf2e.roundOfLastTurnEnd = previous.round;
+            }
+        }
+        const now = combat.combatant;
+        if (now?.actor && now.roundOfLastTurn !== combat.round) {
+            const round = combat.round;
+            await serverTrip();
+            now.flags.pf2e.roundOfLastTurn = round;
+        }
+    }
+
+    async function update(changes) {
+        const userId = game.user.id;
+        const changed = Object.fromEntries(Object.entries(changes).filter(([key, value]) => combat[key] !== value));
+        if (Object.keys(changed).length === 0) return combat;
+        await serverTrip();
+        const prior = { ...combat.current };
+        Object.assign(combat, changed);
+        combat.current = state();
+        if (["round", "turn", "combatantId"].some((key) => prior[key] !== combat.current[key])) combat.previous = prior;
+        world.callAll("updateCombat", () => [combat, structuredClone(changed), {}, userId]);
+        await turnEvents(changed);
+        return combat;
+    }
+
+    /**
+     * The turns were set up again: `current` is the combatant now at the turn's index (the last one, past the end),
+     * then the index that keeps `kept`'s turn is committed
+     */
+    async function keepTurn(kept) {
+        if (combat.turn === null) return;
+        const turns = combat.turns;
+        const turn = Math.min(combat.turn, Math.max(turns.length - 1, 0));
+        const at = turns[turn] ?? null;
+        combat.current = { round: combat.round, turn, combatantId: at?.id ?? null, tokenId: at?.tokenId ?? null };
+        const index = turns.indexOf(kept);
+        if (index >= 0) await update({ turn: index });
+    }
+
+    const combat = {
+        documentName: "Combat",
+        id,
+        _id: id,
+        uuid: `Combat.${id}`,
+        scene,
+        round: 0,
+        turn: null,
+        flags: {},
+        combatants: new Collection(),
+        get started() {
+            return this.round > 0;
+        },
+        get turns() {
+            return this.combatants.contents.sort((a, b) => b.initiative - a.initiative || (a.id < b.id ? -1 : 1));
+        },
+        get combatant() {
+            return this.turn === null ? null : (this.turns[this.turn] ?? null);
+        },
+        startCombat: () => update({ round: 1, turn: 0 }),
+        nextRound: () => update({ round: combat.round + 1, turn: 0 }),
+        nextTurn: () =>
+            combat.turn + 1 >= combat.turns.length ? combat.nextRound() : update({ turn: combat.turn + 1 }),
+        previousRound: () =>
+            update({ round: Math.max(combat.round - 1, 0), turn: Math.max(combat.turns.length - 1, 0) }),
+        previousTurn: () => (combat.turn <= 0 ? combat.previousRound() : update({ turn: combat.turn - 1 })),
+        /** Remove a combatant: deleteCombatant in every session, then the current combatant keeps its turn */
+        async removeCombatant(combatant) {
+            const userId = game.user.id;
+            const current = combat.combatant;
+            await serverTrip();
+            combat.combatants.delete(combatant.id);
+            world.callAll("deleteCombatant", () => [combatant, {}, userId]);
+            await keepTurn(current);
+        },
+        /** pf2e's setInitiative, as the tracker does when a combatant is dragged to a new place in the order */
+        async setInitiative(combatant, value) {
+            const userId = game.user.id;
+            const current = combat.combatant;
+            await serverTrip();
+            combatant.initiative = value;
+            world.callAll("updateCombatant", () => [combatant, { initiative: value }, {}, userId]);
+            await keepTurn(current);
+        },
+        /** End the encounter: deleteCombat in every session */
+        async delete() {
+            const userId = game.user.id;
+            await serverTrip();
+            for (const session of world.sessions) session.game.combat = null;
+            world.callAll("deleteCombat", () => [combat, {}, userId]);
+        },
+    };
+
+    for (const { actor, token = null, initiative = 0 } of combatants) {
+        const combatantId = makeId("combatant");
+        combat.combatants.set(combatantId, {
+            documentName: "Combatant",
+            id: combatantId,
+            _id: combatantId,
+            uuid: `${combat.uuid}.Combatant.${combatantId}`,
+            parent: combat,
+            actorId: actor.id,
+            tokenId: token?.id ?? null,
+            sceneId: token?.parent.id ?? null,
+            initiative,
+            defeated: false,
+            flags: { pf2e: { roundOfLastTurn: null } },
+            token,
+            get actor() {
+                return this.token?.actor ?? actor;
+            },
+            get roundOfLastTurn() {
+                return this.flags.pf2e.roundOfLastTurn;
+            },
+        });
+    }
+    combat.current = state();
+    combat.previous = combat.current;
+    for (const session of world.sessions) session.game.combat = combat;
+    return world.add(combat);
 }

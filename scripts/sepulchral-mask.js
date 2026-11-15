@@ -10,7 +10,7 @@
  * from the card for every creature in the area, as usual.
  */
 
-import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest } from "./settings.js";
+import { askGM, canAnimate, createdHere, featureHooks, onGMRequest } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -625,18 +625,7 @@ hooks.on("createItem", (item, options, userId) => {
     }
 });
 
-hooks.on("updateCombat", async (combat, changed) => {
-    if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
-    // Going back through the turn order doesn't start a turn
-    const previous = combat.previous;
-    if (previous?.round !== null && previous?.round !== undefined) {
-        if (combat.round < previous.round || (combat.round === previous.round && combat.turn < previous.turn)) return;
-    }
-    // The aura's area is measured on the canvas, so a session viewing the combatant's scene does it
-    const { combatant, round } = combat;
-    if (!(await confirmActiveGM({ scene: combatant.token?.parent }))) return;
-    onTurnStart(combat, { combatant, round }).catch(log);
-});
+hooks.onTurnStart(({ combat, combatant, round }) => onTurnStart(combat, { combatant, round }));
 
 onGMRequest("sepulchralMask", (data) => resolveSave(data));
 onGMRequest("sepulchralMaskDamage", (data) => resolveDamage(data));

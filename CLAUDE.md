@@ -12,10 +12,10 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
 - `scripts/*.js`: plain ES modules loaded by Foundry, with no build step.
     - `settings.js`: the Features settings menu (Configure Settings → this module → Configure Features), with an
       on/off switch for each feature and the features' own settings, and the helpers the other scripts import:
-      `featureHooks`, `isEnabled`, `guardApi`, `canAnimate`, for the Finch version, `canAnimateFinch` and
-      `isFinchVersion`, from `lib/session.js`, `confirmActiveGM`, `confirmPrimarySession`, `createdHere` and
-      `hasModuleData` (and `isActiveGM` and `isPrimarySession`, for tests), and from `lib/gm.js`, `askGM`,
-      `onGMRequest` and `warnGM`.
+      `featureHooks` (with `onTurnStart` and `onTurnEnd` from `lib/turns.js`), `isEnabled`, `guardApi`, `canAnimate`,
+      for the Finch version, `canAnimateFinch` and `isFinchVersion`, from `lib/session.js`, `confirmActiveGM`,
+      `confirmPrimarySession`, `createdHere` and `hasModuleData` (and `isActiveGM` and `isPrimarySession`, for tests),
+      and from `lib/gm.js`, `askGM`, `onGMRequest` and `warnGM`.
     - `lib/session.js`: a user (the GM especially) can be connected more than once, in two windows or on two devices,
       and each session runs the hooks. A user's sessions announce themselves over the module socket (whether they're
       shown, and the scene they view), and one of them is chosen to act for the user: for work on a scene, one viewing
@@ -29,8 +29,15 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       `{ ok: false, reason }` ("absent": no GM logged in; "unanswered"; "failed"), warning the user when `title` is
       given (`warnGM` for a warning of one's own). A GM's own requests run in their session. Requests keep each
       action's payload, so a GM session on an earlier version still does the work during an update.
-    - `manifest-will.js`: the Manifest Will aura's turn-start effects, concealment flat checks, cast animations, and
-      re-centering on a seneschal's charge.
+    - `lib/turns.js`: the turns of an encounter. A combat update also arrives when the turn order goes back, and when
+      the turn's index shifts under the creature whose turn it is (a combatant added, removed or moved in the order),
+      so `turnChange` reads what an update did, once for every script: the turn that ended and the turn that started,
+      only going forward, and once per creature per round by pf2e's own records on the combatant (`roundOfLastTurn`,
+      `roundOfLastTurnEnd`), read as the update arrives. The active GM's work registered with `onTurnEnd` runs first,
+      then `onTurnStart`'s, each awaited, one turn change after another, in the session chosen for the turn's scene.
+    - `manifest-will.js`: the Manifest Will aura's turn-start effects (removed at the creature's next turn start, when
+      it leaves the encounter, or when the encounter ends), concealment flat checks, cast animations, and re-centering
+      on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
       effects that weren't Sustained. pf2e's Sustain action prompts with the caster's sustained spells on any creature
       in the scene (buffs on allies included), one entry per spell. At the start of a player's creature's turn in an
@@ -198,8 +205,12 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
   `createItem` hooks, never `userId === game.user.id`. Work given to a user (a prompt for whoever answers for a
   creature) checks `await confirmPrimarySession()`. Both can wait seconds, and may ask the user's other sessions over
   the socket, so check first that the hook or request is the feature's (cheap tests before them), and pass `{ scene }`
-  for work measured on a scene's canvas (auras at the start of a turn). In scripts, `isActiveGM()` and
-  `isPrimarySession()` (what the session knows now, without waiting) aren't used for work.
+  for work measured on a scene's canvas. In scripts, `isActiveGM()` and `isPrimarySession()` (what the session knows
+  now, without waiting) aren't used for work.
+- Work at the start or the end of a creature's turn is registered with `featureHooks(id).onTurnStart(handler)` or
+  `onTurnEnd(handler)`, never read from `updateCombat`: the handler gets `{ combat, combatant, round }` for the turn
+  (the combat may have moved on), runs in the active GM's session for the turn's scene (already confirmed), and is
+  awaited, the end of a turn before the start of the next.
 - Every chat message carries the session mark in this module's flags, so `message.flags[MODULE_ID]` is always set.
   To tell whether a message is one of the module's own, test a named key or `hasModuleData(message)`.
 - Scripts react to Sustains through `game.modules.get(MODULE_ID).sustainHandlers`, which run one after another so their
@@ -246,9 +257,10 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   top-level script is in `esmodules`, no test of the bare `flags[MODULE_ID]` on a message, no comparing `game.user`
   with `game.users.activeGM` or `userId` with `game.user.id` outside `lib/session.js`, no `isActiveGM()` or
   `isPrimarySession()` in `scripts/` (`confirmActiveGM()` and `confirmPrimarySession()` instead), no direct use of the
-  module socket in `scripts/` outside `lib/session.js` and `lib/gm.js` (`askGM` and `onGMRequest`), compendium links (in
-  `src/packs/` and string literals in `scripts/`) end in a 16-character ID, and the module's own items the scripts use
-  exist in `src/packs/`.
+  module socket in `scripts/` outside `lib/session.js` and `lib/gm.js` (`askGM` and `onGMRequest`), no `updateCombat`
+  hook in `scripts/` outside `lib/turns.js` (`onTurnStart` and `onTurnEnd`), compendium links (in `src/packs/` and
+  string literals in `scripts/`) end in a 16-character ID, and the module's own items the scripts use exist in
+  `src/packs/`.
 - Prettier's check.
 - The unit tests in `tests/` (`*.test.js`, Node's built-in `node:test` runner), for the libraries with no Foundry
   dependencies: `counteract-rules`, `recall-knowledge-facts`, `spell-effect-links` and `spell-condition-parser`. A
@@ -268,8 +280,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   touch (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`,
   `foundry.utils`, `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session,
   `fromUuid`, `Roll` (each die rolls its middle), and jsdom for `document` and `DOMParser`); `pf2e.mjs` builds
-  pf2e-shaped actors, items, effects, scenes, tokens and chat messages, following pf2e's source (each builder names its
-  file). `createWorld({ users })` then
+  pf2e-shaped actors, items, effects, scenes, tokens, encounters and chat messages, following pf2e's source (each
+  builder names its file). `createWorld({ users })` then
   `world.connect(userId, { scripts })` opens a session with its own copy of the scripts and globals, so one user can
   be connected twice; `session.run(fn)` runs code as that session, `session.scripts[name]` has the script's exports,
   `world.flush()` delivers socket messages, and `useFakeTimers(t)` gives fake timers that keep each session's own.
@@ -277,10 +289,15 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   messages to and from it are delivered that many milliseconds later, on the timers) and `session.unreachable`
   (socket messages to and from it are lost while its user stays active: a frozen window) set up the session cases.
   Actors made with `makeActor(world, { owners })` are owned by GMs and those users, as the running session sees it,
-  and have `deleteEmbeddedDocuments`. `tests/guards.test.js` checks that pf2e's messages reach the features and the
-  module's own don't, `tests/session.test.js` checks the session helpers, and `tests/gm-requests.test.js` the
-  requests to the GM. Fix a hook-driven bug with a test here; export what a test
-  needs from a script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
+  and have `createEmbeddedDocuments`, `deleteEmbeddedDocuments` and the auras of their effects' Aura rules (their
+  tokens' `auras` have `containsToken`); items have `update` and `delete`, which come back a tick later, as from the
+  server. `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
+  `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included),
+  and pf2e's turn records are written on the combatants after each. `tests/guards.test.js` checks that pf2e's
+  messages reach the features and the module's own don't, `tests/session.test.js` checks the session helpers,
+  `tests/gm-requests.test.js` the requests to the GM, and `tests/turns.test.js` the turns of an encounter with
+  Manifest Will's and Sustain's work on them. Fix a hook-driven bug with a test here; export what a test needs from a
+  script (a patch bump), or drive it through the hook, and add to the stand-in as tests need it.
 
 There's no Foundry instance in this environment. Test against pf2e's real data (the fetched `.cache/pf2e/`, or cloned
 from `foundryvtt/pf2e`) in Node, on the stand-in in `tests/harness/`, exercising the actual scripts end to end. Say
