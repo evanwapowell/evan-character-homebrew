@@ -86,6 +86,26 @@ const CONDITIONS = {
             criticalFailure: ["effect: Spell Effect: Synesthesia (Failure)"],
         },
     },
+    // "As success, but the effect is permanent", each with its own effect; "As failure, and…" adds to failure's
+    "Outcast's Curse": {
+        success: ["effect: Spell Effect: Outcast's Curse (Success)"],
+        failure: ["effect: Spell Effect: Outcast's Curse (Failure)"],
+        criticalFailure: ["effect: Spell Effect: Outcast's Curse (Failure)"],
+    },
+    "Faerie Dust": {
+        failure: ["effect: Spell Effect: Faerie Dust (Failure)"],
+        criticalFailure: [
+            "effect: Spell Effect: Faerie Dust (Failure)",
+            "effect: Spell Effect: Faerie Dust (Critical Failure)",
+        ],
+    },
+    // The effect after the entries isn't for a success that only takes half damage
+    "Clinging Ice": {
+        failure: ["effect: Spell Effect: Clinging Ice"],
+        criticalFailure: ["effect: Spell Effect: Clinging Ice"],
+    },
+    // The effect after the entries is the caster's ("If this kills it, you gain…")
+    "Death Knell": { success: ["dying"] },
     "Leaden Steps": {
         success: ["effect: Spell Effect: Leaden Steps"],
         failure: ["effect: Spell Effect: Leaden Steps"],

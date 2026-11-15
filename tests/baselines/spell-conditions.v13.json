@@ -54,11 +54,9 @@
             "stupefied 1 for 1 round (caster's turn start)"
         ],
         "failure": [
-            "effect: Spell Effect: Albatross Curse (Failure)",
-            "effect: Spell Effect: Albatross Curse (Critical Failure)"
+            "effect: Spell Effect: Albatross Curse (Failure)"
         ],
         "criticalFailure": [
-            "effect: Spell Effect: Albatross Curse (Failure)",
             "effect: Spell Effect: Albatross Curse (Critical Failure)"
         ]
     },
@@ -234,11 +232,9 @@
         ],
         "failure": [
             "effect: Spell Effect: Bestial Curse (Failure)",
-            "effect: Spell Effect: Bestial Curse (Critical Failure)",
             "clumsy 1"
         ],
         "criticalFailure": [
-            "effect: Spell Effect: Bestial Curse (Failure)",
             "effect: Spell Effect: Bestial Curse (Critical Failure)",
             "clumsy 1"
         ]
@@ -534,9 +530,6 @@
         ]
     },
     "Clinging Ice": {
-        "success": [
-            "effect: Spell Effect: Clinging Ice"
-        ],
         "failure": [
             "effect: Spell Effect: Clinging Ice"
         ],
@@ -633,9 +626,6 @@
     "Croak Voice": {},
     "Crown of Prophets": {},
     "Crushing Ground": {
-        "success": [
-            "effect: Spell Effect: Crushing Ground"
-        ],
         "failure": [
             "effect: Spell Effect: Crushing Ground"
         ],
@@ -676,7 +666,7 @@
         ],
         "failure": [
             "effect: Spell Effect: Curse of Recoil (Failure)",
-            "effect: Spell Effect: Curse of Recoil (Critical Failure)"
+            "off-guard for 1 round (caster's turn start) [spell's duration]"
         ],
         "criticalFailure": [
             "effect: Spell Effect: Curse of Recoil (Critical Failure)"
@@ -754,11 +744,7 @@
     },
     "Death Knell": {
         "success": [
-            "effect: Spell Effect: Death Knell",
             "dying"
-        ],
-        "failure": [
-            "effect: Spell Effect: Death Knell"
         ]
     },
     "Deathless March": {
@@ -885,8 +871,7 @@
     "Drain Life": {},
     "Draw Ire": {
         "success": [
-            "effect: Spell Effect: Draw Ire (Success)",
-            "effect: Spell Effect: Draw Ire"
+            "effect: Spell Effect: Draw Ire (Success)"
         ],
         "failure": [
             "effect: Spell Effect: Draw Ire"
@@ -1049,8 +1034,7 @@
     "Ephemeral Hazards": {},
     "Equal Footing": {
         "success": [
-            "effect: Spell Effect: Equal Footing (Success)",
-            "effect: Spell Effect: Equal Footing (Failure or Critical Failure)"
+            "effect: Spell Effect: Equal Footing (Success)"
         ],
         "failure": [
             "effect: Spell Effect: Equal Footing (Failure or Critical Failure)"
@@ -1099,8 +1083,7 @@
     "Fabricated Truth": {},
     "Faerie Dust": {
         "failure": [
-            "effect: Spell Effect: Faerie Dust (Failure)",
-            "effect: Spell Effect: Faerie Dust (Critical Failure)"
+            "effect: Spell Effect: Faerie Dust (Failure)"
         ],
         "criticalFailure": [
             "effect: Spell Effect: Faerie Dust (Failure)",
@@ -1600,16 +1583,12 @@
     },
     "Infectious Melody": {
         "success": [
-            "effect: Spell Effect: Infectious Melody (Success)",
-            "effect: Spell Effect: Infectious Melody (Critical Failure)"
+            "effect: Spell Effect: Infectious Melody (Success)"
         ],
         "failure": [
-            "effect: Spell Effect: Infectious Melody (Success)",
-            "effect: Spell Effect: Infectious Melody (Critical Failure)",
             "effect: Spell Effect: Infectious Melody (Failure)"
         ],
         "criticalFailure": [
-            "effect: Spell Effect: Infectious Melody (Success)",
             "effect: Spell Effect: Infectious Melody (Critical Failure)"
         ]
     },
@@ -1863,9 +1842,6 @@
     "Mind Reading": {},
     "Mind of Menace": {},
     "Mirecloak": {
-        "success": [
-            "effect: Spell Effect: Mirecloak"
-        ],
         "failure": [
             "effect: Spell Effect: Mirecloak",
             "sickened 1"
@@ -1906,12 +1882,6 @@
     },
     "Mosquito Blight": {},
     "Murmuration": {
-        "success": [
-            "effect: Spell Effect: Murmuration"
-        ],
-        "failure": [
-            "effect: Spell Effect: Murmuration"
-        ],
         "criticalFailure": [
             "effect: Spell Effect: Murmuration"
         ]
@@ -2008,11 +1978,9 @@
             "effect: Spell Effect: Outcast's Curse (Success)"
         ],
         "failure": [
-            "effect: Spell Effect: Outcast's Curse (Success)",
             "effect: Spell Effect: Outcast's Curse (Failure)"
         ],
         "criticalFailure": [
-            "effect: Spell Effect: Outcast's Curse (Success)",
             "effect: Spell Effect: Outcast's Curse (Failure)"
         ]
     },
@@ -2419,11 +2387,9 @@
             "effect: Spell Effect: Sage's Curse (Success)"
         ],
         "failure": [
-            "effect: Spell Effect: Sage's Curse (Success)",
             "effect: Spell Effect: Sage's Curse (Failure)"
         ],
         "criticalFailure": [
-            "effect: Spell Effect: Sage's Curse (Success)",
             "effect: Spell Effect: Sage's Curse (Failure)"
         ]
     },

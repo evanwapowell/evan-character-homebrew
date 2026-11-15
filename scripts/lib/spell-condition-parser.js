@@ -105,6 +105,7 @@ function getOutcomeHtml(html, labels) {
     found.sort((a, b) => a.start - b.start);
 
     const sections = {};
+    const starts = Object.fromEntries(found.map((entry) => [entry.outcome, entry.start]));
     let general = "";
     found.forEach((entry, index) => {
         const next = found[index + 1];
@@ -117,7 +118,25 @@ function getOutcomeHtml(html, labels) {
             general = end === -1 ? "" : section.slice(end);
         }
     });
-    return { sections, general };
+    return { sections, general, starts };
+}
+
+const DEGREE_KEYS = {
+    "critical success": "criticalSuccess",
+    success: "success",
+    failure: "failure",
+    "critical failure": "criticalFailure",
+};
+
+/**
+ * The degrees of success an effect's label names in its last parentheses: "Spell Effect: Faerie Dust (Critical
+ * Failure)" → ["criticalFailure"], "(Failure or Critical Failure)" → ["failure", "criticalFailure"]; null if none
+ */
+function degreesNamed(label) {
+    const named = label.toLowerCase().match(/\(([^()]*)\)\s*$/)?.[1];
+    if (!named) return null;
+    const parts = named.split(/\s*(?:,|\bor\b|\band\b|\/)\s*/).filter(Boolean);
+    return parts.length > 0 && parts.every((part) => DEGREE_KEYS[part]) ? parts.map((part) => DEGREE_KEYS[part]) : null;
 }
 
 /** Links to effect items in a piece of text, e.g. "@UUID[Compendium.pf2e.spell-effects.Item.abc]{Spell Effect: X}" */
@@ -450,8 +469,12 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
 
     // Leave out heightening, which describes other ranks
     const body = html.split(/<strong>\s*Heightened/i)[0];
-    const { sections: outcomes, general } = getOutcomeHtml(body, labels);
-    const generalEffects = findEffectLinks(general);
+    const { sections: outcomes, general, starts } = getOutcomeHtml(body, labels);
+    // An unnamed effect after the entries is the caster's when the spell says what "you gain" before them ("If this
+    // kills it, you gain 10 temporary HP", followed by Spell Effect: Death Knell)
+    const intro = toPlainText(body.slice(0, Math.min(...Object.values(starts))), conditionsById);
+    const castersGain = /\byou (?:gain|get|receive)\b/.test(intro);
+    const generalEffects = findEffectLinks(general).filter((e) => !castersGain || degreesNamed(e.label));
 
     const read = (key, seen = new Set()) => {
         const outcomeHtml = outcomes[key];
@@ -483,17 +506,15 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
             text = text.replace(suffers[0], "");
         }
 
-        // An effect linked after the last entry applies to every degree the creature doesn't shrug off, unless it's
-        // named for one degree ("Spell Effect: Faerie Dust (Critical Failure)")
+        // An effect linked after the last entry applies to every degree the creature doesn't shrug off, or only takes
+        // damage from, unless the degree has an effect of its own or the effect is named for other degrees ("Spell
+        // Effect: Faerie Dust (Critical Failure)", "(Failure or Critical Failure)")
         const unaffected = /\bunaffected\b/.test(text) && !asOther;
+        const damageOnly = /^(?:the |a |each )?\w+ takes? (?:no|half|full|double) damage\.?$/.test(text.trim());
         const general = generalEffects.filter((e) => {
-            const degree = e.label.toLowerCase().match(/\((critical success|success|critical failure|failure)\)/)?.[1];
-            if (degree)
-                return (
-                    { "critical success": "criticalSuccess", success: "success", failure: "failure" }[degree] === key ||
-                    (degree === "critical failure" && key === "criticalFailure")
-                );
-            return !unaffected;
+            const degrees = degreesNamed(e.label);
+            if (degrees) return degrees.includes(key);
+            return effects.length === 0 && !unaffected && !damageOnly;
         });
         let own = readConditions(text, context);
         // "As success, with a duration of 1 hour", "As success, but the duration is unlimited": a new timer for the
@@ -512,8 +533,13 @@ export function parseSpellOutcome(html, outcome, { conditions, labels, spellDura
             inherited = { ...inherited, conditions: inherited.conditions.map(retime) };
             own = own.map((c) => (c.duration && !c.fromSpellDuration ? c : retime(c)));
         }
+        // An entry's own effect replaces the one it refers to ("As success, but the effect is permanent", followed by
+        // Spell Effect: Outcast's Curse (Failure)), unless it adds to it ("As failure, and the creature also takes a
+        // –1 penalty", followed by Spell Effect: Faerie Dust (Critical Failure)) or follows it ("It then suffers…")
+        const ownEffects = [...effects, ...general];
+        const adds = suffers || /^\s*(?:and|plus)\b/.test(text);
         return {
-            effects: [...inherited.effects, ...effects, ...general],
+            effects: ownEffects.length > 0 && !adds ? ownEffects : [...inherited.effects, ...ownEffects],
             conditions: suffers
                 ? preferLater([...own, ...inherited.conditions])
                 : preferLater([...inherited.conditions, ...own]),

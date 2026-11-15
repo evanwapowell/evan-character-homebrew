@@ -250,6 +250,54 @@ describe("parseSpellOutcome on other phrasings", () => {
         assert.deepEqual(parse(html, "success").effects, [{ effect, label: "Spell Effect: Penalty" }]);
         assert.deepEqual(parse(html, "failure").effects, [{ effect, label: "Spell Effect: Penalty" }]);
     });
+
+    it("gives each degree its own effect, adding to the one it refers to only with 'and'", () => {
+        const link = (id, label) => `@UUID[Compendium.pf2e.spell-effects.Item.${id}]{${label}}`;
+        const html = [
+            "<p><strong>Critical Success</strong> The target is unaffected.</p>",
+            "<p><strong>Success</strong> The target takes a –1 penalty for 10 minutes.</p>",
+            `<p>${link("aaaaaaaaaaaaaaaa", "Spell Effect: Curse (Success)")}</p>`,
+            "<p><strong>Failure</strong> As success, but the effect is permanent.</p>",
+            `<p>${link("bbbbbbbbbbbbbbbb", "Spell Effect: Curse (Failure)")}</p>`,
+            "<p><strong>Critical Failure</strong> As failure, and the target also takes a –1 penalty to Will saves.</p>",
+            `<p>${link("cccccccccccccccc", "Spell Effect: Curse (Critical Failure)")}</p>`,
+        ].join("");
+        const effects = (outcome) => parse(html, outcome).effects.map((e) => e.label);
+        assert.deepEqual(effects("success"), ["Spell Effect: Curse (Success)"]);
+        assert.deepEqual(effects("failure"), ["Spell Effect: Curse (Failure)"]);
+        assert.deepEqual(effects("criticalFailure"), [
+            "Spell Effect: Curse (Failure)",
+            "Spell Effect: Curse (Critical Failure)",
+        ]);
+    });
+
+    it("reads the degrees an effect after the last entry is named for, and skips damage-only degrees", () => {
+        const link = (id, label) => `@UUID[Compendium.pf2e.spell-effects.Item.${id}]{${label}}`;
+        const html = [
+            "<p><strong>Success</strong> The target takes half damage.</p>",
+            "<p><strong>Failure</strong> The target takes full damage and a –10-foot penalty to its Speeds.</p>",
+            "<p><strong>Critical Failure</strong> The target takes double damage and a –15-foot penalty.</p>",
+            `<p>${link("aaaaaaaaaaaaaaaa", "Spell Effect: Ice")} ${link("bbbbbbbbbbbbbbbb", "Spell Effect: Ice (Failure or Critical Failure)")}</p>`,
+        ].join("");
+        const effects = (outcome) => parse(html, outcome).effects.map((e) => e.label);
+        assert.deepEqual(effects("success"), []);
+        assert.deepEqual(effects("failure"), ["Spell Effect: Ice", "Spell Effect: Ice (Failure or Critical Failure)"]);
+        assert.deepEqual(effects("criticalFailure"), [
+            "Spell Effect: Ice",
+            "Spell Effect: Ice (Failure or Critical Failure)",
+        ]);
+    });
+
+    it("leaves out an effect after the entries that's what the caster gains", () => {
+        const html = [
+            "<p>The target attempts a Will save. If this kills it, you gain 10 temporary HP.</p>",
+            "<p><strong>Success</strong> The target's dying value increases by 1.</p>",
+            "<p><strong>Failure</strong> The target dies.</p>",
+            "<p>@UUID[Compendium.pf2e.spell-effects.Item.aaaaaaaaaaaaaaaa]{Spell Effect: Knell}</p>",
+        ].join("");
+        assert.deepEqual(parse(html, "success").effects, []);
+        assert.deepEqual(parse(html, "failure").effects, []);
+    });
 });
 
 describe("getGrantedConditions", () => {
