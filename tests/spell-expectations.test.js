@@ -147,6 +147,20 @@ const CONDITIONS = {
         failure: ["sickened 1 [later or conditional: unchecked]"],
         criticalFailure: ["sickened 2 [later or conditional: unchecked]"],
     },
+    // "Until the beginning of their next turn"
+    "Curse of Recoil": {
+        success: ["off-guard for 1 round (its turn start)"],
+        failure: ["effect: Spell Effect: Curse of Recoil (Failure)", "off-guard for 1 round (its turn start)"],
+        criticalFailure: ["effect: Spell Effect: Curse of Recoil (Critical Failure)"],
+    },
+    // "When it returns, it takes full damage and is Sickened 1": it always returns, at the end of the caster's turn
+    "Cast into Time": { failure: ["sickened 1"], criticalFailure: ["sickened 2"] },
+    // Stunned for 1 round, if it chooses that over giving up the item; "the duration is 4 rounds" is the spell's
+    "Charitable Urge": {
+        success: ["stunned 1"],
+        failure: [`stunned ${caster(1, "round")} [later or conditional: unchecked]`],
+        criticalFailure: [`stunned ${caster(1, "round")} [later or conditional: unchecked]`],
+    },
     "Scrounger's Glee": { failure: ["frightened 1"], criticalFailure: ["frightened 2"] },
 };
 
