@@ -253,7 +253,8 @@ async function offerRecenter(caster, { spell, effect }) {
     if (auraEffect.isOwner && center.isOwner) return moveAuraEffect(auraEffect.uuid, center.uuid);
     // Players can't edit creatures they don't own, so the active GM moves the aura for them
     const data = { effectUuid: auraEffect.uuid, centerUuid: center.uuid };
-    await askGM("moveManifestWill", data, { title: "Manifest Will", task: "center it on that creature" });
+    // Not waited for: the Sustain's other prompts needn't wait on the GM
+    void askGM("moveManifestWill", data, { title: "Manifest Will", task: "center it on that creature" });
 }
 
 /* Concealment: "You are concealed from creatures beyond the edge of the emanation". The creature at its center is

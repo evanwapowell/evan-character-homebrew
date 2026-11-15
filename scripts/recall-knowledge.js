@@ -465,9 +465,9 @@ async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
  * Send to the active GM, or handle it here when this is the active GM's session that acts (the cards are kept by the
  * session that made them). Resolves to whether it was handled.
  */
-async function toGM({ action, ...data }) {
+async function toGM({ action, ...data }, { quiet = false } = {}) {
     const here = await confirmActiveGM();
-    const answer = await askGM(action, data, { here, title: TITLE, task: "answer" });
+    const answer = await askGM(action, data, { here, title: quiet ? null : TITLE, task: "answer" });
     return answer.ok;
 }
 
@@ -479,7 +479,7 @@ async function onRolled(message, check) {
     if (targets.length === 0) return;
     if (!game.users.activeGM) return ui.notifications.warn(`${TITLE}: a GM must be logged in to answer.`);
 
-    // The GM's cards are started at once, and each question waits for its card
+    // The GM's cards are started at once, and each question is sent once its card's start is answered
     const started = targets.map((tokenDoc) =>
         toGM({ action: "recallKnowledgeStart", messageId: message.id, tokenUuid: tokenDoc.uuid, kind: check.kind }),
     );
@@ -491,9 +491,12 @@ async function onRolled(message, check) {
             if (!hasFeat(actor, "diverse-lore") || roll.total < levelDC(tokenDoc.actor)) continue;
         }
         const asked = await askQuestion(actor, tokenDoc, { exploit: check.kind === "exploit" });
-        if (!asked || !(await started[i])) continue;
+        if (!asked) continue;
+        // Sent even when the card's start went unanswered (a GM on an earlier version makes it without answering),
+        // without warning twice
+        const quiet = !(await started[i]);
         const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, ...asked };
-        await toGM({ action: "recallKnowledgeQuestion", ...data });
+        await toGM({ action: "recallKnowledgeQuestion", ...data }, { quiet });
     }
 }
 

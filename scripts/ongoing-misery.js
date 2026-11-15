@@ -227,7 +227,8 @@ async function promptOngoingMisery(actor) {
     if (canExtend) return extendEffect(effect, extension);
     // Players can't update effects on creatures they don't own, so the active GM extends those
     const data = { effectUuid: effect.uuid, ...extension };
-    await askGM("ongoingMisery", data, { title: "Familiar of Ongoing Misery", task: "curse that creature" });
+    // Not waited for: the Sustain's other prompts (Parasitic Might's) needn't wait on the GM
+    void askGM("ongoingMisery", data, { title: "Familiar of Ongoing Misery", task: "curse that creature" });
 }
 
 hooks.on("createChatMessage", (message, options, userId) => {

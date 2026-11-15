@@ -539,12 +539,24 @@ async function getRemainder(roll, absorbed) {
     return remainder;
 }
 
-/** Damage the tree: this user's own if they own it, or the active GM's. Answers as `askGM` does. */
+/**
+ * Damage the tree: this user's own if they own it, or the active GM's. The ally's damage doesn't wait for the GM (it's
+ * applied inside pf2e's `applyDamage`): when no GM session damages the tree, the user is told to do it by hand.
+ */
 async function damageTree(treeToken, amount) {
     const tree = treeToken.actor;
-    if (!tree.isOwner) return askGM("protectorTreeDamage", { tokenUuid: treeToken.uuid, amount });
-    await tree.applyDamage({ damage: amount, token: treeToken });
-    return { ok: true, result: null };
+    if (tree.isOwner) return tree.applyDamage({ damage: amount, token: treeToken });
+    askGM("protectorTreeDamage", { tokenUuid: treeToken.uuid, amount })
+        .then((answer) => {
+            if (answer.ok) return;
+            const why = {
+                absent: "no GM is logged in",
+                unanswered: "no GM session answered",
+                failed: `the GM's session couldn't (${answer.error})`,
+            }[answer.reason];
+            warn(`the tree didn't take its ${amount} damage (${why}): apply it to the tree by hand.`);
+        })
+        .catch(log);
 }
 
 /** The tree interposes its branches: it takes the damage, and the ally whatever's left */
@@ -556,14 +568,6 @@ async function interpose(actor, applyDamage, params, { tree, treeToken }) {
     const overflow = total - absorbed;
     const target = esc(params.token.name ?? actor.name);
 
-    // The tree takes it first: when it can't (no GM session answered for a tree the user doesn't own), the creature
-    // takes all of it
-    const damaged = await damageTree(treeToken, total);
-    if (!damaged.ok) {
-        const why = damaged.reason === "absent" ? "a GM must be logged in" : "no GM session answered";
-        warn(`${why} for the tree to take the damage, so it goes to ${params.token.name ?? actor.name}.`);
-        return applyDamage(params);
-    }
     const content =
         overflow > 0
             ? `<p><strong>${TITLE}</strong> The tree interposes its branches for ${target} and takes the Strike's ` +
@@ -571,6 +575,7 @@ async function interpose(actor, applyDamage, params, { tree, treeToken }) {
             : `<p><strong>${TITLE}</strong> The tree interposes its branches for ${target} and takes the Strike's ` +
               `${total} damage.</p>`;
     await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ token: treeToken }), content });
+    await damageTree(treeToken, total);
     if (overflow <= 0) return actor;
 
     let remainder = null;

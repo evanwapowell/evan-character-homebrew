@@ -714,7 +714,7 @@ function cardContent({ request, results, rolled, sourceName }) {
  * Work out what the roll counteracts, end it, and post (or, after a reroll, update) the result card. A reroll ends
  * what the new result counteracts; what the earlier one ended stays ended, with a note to restore it by hand.
  */
-async function resolve(message, request, { sourceName = null } = {}) {
+async function resolveNow(message, request, { sourceName = null } = {}) {
     const rolled = readRoll(message);
     if (!rolled) return;
     const outcomes = getOutcomes(request, message, rolled);
@@ -733,7 +733,10 @@ async function resolve(message, request, { sourceName = null } = {}) {
     if (toRemove.length > 0) {
         const done = await removeItems(toRemove);
         request.targets.forEach((t, i) => {
-            if (results[i].success && t.removable && t.items.some((uuid) => done.has(uuid))) results[i].removed = true;
+            if (!results[i].success || !t.removable || results[i].removed) return;
+            // Ended now, or already gone (a GM session that answered too late still removed it)
+            const gone = t.items.length > 0 && t.items.every((uuid) => !resolveSync(uuid));
+            if (gone || t.items.some((uuid) => done.has(uuid))) results[i].removed = true;
         });
     }
 
@@ -751,6 +754,19 @@ async function resolve(message, request, { sourceName = null } = {}) {
         whisper,
         flags: { [MODULE_ID]: { counteract: flag } },
     });
+}
+
+/** Each request's resolving, so a reroll waits for the roll before it (whose removal can wait on the GM) */
+const resolving = new Map();
+
+function resolve(message, request, options) {
+    const next = (resolving.get(request.id) ?? Promise.resolve())
+        .catch(() => {})
+        .then(() => resolveNow(message, request, options));
+    resolving.set(request.id, next);
+    const forget = () => resolving.get(request.id) === next && resolving.delete(request.id);
+    next.then(forget, forget);
+    return next;
 }
 
 /* Entry points */

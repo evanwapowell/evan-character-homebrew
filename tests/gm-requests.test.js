@@ -194,4 +194,47 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
         assert.equal(card().flags["evan-character-homebrew"].counteract.results[0].removed, true);
         assert.match(card().content, /counteracted and ended/);
     });
+
+    it("says it was ended on a reroll when a GM session ended it too late to answer", async (t) => {
+        const { tick, gm, player, goblin, fear } = await setup(t);
+        // The GM's window is slow: the request arrives after the player has stopped waiting, and is still done
+        gm.latency = ACCEPT + 5_000;
+        const first = resolve(player, rollMessage("roll-1"), request(fear));
+        await drain();
+        tick(ACCEPT);
+        await drain();
+        await first;
+        assert.match(card().content, /counteracted, but not ended/);
+        tick(5_000);
+        await drain();
+        assert.equal(goblin.items.has(fear.id), false, "the GM's session removed it late");
+
+        gm.latency = 0;
+        const reroll = resolve(player, rollMessage("roll-2"), request(fear));
+        await drain();
+        await reroll;
+        assert.equal(card().flags["evan-character-homebrew"].counteract.results[0].removed, true);
+        assert.match(card().content, /counteracted and ended/);
+    });
+
+    it("resolves a reroll after the roll before it, on one card", async (t) => {
+        const { tick, gm, player, goblin, fear } = await setup(t);
+        gm.unreachable = true;
+        const first = resolve(player, rollMessage("roll-1"), request(fear));
+        // Rerolled while the first roll's request is still waiting
+        const reroll = resolve(player, rollMessage("roll-2"), request(fear));
+        await drain();
+        // The first roll's request is lost; the GM's window is back before it's given up on
+        gm.unreachable = false;
+        tick(ACCEPT);
+        await drain();
+        await first;
+        await drain();
+        await reroll;
+        const cards = world.messages.filter((m) => m.flags["evan-character-homebrew"]?.counteract);
+        assert.equal(cards.length, 1);
+        assert.equal(goblin.items.has(fear.id), false);
+        assert.match(cards[0].content, /counteracted and ended/);
+        assert.equal(cards[0].flags["evan-character-homebrew"].counteract.rollMessage, "roll-2");
+    });
 });
