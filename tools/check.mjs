@@ -227,6 +227,19 @@ for (const [file, text] of codes) {
     }
 }
 
+// 4c. A combat update also arrives when the turn order goes back, or when the turn's index shifts under the creature
+// whose turn it is: scripts/lib/turns.js reads what it did, once, and runs the turn's work in order
+const turnsFile = path.join("scripts", "lib", "turns.js");
+for (const [file, text] of codes) {
+    if (!relative(file).startsWith(`scripts${path.sep}`) || relative(file) === turnsFile) continue;
+    for (const match of text.matchAll(/["'`]updateCombat["'`]/g)) {
+        problems.push(
+            `${relative(file)}:${lineOf(text, match.index)} reads combat updates itself: register the turn's work ` +
+                `with featureHooks(id).onTurnStart() or onTurnEnd()`,
+        );
+    }
+}
+
 // 5. Compendium links are by ID: a name only resolves in pf2e's own build. Literal links only: templated ones
 // (`${PACK}.${ID}`) are checked by 6.
 const LINK = /Compendium\.([\w-]+)\.([\w-]+)\.([A-Z]\w*)\.([^\s"'`\]}),.]*)/g;

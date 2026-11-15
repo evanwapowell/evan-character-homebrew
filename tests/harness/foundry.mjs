@@ -365,7 +365,7 @@ class FakeRoll {
 /* The world, and its sessions */
 
 /** Foundry's Collection: a Map with the array methods the scripts use */
-class Collection extends Map {
+export class Collection extends Map {
     get contents() {
         return [...this.values()];
     }

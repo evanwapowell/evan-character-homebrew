@@ -349,12 +349,18 @@ Hooks.once("init", () => {
 
 onGMRequest("moveManifestWill", (data) => moveAuraEffect(data.effectUuid, data.centerUuid));
 
-hooks.on("updateCombat", async (combat, changed) => {
-    if (!("turn" in changed || "round" in changed) || !combat.started || !combat.combatant) return;
-    // The aura's area is measured on the canvas, so a session viewing the combatant's scene does it
-    const combatant = combat.combatant;
-    if (!(await confirmActiveGM({ scene: combatant.token?.parent }))) return;
-    onTurnStart(combatant).catch((error) => console.error(`${MODULE_ID} | Manifest Will`, error));
+// The aura's area is measured on the canvas: a session viewing the combatant's scene does it
+hooks.onTurnStart(({ combatant }) => onTurnStart(combatant));
+
+// A creature removed from the encounter has no next turn to end its effects at
+Hooks.on("deleteCombatant", async (combatant) => {
+    const actor = combatant.actor;
+    const combat = combatant.parent;
+    if (!actor || !combat?.started || getManifestWillEffects(actor).length === 0) return;
+    if (combat.combatants.some((c) => c !== combatant && c.actor === actor)) return;
+    if (!(await confirmActiveGM())) return;
+    const ids = getManifestWillEffects(actor).map((e) => e.id);
+    if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
 });
 
 Hooks.on("deleteCombat", async (combat) => {

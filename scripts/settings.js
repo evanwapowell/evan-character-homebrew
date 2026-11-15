@@ -16,6 +16,7 @@ import {
     isPrimarySession,
 } from "./lib/session.js";
 import { askGM, onGMRequest, warnGM } from "./lib/gm.js";
+import { onTurnEnd, onTurnStart } from "./lib/turns.js";
 
 const MODULE_ID = "evan-character-homebrew";
 
@@ -184,10 +185,19 @@ function isEnabled(id) {
     }
 }
 
-/** `Hooks.on` for a feature: the hook does nothing while the feature is off */
+/**
+ * `Hooks.on` for a feature: the hook does nothing while the feature is off. `onTurnEnd` and `onTurnStart` register the
+ * active GM's work at the end and the start of a creature's turn (scripts/lib/turns.js) the same way.
+ */
 function featureHooks(id) {
+    const guard =
+        (fn) =>
+        (...args) =>
+            isEnabled(id) ? fn(...args) : undefined;
     return {
-        on: (name, fn) => Hooks.on(name, (...args) => (isEnabled(id) ? fn(...args) : undefined)),
+        on: (name, fn) => Hooks.on(name, guard(fn)),
+        onTurnEnd: (fn) => onTurnEnd(guard(fn)),
+        onTurnStart: (fn) => onTurnStart(guard(fn)),
     };
 }
 
