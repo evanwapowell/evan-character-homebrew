@@ -7,10 +7,7 @@
  * and spell-conditions.js, so effects from either are the same as a dragged one and the Sustain feature tracks them.
  */
 
-/** The actor's token on the scene being viewed */
-export function getSceneToken(actor) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
-}
+import { getSceneToken } from "./util.js";
 
 /** Whether an effect is an aura the caster emits, by its Aura rule or its name ("Aura: Manifest Will") */
 export function isAuraEffect(effect) {

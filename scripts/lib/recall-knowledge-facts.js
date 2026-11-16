@@ -35,8 +35,6 @@ const QUESTIONS = [
 
 /** Abilities common to many creatures, which aren't what makes one dangerous */
 const ORDINARY_ABILITIES = new Set([
-    "attack-of-opportunity",
-    "reactive-strike",
     "grab",
     "improved-grab",
     "knockdown",

@@ -10,11 +10,13 @@
 
 import { getGrantedConditions, OUTCOMES, parseSpellOutcome, preselectDegree } from "./lib/spell-condition-parser.js";
 import { nameMarkup } from "./lib/names.js";
-import { buildSpellEffectSource, getSceneToken } from "./lib/spell-effect-source.js";
+import { outcomeLabel, toolbeltSave } from "./lib/saves.js";
+import { buildSpellEffectSource } from "./lib/spell-effect-source.js";
+import { toolbeltActive, toolbeltTargets } from "./lib/toolbelt.js";
+import { MODULE_ID, esc, getSceneToken, logger, spellDC } from "./lib/util.js";
 import { askGM, onGMRequest, owns, refuse } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
-const log = (error) => console.error(`${MODULE_ID} | Spell conditions`, error);
+const log = logger("Spell conditions");
 const UNIT_LABELS = {
     rounds: ["round", "rounds"],
     minutes: ["minute", "minutes"],
@@ -37,10 +39,6 @@ function getConditions() {
     return [...conditions.values()];
 }
 
-function getOutcomeLabel(outcome) {
-    return game.i18n.localize(`PF2E.Check.Result.Degree.Check.${outcome}`);
-}
-
 function getLabels() {
     const english = {
         criticalSuccess: "Critical Success",
@@ -48,7 +46,7 @@ function getLabels() {
         failure: "Failure",
         criticalFailure: "Critical Failure",
     };
-    return Object.fromEntries(OUTCOMES.map((o) => [o, [...new Set([english[o], getOutcomeLabel(o)])]]));
+    return Object.fromEntries(OUTCOMES.map((o) => [o, [...new Set([english[o], outcomeLabel(o)])]]));
 }
 
 /** A timer that ends at the creature's own next turn: "until its next turn begins", "until the end of its next turn" */
@@ -216,7 +214,6 @@ function summarize({ effects, conditions }, { proposed = false } = {}) {
  * effects and conditions it would get. Returns the confirmed proposals, or null if cancelled.
  */
 async function confirmProposals(entries) {
-    const esc = Handlebars.escapeExpression;
     const row = (content) =>
         `<div style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">${content}</div>`;
     const unitOptions = (selected) =>
@@ -268,7 +265,7 @@ async function confirmProposals(entries) {
         const heading = `${esc(save.target.name)}</strong>'s save against ${esc(save.spell.name)}`;
         const again = applied ? ` <em>Already applied from this message: check what to apply again.</em>` : "";
         return [
-            `<p><strong>${heading}: ${esc(getOutcomeLabel(save.outcome))}.${again}</p>`,
+            `<p><strong>${heading}: ${esc(outcomeLabel(save.outcome))}.${again}</p>`,
             ...effectRows,
             ...conditionRows,
         ].join("");
@@ -353,7 +350,7 @@ async function confirmAndApply(message, entries) {
         const names = meanwhile.map(({ save }) => save.target.name).join(", ");
         const again = await foundry.applications.api.DialogV2.confirm({
             window: { title: `${entries[0].save.spell.name}: Apply Conditions` },
-            content: `<p>This was applied to ${Handlebars.escapeExpression(names)} while the dialog was open. Apply it again?</p>`,
+            content: `<p>This was applied to ${esc(names)} while the dialog was open. Apply it again?</p>`,
             rejectClose: false,
         });
         if (!again) return;
@@ -414,14 +411,12 @@ async function applyProposal(save, { effects, conditions }) {
     const unvalued = conditions.filter((c) => c.valued && !c.value);
     const applicable = conditions.filter((c) => !unvalued.includes(c) && !target.isImmuneTo?.(c.slug));
     // The spell, its caster, rank and DC, for Counteract, which ends what a spell did at its rank and against its DC
-    const statistic = spell.spellcasting?.statistic;
-    const spellDC = statistic?.withRollOptions?.({ item: spell })?.dc.value ?? statistic?.dc?.value ?? null;
     const spellSource = {
         caster: caster?.uuid ?? null,
         spell: spell.uuid,
         name: spell.name,
         rank: spell.rank,
-        dc: save.dc ?? spellDC,
+        dc: save.dc ?? spellDC(spell),
     };
 
     // Spell effects, as pf2e makes them when they're dragged from the save's message
@@ -453,7 +448,7 @@ async function applyProposal(save, { effects, conditions }) {
         const timing = groups.size > 1 ? `, ${describeDuration(duration)}` : "";
         toCreate.push({
             type: "effect",
-            name: `${spell.name} (${getOutcomeLabel(outcome)}${timing})`,
+            name: `${spell.name} (${outcomeLabel(outcome)}${timing})`,
             img: spell.img,
             system: {
                 description: { value: `<p>From @UUID[${spell.uuid}]{${spell.name}}.</p>` },
@@ -516,7 +511,6 @@ async function applyProposal(save, { effects, conditions }) {
         await anchor.update({ "system.rules": [...anchor._source.system.rules, rule] });
     }
 
-    const esc = Handlebars.escapeExpression;
     const appliedConditions = conditions.filter((c) => !skipped.includes(c) && !unchanged.includes(c));
     const summary = summarize({ effects, conditions: appliedConditions });
     const label = (c) => (unvalued.includes(c) ? `${c.name} (no value given)` : c.name);
@@ -547,28 +541,22 @@ async function addApplyButton(message, html) {
  * each target's result on the spell's card instead. Its card gets one button covering every target the user can edit.
  */
 
-const TOOLBELT_ID = "pf2e-toolbelt";
-
 /** Saves recorded by Target Helper on a spell's card, read when needed so rerolls are included */
 function getToolbeltSaves(message) {
-    const data = message.flags[TOOLBELT_ID]?.targetHelper;
     const spell = message.item;
-    if (!data?.saveVariants || spell?.type !== "spell") return [];
-
-    const tokens = [...(data.targets ?? []), ...(data.splashTargets ?? [])]
-        .map((uuid) => (typeof uuid === "string" ? fromUuidSync(uuid) : null))
-        .filter((token, index, all) => token?.actor && all.indexOf(token) === index);
+    if (spell?.type !== "spell") return [];
+    const tokens = (toolbeltTargets(message, { splash: true }) ?? []).filter(
+        (token, index, all) => token.actor && all.indexOf(token) === index,
+    );
     const saves = [];
     for (const token of tokens) {
-        const result = Object.values(data.saveVariants)
-            .map((variant) => variant?.saves?.[token.id])
-            .findLast((s) => OUTCOMES.includes(s?.success));
+        const result = toolbeltSave(message, token);
         if (!result || !token.actor.isOwner) continue;
         const rollOptions = message.flags.pf2e?.origin?.rollOptions ?? null;
         saves.push({
             spell,
             target: token.actor,
-            outcome: result.success,
+            outcome: result.outcome,
             casterUuid: message.actor?.uuid,
             rollOptions,
         });
@@ -577,7 +565,7 @@ function getToolbeltSaves(message) {
 }
 
 async function addToolbeltApplyButton(message, html) {
-    if (!game.modules.get(TOOLBELT_ID)?.active) return;
+    if (!toolbeltActive()) return;
     const content = html?.querySelector(".message-content");
     const saves = getToolbeltSaves(message);
     if (!content || saves.length === 0) return;

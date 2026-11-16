@@ -5,10 +5,11 @@
  * Intelligence modifier, which then become their charges.
  */
 
+import { CHARGE_EFFECT_UUID, isChargeEffect } from "./lib/charge-effect.js";
 import { findItems } from "./lib/items.js";
+import { MODULE_ID, byDistance, effectContext, endsWithId, esc, getSceneToken } from "./lib/util.js";
 import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest, owns, refuse } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("witchCharge");
 /** IDs of the action in this module's compendium, pf2e's feats, and pf2e's Effect: Witch's Charge */
@@ -16,24 +17,15 @@ const ACTION_ID = "f0BUHuiZLiODSsg3";
 const CHARGE_FEAT_ID = "52QyoGaysrfBOy5H";
 const COMMUNION_ID = "4IeAAmx2vZEHmRLX";
 const SENESCHAL_DEDICATION_ID = "HIu1miRRGvGvHevN";
-const CHARGE_EFFECT_UUID = "Compendium.pf2e.feat-effects.Item.ugeStF0Rj8phBPWL";
 
 function isDesignateAction(message) {
     const item = message.item;
     if (item?.slug === "designate-witchs-charge") return true;
-    const uuids = [item?.sourceId, item?.uuid, message.flags.pf2e?.origin?.uuid];
-    return uuids.some((uuid) => String(uuid ?? "").endsWith(`.${ACTION_ID}`));
-}
-
-/** Effect: Witch's Charge, as an item or an item's source (see lib/items.js) */
-function isChargeEffect(effect) {
-    return effect._stats?.compendiumSource === CHARGE_EFFECT_UUID || effect.name === "Effect: Witch's Charge";
+    return endsWithId(item, ACTION_ID) || String(message.flags.pf2e?.origin?.uuid ?? "").endsWith(`.${ACTION_ID}`);
 }
 
 function hasFeat(actor, id, name) {
-    return actor.itemTypes.feat.some(
-        (f) => [f.sourceId, f.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`)) || f.name === name,
-    );
+    return actor.itemTypes.feat.some((f) => endsWithId(f, id) || f.name === name);
 }
 
 /** How many charges the witch can designate: 1, or their Intelligence modifier with Witch's Communion */
@@ -60,11 +52,11 @@ function playChargeAnimation(witch, targetTokens) {
     const sequence = new Sequence();
     let hasEffects = false;
     for (const targetToken of targetTokens) {
-        const witchToken = witch.getActiveTokens(true, true).find((t) => t.parent === targetToken.parent);
+        const witchToken = getSceneToken(witch, targetToken.parent);
         if (!witchToken?.object || !targetToken.object) continue;
 
         const distance = witchToken.object.distanceTo(targetToken.object);
-        const tether = (TETHERS.find(([feet]) => distance <= feet) ?? TETHERS.at(-1))[1];
+        const tether = byDistance(TETHERS, distance);
         sequence.effect().file(`${JB2A_LIBRARY}/${tether}`).atLocation(witchToken).stretchTo(targetToken);
         sequence
             .effect()
@@ -102,12 +94,11 @@ async function designateCharges(witchUuid, targetTokenUuids) {
         const source = effect.toObject();
         delete source._id;
         source._stats = { ...source._stats, compendiumSource: CHARGE_EFFECT_UUID };
-        const witchToken = witch.getActiveTokens(true, true).find((t) => t.parent === targetToken.parent);
-        source.system.context = {
-            origin: { actor: witch.uuid, token: witchToken?.uuid ?? null, item: null, spellcasting: null },
-            target: { actor: targetToken.actor.uuid, token: targetToken.uuid },
-            roll: null,
-        };
+        source.system.context = effectContext({
+            origin: witch,
+            token: getSceneToken(witch, targetToken.parent),
+            target: { actor: targetToken.actor, token: targetToken },
+        });
         try {
             const [item] = (await targetToken.actor.createEmbeddedDocuments("Item", [source])) ?? [];
             if (!item) throw new Error("it wasn't created");
@@ -119,7 +110,6 @@ async function designateCharges(witchUuid, targetTokenUuids) {
         }
     }
 
-    const esc = Handlebars.escapeExpression;
     const listOf = (tokens) => {
         const names = tokens.map((t) => esc(t.name));
         return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");

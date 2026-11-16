@@ -167,7 +167,13 @@ for (const version of ["v13", "v14"]) {
             assert.equal(moved?.slug, "aura-manifest-will");
             assert.equal(moved.origin, witch, "the witch is its caster, not the charge");
             assert.deepEqual(moved.system.context, {
-                origin: { actor: witch.uuid, token: tokens.witch.uuid, item: null, spellcasting: null },
+                origin: {
+                    actor: witch.uuid,
+                    token: tokens.witch.uuid,
+                    item: null,
+                    spellcasting: null,
+                    rollOptions: [],
+                },
                 target: null,
                 roll: null,
             });

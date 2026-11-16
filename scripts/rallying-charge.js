@@ -14,6 +14,7 @@
 
 import { tokenDistance } from "./lib/geometry.js";
 import { nameMarkup } from "./lib/names.js";
+import { MODULE_ID, effectContext, endsWithId, esc, getSceneToken, logger } from "./lib/util.js";
 import {
     askGM,
     canAnimate,
@@ -26,7 +27,6 @@ import {
     warnGM,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("rallyingCharge");
 /** IDs of pf2e's Rallying Charge (Marshal) and Effect: Rallying Charge (Marshal), the same in every pf2e version */
@@ -43,9 +43,7 @@ const HITS = ["success", "criticalSuccess"];
 const LOOKBACK = 50;
 const OUT_OF_COMBAT_MS = 5 * 60 * 1000;
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | Rallying Charge`, error);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
+const log = logger("Rallying Charge");
 const slugOf = (item) => item?.slug ?? game.pf2e.system.sluggify(item?.name ?? "");
 const hasAny = (list, values) => values.some((value) => (list ?? []).includes(value));
 
@@ -264,17 +262,7 @@ async function applyEffects({ marshalUuid, marshalTokenUuid, featUuid, recipient
     }
     const source = effect.toObject();
     source._stats = { ...source._stats, compendiumSource: EFFECT_UUID };
-    source.system.context = {
-        origin: {
-            actor: marshal.uuid,
-            token: marshalTokenUuid ?? null,
-            item: featUuid ?? null,
-            spellcasting: null,
-            rollOptions: [],
-        },
-        target: null,
-        roll: null,
-    };
+    source.system.context = effectContext({ origin: marshal, token: marshalTokenUuid, item: featUuid });
 
     for (const uuid of recipients) {
         const actor = fromUuidSync(uuid)?.actor;
@@ -290,7 +278,7 @@ async function applyEffects({ marshalUuid, marshalTokenUuid, featUuid, recipient
 
 function getMarshalToken(message) {
     const actor = message.actor;
-    return message.token ?? actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
+    return message.token ?? getSceneToken(actor);
 }
 
 async function onStrikeDamage(message) {

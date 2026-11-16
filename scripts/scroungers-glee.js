@@ -10,6 +10,7 @@
  * at a Strike against a creature with the effect, the caster's user is asked whether to Dismiss the spell to heal them.
  */
 
+import { MODULE_ID, endsWithId, esc, logger } from "./lib/util.js";
 import {
     askGM,
     canAnimate,
@@ -21,7 +22,6 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("scroungersGlee");
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
@@ -32,9 +32,7 @@ const EFFECT_UUID = `${PACK}.${EFFECT_ID}`;
 const SPELL_ID = "VNv96dJPi0WXKSFN";
 const TITLE = "Scrounger's Glee";
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | Scrounger's Glee`, error);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
+const log = logger(TITLE);
 
 function isGleeSpell(item) {
     return item?.type === "spell" && (item.slug === "scroungers-glee" || endsWithId(item, SPELL_ID));

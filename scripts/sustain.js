@@ -16,6 +16,8 @@
  */
 
 import { nameMarkup } from "./lib/names.js";
+import { chooseOne } from "./lib/ui.js";
+import { MODULE_ID, endsWithId, esc, logger } from "./lib/util.js";
 import {
     askGM,
     confirmActiveGM,
@@ -28,9 +30,9 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("sustain");
+const log = logger("Sustain");
 /** ID of the pf2e Sustain action item, the same in every pf2e version */
 const SUSTAIN_ID = "3f5DMFu8fPiqHpRg";
 
@@ -140,7 +142,6 @@ async function endUnsustained(combat, { combatant, round }) {
         } else if (record.round < round) {
             const target = effect.actor;
             await effect.delete();
-            const esc = Handlebars.escapeExpression;
             const on = target === caster ? "" : ` on ${nameMarkup(target)}`;
             const reason = `${esc(caster.name)} didn't Sustain it.`;
             // An NPC's spells, and effects pf2e keeps unidentified, are the GM's to know about
@@ -163,7 +164,6 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
     // An effect dragged from the spell's chat card has the spell's cast rank as its level
     castRank ??= spell && effect ? Math.max(spell.rank, effect.system.level?.value ?? 0) : (spell?.rank ?? null);
     const hex = !!(spell?.traits.has("hex") || effect?.system.traits?.value?.includes("hex"));
-    const esc = Handlebars.escapeExpression;
     const glyph = `<span class="pf2-icon larger">1</span>`;
     const header = `<h4 class="action"><strong>${esc(sustainTitle())}</strong> ${glyph}</h4>`;
     // Marks the message as a Sustain rather than a cast
@@ -189,7 +189,7 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
         try {
             await handler(actor, data);
         } catch (error) {
-            console.error(`${MODULE_ID} | Sustain`, error);
+            log(error);
         }
     }
 }
@@ -228,41 +228,23 @@ async function promptSustain(actor, { skipIfSingle = false, spell = null } = {})
     }
     if (skipIfSingle && spells.length === 1) return sustain(actor, { effect: spells[0].effect });
 
-    const esc = Handlebars.escapeExpression;
-    const content = spells
-        .map(({ name, on, effect }, index) => {
-            const others = on.filter((a) => a !== actor).map((a) => a.name);
-            const details =
-                others.length > 0 ? [`on ${[...(on.includes(actor) ? ["you"] : []), ...others].join(", ")}`] : [];
-            // The same spell cast twice: what's left of each tells them apart
-            if (spells.some((s) => s.effect !== effect && s.name === name)) details.push(timeLeft(effect));
-            const shown = details.filter((d) => d);
-            const where = shown.length > 0 ? ` <em>(${esc(shown.join("; "))})</em>` : "";
-            return [
-                `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
-                `<input type="radio" name="choice" value="${index}" ${index === 0 ? "checked" : ""}>`,
-                `<span>${esc(name)}${where}</span>`,
-                `</label>`,
-            ].join("");
-        })
-        .join("");
-
-    const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title: `${sustainTitle()}: ${actor.name}` },
-        content,
-        buttons: [
-            {
-                action: "sustain",
-                label: sustainTitle(),
-                default: true,
-                callback: (_event, button) => button.form.elements.choice.value,
-            },
-            { action: "cancel", label: "Cancel" },
-        ],
-        rejectClose: false,
+    const choices = spells.map(({ name, on, effect }) => {
+        const others = on.filter((a) => a !== actor).map((a) => a.name);
+        const details =
+            others.length > 0 ? [`on ${[...(on.includes(actor) ? ["you"] : []), ...others].join(", ")}`] : [];
+        // The same spell cast twice: what's left of each tells them apart
+        if (spells.some((s) => s.effect !== effect && s.name === name)) details.push(timeLeft(effect));
+        const shown = details.filter((d) => d);
+        const where = shown.length > 0 ? ` <em>(${esc(shown.join("; "))})</em>` : "";
+        return `${esc(name)}${where}`;
     });
-    if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
-    return sustain(actor, { effect: spells[Number(choice)]?.effect });
+    const choice = await chooseOne({
+        title: `${sustainTitle()}: ${actor.name}`,
+        choices,
+        confirm: sustainTitle(),
+    });
+    if (choice === null) return;
+    return sustain(actor, { effect: spells[choice]?.effect });
 }
 
 /**
@@ -309,7 +291,7 @@ function addSheetSustainButtons(sheet, html) {
             event.preventDefault();
             event.stopPropagation();
             const rank = Number(castRank) || spell.rank;
-            sustainSpell(actor, spell, rank).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+            sustainSpell(actor, spell, rank).catch(log);
         });
 
         const wrapper = document.createElement("div");
@@ -352,7 +334,7 @@ function addHudSustainButtons(app, element) {
             event.preventDefault();
             event.stopPropagation();
             const rank = Number(castRank) || spell.rank;
-            sustainSpell(actor, spell, rank).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+            sustainSpell(actor, spell, rank).catch(log);
         });
         cast.before(button);
     }
@@ -362,8 +344,9 @@ function addHudSustainButtons(app, element) {
 function isSystemSustain(message) {
     if (hasModuleData(message)) return false;
     const item = message.item;
-    const uuids = [item?.sourceId, item?.uuid, message.flags.pf2e?.origin?.uuid];
-    if (uuids.some((uuid) => String(uuid ?? "").endsWith(`.${SUSTAIN_ID}`))) return true;
+    if (endsWithId(item, SUSTAIN_ID) || String(message.flags.pf2e?.origin?.uuid ?? "").endsWith(`.${SUSTAIN_ID}`)) {
+        return true;
+    }
     if (item) return false;
 
     const content = new DOMParser().parseFromString(message.content ?? "", "text/html");
@@ -389,7 +372,6 @@ async function postReminder(combat, { combatant, round }) {
     });
     if (posted) return;
 
-    const esc = Handlebars.escapeExpression;
     const ends = game.settings.get(MODULE_ID, "sustainedDurations")
         ? `<p style="font-size: var(--font-size-12)"><em>Spells not Sustained this turn end at its end.</em></p>`
         : "";
@@ -429,7 +411,6 @@ function renderReminder(message, html) {
     const container = reminder ? html?.querySelector(`.${REMINDER_ROWS}`) : null;
     if (!container) return;
     const actor = fromUuidSync(reminder.actorUuid);
-    const esc = Handlebars.escapeExpression;
 
     const rows = reminder.spells.map(({ effectUuid, name }) => {
         const effect = fromUuidSync(effectUuid);
@@ -470,7 +451,7 @@ function renderReminder(message, html) {
                     button.replaceWith(status("Sustained"));
                 } catch (error) {
                     button.disabled = false;
-                    console.error(`${MODULE_ID} | Sustain`, error);
+                    log(error);
                 }
             });
             row.append(button);
@@ -484,7 +465,7 @@ hooks.on("renderChatMessageHTML", (message, html) => {
     try {
         renderReminder(message, html);
     } catch (error) {
-        console.error(`${MODULE_ID} | Sustain`, error);
+        log(error);
     }
 });
 
@@ -506,7 +487,7 @@ hooks.on("createChatMessage", (message, options, userId) => {
     if (!createdHere(message, options, userId) || !isSystemSustain(message)) return;
     const actor = message.actor ?? canvas.tokens?.controlled[0]?.actor ?? game.user.character;
     if (!actor) return;
-    promptSustain(actor, { skipIfSingle: true }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+    promptSustain(actor, { skipIfSingle: true }).catch(log);
 });
 
 // pf2e's actor sheets use Foundry's original sheet framework in v13 and v14, whose render hooks pass jQuery

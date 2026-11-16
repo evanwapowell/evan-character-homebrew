@@ -11,15 +11,16 @@
  */
 
 import { defaultEffects, parseHeightened, parseLinks } from "./lib/spell-effect-links.js";
-import { buildSpellEffectSource, getSceneToken, isAuraEffect } from "./lib/spell-effect-source.js";
+import { buildSpellEffectSource, isAuraEffect } from "./lib/spell-effect-source.js";
+import { toolbeltTargets } from "./lib/toolbelt.js";
+import { chooseOne } from "./lib/ui.js";
+import { MODULE_ID, esc, getSceneToken, logger } from "./lib/util.js";
 import { askGM, featureHooks, onGMRequest, owns, refuse, warnGM } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
-const TOOLBELT_ID = "pf2e-toolbelt";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("spellTargetEffects");
 
-const log = (error) => console.error(`${MODULE_ID} | Spell effects for targets`, error);
+const log = logger("Spell effects for targets");
 
 /** The spell of a card from casting it (or Sustaining it), not of a roll made from it, when it has no save */
 function getCastSpell(message) {
@@ -49,11 +50,7 @@ function getLinkedEffects(spell) {
 
 /** The creatures the spell was aimed at: PF2e Toolbelt's targets on the card, or the user's current targets */
 function getTargetTokens(message) {
-    const recorded = game.modules.get(TOOLBELT_ID)?.active ? message.flags[TOOLBELT_ID]?.targetHelper?.targets : null;
-    const tokens =
-        Array.isArray(recorded) && recorded.length > 0
-            ? recorded.map((uuid) => (typeof uuid === "string" ? fromUuidSync(uuid) : null))
-            : [...game.user.targets].map((t) => t.document);
+    const tokens = toolbeltTargets(message) ?? [...game.user.targets].map((t) => t.document);
     return tokens.filter(
         (token, index, all) => token?.actor && all.findIndex((t) => t.actor === token.actor) === index,
     );
@@ -136,7 +133,6 @@ function getCandidates(message, spell, effects) {
 
 /** Let the caster check which creatures get each effect. Returns [{ effect, actors }], or null if cancelled. */
 async function confirmEffects(spell, effects, creatures, { applied = false } = {}) {
-    const esc = Handlebars.escapeExpression;
     const caster = spell.actor;
     const sections = effects.map((effect, e) => {
         const boxes = creatures.map((creature, c) => {
@@ -213,7 +209,6 @@ function choiceTester(actor) {
 }
 
 async function makeChoices(source, actor) {
-    const esc = Handlebars.escapeExpression;
     const passes = choiceTester(actor);
     for (const rule of source.system.rules ?? []) {
         if (rule?.key !== "ChoiceSet" || !Array.isArray(rule.choices) || rule.selection != null) continue;
@@ -225,27 +220,13 @@ async function makeChoices(source, actor) {
             continue;
         }
         const prompt = rule.prompt ? game.i18n.localize(rule.prompt) : "Choose one:";
-        const rows = choices.map(
-            (choice, i) =>
-                `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">` +
-                `<input type="radio" name="choice" value="${i}" ${i === 0 ? "checked" : ""}>` +
-                `${esc(game.i18n.localize(String(choice.label ?? choice.value)))}</label>`,
-        );
-        const picked = await foundry.applications.api.DialogV2.wait({
-            window: { title: `${source.name}: ${actor.name}` },
-            content: `<p>${esc(prompt)}</p>${rows.join("")}`,
-            buttons: [
-                {
-                    action: "ok",
-                    label: "Choose",
-                    default: true,
-                    callback: (_event, button) => Number(button.form.elements.choice.value),
-                },
-                { action: "cancel", label: "Cancel" },
-            ],
-            rejectClose: false,
+        const picked = await chooseOne({
+            title: `${source.name}: ${actor.name}`,
+            intro: `<p>${esc(prompt)}</p>`,
+            choices: choices.map((choice) => esc(game.i18n.localize(String(choice.label ?? choice.value)))),
+            confirm: "Choose",
         });
-        if (typeof picked !== "number" || !choices[picked]) return false;
+        if (picked === null) return false;
         rule.selection = foundry.utils.deepClone(choices[picked].value);
     }
     return true;
@@ -340,7 +321,6 @@ async function applyChoices(message, spell, choices) {
     if (applied.length === 0) return false;
 
     // One line per set of effects, listing the creatures that got it
-    const esc = Handlebars.escapeExpression;
     const lines = new Map();
     for (const { actor, names } of applied) {
         const key = names.join(", ");

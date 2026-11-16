@@ -118,4 +118,4 @@ function playCurse(sequence, { familiarToken, targetToken, distance }) {
         .play();
 }
 
-export { AURAS, AURA_OPACITY, CURSE, auraFiles, finchAuraRules, playAura, playCurse };
+export { auraFiles, finchAuraRules, playAura, playCurse };

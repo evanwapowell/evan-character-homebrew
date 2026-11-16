@@ -35,6 +35,8 @@ import {
     trimReveal,
 } from "./lib/recall-knowledge-facts.js";
 import { nameForPlayers, nameForUser } from "./lib/names.js";
+import { cardButton } from "./lib/ui.js";
+import { MODULE_ID, effectContext, endsWithId, esc, logger } from "./lib/util.js";
 import {
     askGM,
     confirmActiveGM,
@@ -48,7 +50,6 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 const TITLE = "Recall Knowledge";
 const EXPLOIT_TITLE = "Exploit Vulnerability";
 /** ID of pf2e's Exploit Vulnerability action, the same in every pf2e version */
@@ -63,7 +64,7 @@ const FALSE_NAMES_SETTING = "recallKnowledgeFalseNames";
 const BESTIARY_SETTING = "recallKnowledgeBestiary";
 const BESTIARY_ID = "pf2e-bestiary-tracking";
 const ESOTERIC_LORE = "esoteric-lore";
-/** pf2e's DC adjustments, by step */
+/** pf2e's DC adjustments, by step (`dcAdjustments` in src/module/dc.ts, which pf2e doesn't expose) */
 const DC_STEPS = {
     "incredibly-easy": -10,
     "very-easy": -5,
@@ -98,11 +99,18 @@ const LIE_TYPES = [
     "cold-iron",
 ];
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | ${TITLE}`, error);
+const log = logger(TITLE);
 const localize = (key) => (key ? game.i18n.localize(key) : "");
+/**
+ * A label's translation, or `fallback` without one: Foundry's `localize` returns a key it has no translation for, so a
+ * result that's still the key (a dotted name, not a label written out) falls back
+ */
+function labelOr(key, fallback) {
+    const text = localize(key);
+    const untranslated = text === key && /^[\w-]+(\.[\w-]+)+$/.test(key);
+    return text && !untranslated ? text : fallback;
+}
 const degreeLabel = (degree) => localize(`PF2E.Check.Result.Degree.Check.${DEGREES[degree]}`);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
 const hasFeat = (actor, slug) => !!actor?.itemTypes?.feat?.some((f) => f.slug === slug);
 
 /* What's rolled */
@@ -230,7 +238,7 @@ function buildProfile(actor) {
         }),
     );
 
-    const damageLabel = (type) => localize(CONFIG.PF2E.damageTypes?.[type]) || type;
+    const damageLabel = (type) => labelOr(CONFIG.PF2E.damageTypes?.[type], type);
     const strikes = (actor.system.actions ?? [])
         .filter((s) => s.item)
         .map((s) => ({
@@ -263,8 +271,8 @@ function buildProfile(actor) {
             return {
                 id: e.id,
                 tradition,
-                traditionLabel: localize(CONFIG.PF2E.magicTraditions?.[tradition]) || tradition || "",
-                categoryLabel: localize(CONFIG.PF2E.preparationType?.[category]) || category || "",
+                traditionLabel: labelOr(CONFIG.PF2E.magicTraditions?.[tradition], tradition ?? ""),
+                categoryLabel: labelOr(CONFIG.PF2E.preparationType?.[category], category ?? ""),
             };
         })
         .filter((e) => e.tradition);
@@ -274,7 +282,7 @@ function buildProfile(actor) {
         .filter(([type, speed]) => speed && type !== "travel")
         .map(([type, speed]) => ({
             type,
-            label: localize(`PF2E.Actor.Speed.Type.${capitalize(type)}`) || type,
+            label: labelOr(`PF2E.Actor.Speed.Type.${capitalize(type)}`, type),
             value: speed.value ?? speed.total ?? 0,
         }));
 
@@ -294,7 +302,7 @@ function buildProfile(actor) {
         speeds,
         lieTypes: LIE_TYPES.filter((t) => t in weaknessLabels).map((t) => ({
             type: t,
-            label: localize(weaknessLabels[t]) || t,
+            label: labelOr(weaknessLabels[t], t),
         })),
         traditions: Object.entries(CONFIG.PF2E.magicTraditions ?? {}).map(([value, label]) => ({
             value,
@@ -612,8 +620,12 @@ async function onRolled(message, check) {
 
 /* The GM's side: the card */
 
-/** Cards being made, by roll message and creature, so a question that arrives first waits for its card */
+/**
+ * Cards being made, by roll message and creature, so a question that arrives first waits for its card. Once made, a
+ * card is found in chat (`findCard`), so only the latest are kept.
+ */
 const cards = new Map();
+const CARDS_KEPT = 100;
 
 function cardKey(messageId, tokenUuid) {
     return `${messageId}|${tokenUuid}`;
@@ -736,6 +748,10 @@ async function onStart(data) {
         return null;
     });
     cards.set(key, promise);
+    for (const old of cards.keys()) {
+        if (cards.size <= CARDS_KEPT) break;
+        cards.delete(old);
+    }
     return promise;
 }
 
@@ -1157,11 +1173,7 @@ async function applyOffGuard(actor) {
     const source = effect.toObject();
     source._stats = { ...source._stats, compendiumSource: OFF_GUARD_UUID };
     const token = actor.getActiveTokens?.(true, true)?.[0] ?? null;
-    source.system.context = {
-        origin: { actor: actor.uuid, token: token?.uuid ?? null, item: null, spellcasting: null, rollOptions: [] },
-        target: null,
-        roll: null,
-    };
+    source.system.context = effectContext({ origin: actor, token });
     const existing = actor.itemTypes.effect.filter((e) => e.slug === source.system.slug).map((e) => e.id);
     if (existing.length > 0) await actor.deleteEmbeddedDocuments("Item", existing);
     await actor.createEmbeddedDocuments("Item", [source]);
@@ -1342,18 +1354,8 @@ function renderCard(message, html) {
     } else if (record.rerolled) {
         line("Rerolled: this is the new roll.");
     }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.innerHTML = `<i class="fa-solid fa-book-open"></i> ${record.status === "sent" ? "Send Again" : "Review and Send"}`;
-    button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        button.disabled = true;
-        review(message)
-            .catch(log)
-            .finally(() => (button.disabled = false));
-    });
-    items.push(button);
+    const label = record.status === "sent" ? "Send Again" : "Review and Send";
+    items.push(cardButton({ icon: "fa-book-open", label, onClick: () => review(message), log }));
     controls.replaceChildren(...items);
 }
 

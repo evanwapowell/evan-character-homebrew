@@ -118,6 +118,28 @@ for (const version of ["v13", "v14"]) {
                 const save = checkMessage({ actor: familiar, item: action, type: "saving-throw", statistic: "reflex" });
                 assert.equal(getCardKind(await post(save)), null);
             });
+
+            it("renders the module's card while either feature is on, and not with both off", async () => {
+                const card = await post({
+                    content: `<p>Shed Spirit</p><div data-ehb-familiar-strike></div>`,
+                    flags: { [MODULE_ID]: { familiarStrike: { kind: "shedSpirit", dc: 25, outcome: null } } },
+                });
+                const rendered = () => {
+                    const html = player.run(() => document.createElement("li"));
+                    html.innerHTML = `<div class="message-content">${card.content}</div>`;
+                    player.Hooks.callAll("renderChatMessageHTML", card, html);
+                    return html.querySelector("[data-ehb-familiar-strike]").textContent;
+                };
+                const turn = (feature, on) => gm.run(() => game.settings.set(MODULE_ID, feature, on));
+
+                await turn("enabledShedSpirit", false);
+                assert.match(rendered(), /Waiting for the creature's Will save/, "Stitching Strike is still on");
+                await turn("enabledStitchingStrike", false);
+                assert.equal(rendered(), "", "both off");
+                await turn("enabledShedSpirit", true);
+                await turn("enabledStitchingStrike", true);
+                assert.match(rendered(), /Waiting for the creature's Will save/);
+            });
         });
 
         describe("Recall Knowledge and Exploit Vulnerability (scripts/recall-knowledge.js, getCheck)", () => {

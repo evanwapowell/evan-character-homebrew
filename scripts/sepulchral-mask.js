@@ -11,10 +11,19 @@
  */
 
 import { isSpellCast } from "./lib/casting.js";
-import { reportedSaveMessage, reportedToolbeltSave } from "./lib/saves.js";
+import {
+    BASIC_SAVE_MULTIPLIERS,
+    OUTCOMES,
+    effectRoll,
+    outcomeLabel,
+    reportedSaveMessage,
+    reportedToolbeltSave,
+    rollPublicSave,
+} from "./lib/saves.js";
+import { cardButton, cardNote } from "./lib/ui.js";
+import { MODULE_ID, effectContext, endsWithId, esc, getSceneToken, logger } from "./lib/util.js";
 import { askGM, canAnimate, createdHere, featureHooks, isAuthor, onGMRequest, owns, refuse } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("sepulchralMask");
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
@@ -29,23 +38,16 @@ const AURA_SLUG = "sepulchral-mask";
 const SAVE_IDENTIFIER = "sepulchral-mask:";
 /** "Visual" and "mental": a creature immune to either is unaffected. Blinded creatures are immune to visual effects. */
 const IMMUNITIES = ["mental", "visual", "emotion"];
-const OUTCOMES = ["criticalFailure", "failure", "success", "criticalSuccess"];
+/** Each result of the Will save: the damage (a basic save's) and the penalty */
 const RESULTS = {
-    criticalSuccess: { multiplier: 0, text: "is unaffected" },
-    success: { multiplier: 0.5, text: "takes half damage" },
-    failure: { multiplier: 1, text: "takes full damage", penalty: { value: 1, unit: "rounds", text: "1 round" } },
-    criticalFailure: {
-        multiplier: 2,
-        text: "takes double damage",
-        penalty: { value: 1, unit: "minutes", text: "1 minute" },
-    },
+    criticalSuccess: { text: "is unaffected" },
+    success: { text: "takes half damage" },
+    failure: { text: "takes full damage", penalty: { value: 1, unit: "rounds", text: "1 round" } },
+    criticalFailure: { text: "takes double damage", penalty: { value: 1, unit: "minutes", text: "1 minute" } },
 };
 const SECONDS = { rounds: 6, minutes: 60 };
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | Sepulchral Mask`, error);
-const outcomeLabel = (outcome) => game.i18n.localize(`PF2E.Check.Result.Degree.Check.${outcome}`);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
+const log = logger("Sepulchral Mask");
 
 function isMaskSpell(item) {
     if (item?.type !== "spell") return false;
@@ -67,10 +69,6 @@ function isMaskCard(message) {
     const type = message.flags.pf2e?.context?.type;
     if (message.flags[MODULE_ID]?.sepulchralMask || message.rolls.length > 0) return false;
     return isMaskSpell(message.item) && (!type || type === "spell-cast");
-}
-
-function getSceneToken(actor, scene = canvas.scene) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === scene) ?? null;
 }
 
 /** The caster's Sepulchral Mask, heightened to the rank it was cast at */
@@ -101,11 +99,7 @@ async function applyAura(caster, { rank, spellUuid = null, tokenUuid = null }) {
     const source = aura.toObject();
     source._stats = { ...source._stats, compendiumSource: AURA_UUID };
     source.system.level = { value: Math.max(1, rank ?? 1) };
-    source.system.context = {
-        origin: { actor: caster.uuid, token: tokenUuid, item: spellUuid, spellcasting: null, rollOptions: [] },
-        target: null,
-        roll: null,
-    };
+    source.system.context = effectContext({ origin: caster, token: tokenUuid, item: spellUuid });
     await caster.createEmbeddedDocuments("Item", [source]);
 }
 
@@ -242,15 +236,12 @@ async function rollTurnSave(card) {
     const spell = getSpell(caster, { spellUuid: record.spell, rank: record.rank });
     if (!spell) return ui.notifications.warn(`Sepulchral Mask: ${caster.name} no longer has the spell.`);
 
-    await target.saves?.will?.roll({
-        dc: { value: record.dc },
+    await rollPublicSave(target, "will", {
+        dc: record.dc,
         item: spell,
         origin: caster,
         token: targetToken,
         identifier: `${SAVE_IDENTIFIER}${card.id}`,
-        // Shown to everyone, whatever the roller's default roll mode: pf2e 7.x reads rollMode, 8.x messageMode
-        rollMode: "publicroll",
-        messageMode: "public",
     });
 }
 
@@ -359,7 +350,7 @@ async function applyTurnDamage(card) {
 
 /** Apply a rolled damage to the creature for its degree of success, as pf2e's damage buttons do */
 async function applyRoll({ caster, spell, target, targetToken, outcome, roll, options }) {
-    const { multiplier } = RESULTS[outcome];
+    const multiplier = BASIC_SAVE_MULTIPLIERS[outcome];
     // The caster's roll options, and a copy of the creature that has them
     const messageOptions = [...options];
     const originOptions = messageOptions
@@ -413,17 +404,13 @@ async function applyPenalty({ target, targetToken, anchor, spell, outcome, total
                 sustained: false,
             };
             const anchorToken = anchor === target ? targetToken : getSceneToken(anchor, targetToken.parent);
-            source.system.context = {
-                origin: {
-                    actor: anchor.uuid,
-                    token: anchorToken?.uuid ?? null,
-                    item: spell.uuid,
-                    spellcasting: null,
-                    rollOptions: [],
-                },
-                target: { actor: target.uuid, token: targetToken.uuid },
-                roll: Number.isFinite(total) ? { total, degreeOfSuccess: OUTCOMES.indexOf(outcome) } : null,
-            };
+            source.system.context = effectContext({
+                origin: anchor,
+                token: anchorToken,
+                item: spell,
+                target: { actor: target, token: targetToken },
+                roll: effectRoll(total, outcome),
+            });
             source.flags = { ...source.flags, [MODULE_ID]: { sepulchralMask: { penalty: true, key } } };
             applied = source;
         }
@@ -565,23 +552,7 @@ hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
 
 /** A button for the turn-start card, or a note of where it stands */
 function cardControl(html, { label, icon, onClick } = {}) {
-    if (!onClick) {
-        const note = document.createElement("p");
-        note.innerHTML = `<em>${html}</em>`;
-        return note;
-    }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.innerHTML = `<i class="fa-solid ${icon}"></i> ${label}`;
-    button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        button.disabled = true;
-        onClick(event)
-            .catch(log)
-            .finally(() => (button.disabled = false));
-    });
-    return button;
+    return onClick ? cardButton({ icon, label, onClick, log }) : cardNote(html);
 }
 
 /**
@@ -610,7 +581,7 @@ function renderTurnCard(message, html) {
     const items = [];
 
     if (record.damageApplied && record.damageApplied !== "criticalSuccess") {
-        const { multiplier } = RESULTS[record.damageApplied];
+        const multiplier = BASIC_SAVE_MULTIPLIERS[record.damageApplied];
         const amount = { 0.5: "Half", 1: "Full", 2: "Double" }[multiplier];
         items.push(cardControl(`${amount} damage applied (${esc(outcomeLabel(record.damageApplied))}).`));
     } else if (record.outcome === "criticalSuccess") {

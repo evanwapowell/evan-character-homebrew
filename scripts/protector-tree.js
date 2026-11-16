@@ -19,6 +19,9 @@
 
 import { isSpellCast } from "./lib/casting.js";
 import { distanceBetween, spaceOf } from "./lib/geometry.js";
+import { OUTCOMES } from "./lib/saves.js";
+import { cardButton } from "./lib/ui.js";
+import { MODULE_ID, effectContext, endsWithId, esc, getSceneToken, logger } from "./lib/util.js";
 import {
     askGM,
     confirmActiveGM,
@@ -31,7 +34,6 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const FEATURE = "protectorTree";
 const hooks = featureHooks(FEATURE);
@@ -51,13 +53,9 @@ const HP_PER_RANK = 10;
 const TREE_IMG = "icons/environment/wilderness/tree-oak.webp";
 const FOLDER_NAME = "Protector Trees";
 const HITS = ["success", "criticalSuccess"];
-/** Degrees of success, by their index */
-const OUTCOMES = ["criticalFailure", "failure", "success", "criticalSuccess"];
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | Protector Tree`, error);
+const log = logger(TITLE);
 const warn = (text) => ui.notifications.warn(`${TITLE}: ${text}`);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
 const slugOf = (item) => item?.slug ?? game.pf2e?.system?.sluggify?.(item?.name ?? "") ?? "";
 
 function isImpulse(item) {
@@ -82,10 +80,6 @@ function getCard(message) {
 function getRank(kind, { actor, item = null, message = null }) {
     if (kind === "impulse") return Math.max(1, Math.ceil((actor?.level ?? 1) / 2));
     return Math.max(1, Number(message?.flags.pf2e?.origin?.castRank ?? item?.rank ?? 1) || 1);
-}
-
-function getSceneToken(actor, scene = canvas.scene) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === scene) ?? null;
 }
 
 /** A tree's record, on its actor */
@@ -408,17 +402,7 @@ async function growTree({ kind, rank, casterUuid, casterTokenUuid, itemUuid, sce
     effectSource._id = effectId;
     effectSource._stats = { ...effectSource._stats, compendiumSource: EFFECT_UUID };
     effectSource.system.level = { value: rank };
-    effectSource.system.context = {
-        origin: {
-            actor: caster.uuid,
-            token: casterToken?.uuid ?? null,
-            item: itemUuid ?? null,
-            spellcasting: null,
-            rollOptions: [],
-        },
-        target: null,
-        roll: null,
-    };
+    effectSource.system.context = effectContext({ origin: caster, token: casterToken, item: itemUuid });
     effectSource.flags = { ...effectSource.flags, [MODULE_ID]: { protectorTree: { tree: tree.uuid, kind } } };
     await caster.createEmbeddedDocuments("Item", [effectSource], { keepId: true });
 
@@ -731,20 +715,14 @@ function renderCard(message, html) {
     if (message.flags[MODULE_ID]?.protectorTree?.placed) {
         controls.innerHTML = `<p><em>The tree was placed.</em></p>`;
     } else {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.innerHTML = `<i class="fa-solid fa-tree"></i> Place Tree`;
-        button.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            button.disabled = true;
-            // Once the tree is placed, the card is updated and rendered without the button. Until then (and if it
-            // isn't placed) it stays disabled, so a second click doesn't grow a second tree.
-            startFromCard(message)
-                .catch((error) => void log(error))
-                .then((placed) => {
-                    if (!placed) button.disabled = false;
-                });
+        // Once the tree is placed, the card is updated and rendered without the button. Until then (and if it isn't
+        // placed) it stays disabled, so a second click doesn't grow a second tree.
+        const button = cardButton({
+            icon: "fa-tree",
+            label: "Place Tree",
+            onClick: () => startFromCard(message),
+            log,
+            keepDisabled: true,
         });
         controls.append(button);
     }
@@ -896,4 +874,4 @@ onGMRequest(
     { check: checkDamage },
 );
 
-export { createTree, distanceBetween, getRemainder, isAdjacent, isSplashOnly, isStrikeHit, remainderFormula, spaceOf };
+export { createTree, isAdjacent, isSplashOnly, isStrikeHit, remainderFormula, spaceOf };
