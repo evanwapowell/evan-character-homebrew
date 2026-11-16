@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { createWorld, MODULE_ID, useFakeTimers } from "./harness/foundry.mjs";
-import { addSkills, addToken, checkMessage, d20Roll, makeActor, makeScene } from "./harness/pf2e.mjs";
+import { addItem, addSkills, addToken, checkMessage, d20Roll, makeActor, makeScene } from "./harness/pf2e.mjs";
 
 const RECORDS = "recallKnowledgeRecords";
 
@@ -403,6 +403,53 @@ for (const version of ["v13", "v14"]) {
             await s.send(s.cardFor(await s.roll({ die: 10 }))); // a success: its true name
             await s.send(fumble, read);
             assert.equal(named, "Zombie Shambler", "the name known now, not a false one that contradicts it");
+        });
+
+        /** Ezren, with Diverse Lore, Exploits the zombie's Vulnerability: Esoteric Lore against DC 15 */
+        async function exploit(s, { die, modifier }) {
+            addItem(s.world, s.ezren, { name: "Diverse Lore", type: "feat", slug: "diverse-lore" });
+            const data = checkMessage({
+                actor: s.ezren,
+                statistic: "esoteric-lore",
+                die,
+                modifier,
+                domains: ["esoteric-lore", "skill-check", "all"],
+                options: ["item:slug:exploit-vulnerability"],
+                target: s.zombie,
+            });
+            data.flags.pf2e.context.target = { actor: s.zombie.uuid, token: s.token.uuid };
+            const message = await s.player.run(() => ChatMessage.create(data));
+            await settle(s.world, () => !!s.cardFor(message));
+            await settle(s.world);
+            return message;
+        }
+
+        it("Diverse Lore: asks the question when a natural 20 makes the check a success", async (t) => {
+            const s = await setup(t, version);
+            await exploit(s, { die: 20, modifier: -6 }); // 14 against DC 15: a failure, a success with the natural 20
+            assert.equal(s.questions(), 1);
+        });
+
+        it("Diverse Lore: doesn't ask on a failure", async (t) => {
+            const s = await setup(t, version);
+            await exploit(s, { die: 10, modifier: 4 }); // 14 against DC 15
+            assert.equal(s.questions(), 0);
+        });
+
+        it("Diverse Lore: tells nothing once the GM makes Exploit Vulnerability a failure", async (t) => {
+            const s = await setup(t, version);
+            const card = s.cardFor(await exploit(s, { die: 15, modifier: 5 })); // 20 against DC 15: a success
+            const results = [];
+            await s.send(card, (form) => {
+                const degree = form.querySelector('[name="degree"]');
+                results.push(degree.value);
+                const exploitDegree = form.querySelector('[name="exploitDegree"]');
+                exploitDegree.value = "1"; // failure
+                exploitDegree.dispatchEvent(new form.ownerDocument.defaultView.Event("change"));
+                results.push(degree.value);
+                return "cancel";
+            });
+            assert.deepEqual(results, ["2", "-1"], "a success, then nothing");
         });
 
         it("turns the macro entry points off with the feature", async (t) => {
