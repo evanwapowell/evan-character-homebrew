@@ -104,7 +104,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       Strike (told by its roll options, not its item) that hits an ally of the caster (not the caster) adjacent to the
       tree (a Tiny creature measured from its whole square, as pf2e does) goes to the tree first, and the ally takes
       only what's left after the tree reaches 0 HP, keeping its damage types, materials and its share of precision and
-      splash damage and of a critical hit's doubling. Splash damage only (also at half or double) isn't taken. At 0 HP
+      splash damage and of a critical hit's doubling. Splash damage only (also at half or double) isn't taken. All of
+      the Strike's damage counts against the tree, whatever its type: the spell gives the tree only AC and Hit Points
+      (no Hardness or object immunities), and the table's ruling keeps it so. At 0 HP
       the tree's token
       and actor are removed; when the effect ends otherwise (duration, or the impulse used again), it stays as an
       ordinary tree, and deleting its token removes its actor.
@@ -127,7 +129,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       DC. The active GM applies the damage for the result (once: a reroll is left to adjust by hand). Stitching Strike,
       on a failure or critical failure: Effect: Stitching Strike (immobilized, 1 round from the witch's turn), with an
       Escape link at the DC; a successful Escape against it (or with no DC, compared with it) ends the effect. Shed
-      Spirit, once damage was dealt (HP and temporary HP lost): a button for the familiar's user to choose an ally
+      Spirit, once damage was dealt (as pf2e counts damage taken: after immunities, weaknesses and resistances,
+      with what temporary HP and Stamina absorb and what goes past 0 HP, read from `applyDamage`'s `damageTaken`): a
+      button for the familiar's user to choose an ally
       within 30 feet of the enemy, and the GM restores half that. JB2A animations for each step, and fibers on the
       immobilized creature tied to the effect.
     - `rallying-charge.js`: Rallying Charge (marshal): after the marshal uses the feat, their next Strike is the
@@ -147,7 +151,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       card (sending a card again replaces what it recorded; which facts are false stays on the GM's card, not in the
       world setting), and revealed in PF2E Bestiary Tracking. pf2e's reroll updates the card of the roll it replaces.
       Exploit Vulnerability's check is read too: its weaknesses by degree of success, off-guard on a critical failure
-      (Effect: Exploit Vulnerability (Critical Failure)), and with Diverse Lore, Recall Knowledge's information. The
+      (Effect: Exploit Vulnerability (Critical Failure)), and with Diverse Lore, Recall Knowledge's information (when
+      Exploit Vulnerability succeeds and the same result succeeds against the Recall Knowledge DC, natural 20s
+      included; a critical success gives the lore entry too, by the table's ruling). The
       facts library has no Foundry dependencies.
     - `spell-target-effects.js` with `lib/spell-effect-links.js`: an Apply button on the card of a spell without a save
       (Heroism, Stoke the Heart, Shield) for the spell effects it links. The caster checks which creatures get each
@@ -327,8 +333,8 @@ nothing when they're absent. Never add them as dependencies (`relationships.requ
 
 Follow the rules as written by default. Where a table plays differently, add a world setting for it rather than changing
 the default: see "Manifest Will (Divine): allies only" and "Familiar of Ongoing Misery: once per condition" in the
-Features menu. Ongoing
-Misery's default (prolong on every hex) reflects how the table plays now, pending the GM's decision.
+Features menu. Ongoing Misery's default (prolong on every hex) is how the table plays, by the GM's ruling; the errata's
+"once per condition" is the setting.
 
 ## Testing
 

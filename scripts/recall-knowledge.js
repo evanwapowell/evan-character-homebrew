@@ -601,11 +601,8 @@ async function onRolled(message, check) {
     );
 
     for (const [i, tokenDoc] of targets.entries()) {
-        if (check.kind === "exploit") {
-            // Diverse Lore: a check good enough for Exploit Vulnerability may be enough to Recall Knowledge too
-            const roll = message.rolls[0];
-            if (!hasFeat(actor, "diverse-lore") || roll.total < levelDC(tokenDoc.actor)) continue;
-        }
+        // Diverse Lore: a check good enough for Exploit Vulnerability may be enough to Recall Knowledge too
+        if (check.kind === "exploit" && !diverseLoreSucceeds(message, actor, tokenDoc)) continue;
         // A reroll whose card was found keeps its question
         if (reroll && (await started[i]).result?.rerolled) continue;
         const asked = await askQuestion(actor, tokenDoc, { exploit: check.kind === "exploit" });
@@ -616,6 +613,27 @@ async function onRolled(message, check) {
         const data = { messageId: message.id, tokenUuid: tokenDoc.uuid, ...asked };
         await toGM({ action: "recallKnowledgeQuestion", ...data }, { quiet });
     }
+}
+
+/**
+ * Diverse Lore: "when you succeed at your check to Exploit a Vulnerability, compare the result of your Esoteric Lore
+ * check to the DC to Recall Knowledge for that creature; if that number would be a success or a critical success, you
+ * gain information". Graded as the GM's card grades it (`readRoll`), natural 20s and 1s included.
+ */
+function diverseLoreSucceeds(message, actor, tokenDoc) {
+    const target = tokenDoc.actor;
+    if (!hasFeat(actor, "diverse-lore") || !target?.identificationDCs) return false;
+    const roll = message.rolls[0];
+    const die = dieOf(roll);
+    const context = message.flags.pf2e?.context ?? {};
+    const grade = (dc) => {
+        const adjustments = getAdjustments(actor, context.domains ?? [], context.options ?? [], roll.total, die, dc);
+        return degreeOfSuccess({ total: roll.total, die, dc, adjustments }).degree;
+    };
+    if (grade(levelDC(target)) < 2) return false;
+    const rolledAt = message.timestamp ?? Date.now();
+    const attempt = attemptNumber({ key: creatureKey(tokenDoc), actor: actor.uuid, rolledAt });
+    return grade(dcsFor(target, attempt).standard) >= 2;
 }
 
 /* The GM's side: the card */
@@ -946,12 +964,18 @@ async function review(card) {
             const setDegree = () => {
                 const row = record.checks[Number(field("check").value)];
                 let degree = row?.degree ?? 1;
-                // Diverse Lore gives information only for a success or better
-                if (record.kind === "exploit") degree = degree >= 2 && record.exploit.degree >= 2 ? degree : -1;
+                // Diverse Lore gives information only for a success or better, at Exploit Vulnerability (as the GM has
+                // it) and at Recall Knowledge
+                if (record.kind === "exploit") {
+                    const exploit = Number(field("exploitDegree")?.value ?? record.exploit.degree);
+                    degree = degree >= 2 && exploit >= 2 ? degree : -1;
+                }
                 field("degree").value = String(degree);
                 fillRecall();
             };
             field("check").addEventListener("change", setDegree);
+            // The Exploit Vulnerability result the GM picks decides whether Diverse Lore tells anything
+            field("exploitDegree")?.addEventListener("change", setDegree);
             field("degree").addEventListener("change", fillRecall);
             field("question").addEventListener("change", fillRecall);
             setDegree();

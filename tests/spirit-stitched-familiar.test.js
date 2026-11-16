@@ -218,6 +218,24 @@ for (const version of ["v13", "v14"]) {
                 assert.equal(record(card).healed, null);
             });
 
+            it("counts the damage the enemy takes as pf2e does: past 0 Hit Points too", async (t) => {
+                const setupData = await setup(t);
+                const { gm, player, goblin } = setupData;
+                // 24 damage to a goblin with 6 Hit Points left: pf2e's applyDamage updates it with `damageTaken` 24
+                goblin.actor.hitPoints.value = 6;
+                goblin.actor.applyDamage = async () => {
+                    gm.Hooks.callAll("preUpdateActor", goblin.actor, {}, { damageTaken: 24 });
+                    goblin.actor.hitPoints.value = 0;
+                };
+                const damage = inChat(gm, { content: "<p>Shed Spirit damage</p>", rolls: [] });
+                damage.rolls = [{ total: 24, alter: () => assert.fail("a failure deals full damage") }];
+                const card = await postCard(player, setupData, goblin, { damage: damage.id });
+                await gm.run(() => ChatMessage.create(willSave(card, goblin)));
+                await drain();
+                assert.equal(record(card).outcome, "failure");
+                assert.equal(record(card).dealt, 24, "not just the 6 Hit Points it had");
+            });
+
             it("refuses a player who owns neither the familiar nor the witch", async (t) => {
                 const setupData = await setup(t);
                 const { other, ezren } = setupData;

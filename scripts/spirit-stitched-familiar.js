@@ -427,6 +427,29 @@ function totalHP(actor) {
     return (hp?.value ?? 0) + (hp?.temp ?? 0);
 }
 
+/**
+ * Apply the damage, and resolve to the damage dealt: as pf2e counts the damage a creature takes, after its
+ * immunities, weaknesses and resistances, including what temporary Hit Points and Stamina absorb and what goes past
+ * 0 Hit Points (as the massive damage rule counts it). pf2e passes that to the creature's update as `damageTaken`
+ * (ActorPF2e#applyDamage, the same in 7.x and 8.x); without it, it's the Hit Points the creature lost.
+ */
+async function applyAndMeasure(target, params) {
+    let taken = null;
+    const record = (actor, _changes, options) => {
+        if (actor?.uuid === target.uuid && Number.isFinite(options?.damageTaken)) {
+            taken = (taken ?? 0) + options.damageTaken;
+        }
+    };
+    Hooks.on("preUpdateActor", record);
+    const before = totalHP(target);
+    try {
+        await target.applyDamage(params);
+    } finally {
+        Hooks.off("preUpdateActor", record);
+    }
+    return Math.max(0, taken ?? before - totalHP(params.token?.actor ?? target));
+}
+
 async function resolveSave({ cardId, outcome }) {
     const card = game.messages.get(cardId);
     const record = card?.flags[MODULE_ID]?.familiarStrike;
@@ -456,14 +479,12 @@ async function resolveSave({ cardId, outcome }) {
                 ...familiar.getSelfRollOptions("origin"),
                 ...(item?.getRollOptions?.("item") ?? []),
             ]);
-            const before = totalHP(target);
-            await target.applyDamage({
+            dealt = await applyAndMeasure(target, {
                 damage: multiplier === 1 ? roll : roll.alter(multiplier, 0),
                 token: targetToken,
                 item,
                 rollOptions,
             });
-            dealt = Math.max(0, before - totalHP(targetToken.actor));
         }
 
         const updates = { [`flags.${MODULE_ID}.familiarStrike.dealt`]: dealt };
