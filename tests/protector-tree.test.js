@@ -249,3 +249,215 @@ for (const version of ["v13", "v14"]) {
         });
     });
 }
+
+/**
+ * A player's requests, checked by the GM's session (issue #64): until 1.26.20, the GM grew a tree for any caster, at
+ * any rank, on any square, and damaged any tree by any amount, as the request said
+ */
+for (const version of ["v13", "v14"]) {
+    describe(`Protector Tree: a player's requests, checked by the GM (${version})`, () => {
+        /** The GM and a player, settled: Sylva (level 5, the player's) with Timber Sentinel, at the scene's corner */
+        async function setup(t) {
+            const tick = useFakeTimers(t);
+            world = createWorld({
+                version,
+                users: [
+                    { id: "gm", name: "Gamemaster", isGM: true },
+                    { id: "player", name: "Player" },
+                ],
+            });
+            const gm = await world.connect("gm", { scripts: ["protector-tree.js"] });
+            const player = await world.connect("player", { scripts: ["protector-tree.js"] });
+            tick(2_000);
+            await world.flush();
+            t.mock.method(console, "warn", () => {});
+
+            const scene = makeScene(world);
+            const caster = makeActor(world, { name: "Sylva", owners: ["player"] });
+            caster.system.details.level.value = 5;
+            const casterToken = addToken(world, scene, caster);
+            const impulse = addItem(world, caster, { name: "Timber Sentinel", type: "feat", slug: "timber-sentinel" });
+            world.add({
+                uuid: EFFECT_UUID,
+                toObject: () => ({
+                    name: "Effect: Protector Tree",
+                    type: "effect",
+                    system: { slug: "effect-protector-tree", rules: [] },
+                    flags: {},
+                    _stats: {},
+                }),
+            });
+            // Foundry's Actor.create and token creation, as far as growing the tree uses them: what each tree was made with
+            const made = [];
+            gm.globals.Actor = {
+                [Symbol.hasInstance]: (value) => value?.documentName === "Actor",
+                create: async (data) => {
+                    const tree = makeActor(world, { name: data.name, type: "hazard" });
+                    tree.flags = structuredClone(data.flags);
+                    tree.getTokenDocument = async (changes) => ({ toObject: () => ({ ...changes }) });
+                    made.push({ tree, data });
+                    return tree;
+                },
+            };
+            scene.createEmbeddedDocuments = async (_type, sources) =>
+                sources.map((source) => addToken(world, scene, made.at(-1).tree, { x: source.x, y: source.y }));
+            gm.run(() => (CONFIG.PF2E.hazardTraits = { plant: "Plant", wood: "Wood" }));
+            const card = await player.run(() => ChatMessage.create(itemCard(impulse)));
+            const data = {
+                kind: "impulse",
+                rank: 3,
+                casterUuid: caster.uuid,
+                casterTokenUuid: casterToken.uuid,
+                itemUuid: impulse.uuid,
+                sceneId: scene.id,
+                x: 300,
+                y: 200,
+                elevation: 0,
+                messageId: card.id,
+            };
+            const ask = async (action, request) => {
+                const answer = player.run(() => player.scripts["settings.js"].askGM(action, request));
+                for (let i = 0; i < 20; i++) {
+                    await world.flush();
+                    await new Promise((resolve) => setImmediate(resolve));
+                }
+                return answer;
+            };
+            return { gm, player, scene, caster, casterToken, impulse, made, card, data, ask };
+        }
+
+        it("grows the tree for the player's caster at the rank the caster's level gives, not the request's", async (t) => {
+            const { made, data, ask } = await setup(t);
+            const answer = await ask("protectorTreeCreate", { ...data, rank: 9 });
+            assert.equal(answer.ok, true);
+            assert.equal(made.length, 1);
+            // Half of level 5, rounded up: rank 3, 10 Hit Points a rank
+            assert.equal(made[0].data.system.attributes.hp.max, 30);
+            assert.equal(made[0].data.flags[MODULE_ID].protectorTree.rank, 3);
+        });
+
+        it("refuses a caster the player doesn't own, and a card that isn't the caster's", async (t) => {
+            const { player, scene, made, data, ask } = await setup(t);
+            const other = makeActor(world, { name: "Druid" });
+            other.system.details.level.value = 5;
+            const otherToken = addToken(world, scene, other, { x: 0, y: 5 });
+            const otherImpulse = addItem(world, other, {
+                name: "Timber Sentinel",
+                type: "feat",
+                slug: "timber-sentinel",
+            });
+            const notTheirs = await ask("protectorTreeCreate", {
+                ...data,
+                casterUuid: other.uuid,
+                casterTokenUuid: otherToken.uuid,
+                itemUuid: otherImpulse.uuid,
+                messageId: null,
+            });
+            assert.deepEqual(notTheirs, { ok: false, reason: "refused", error: "Player doesn't own the caster" });
+
+            const otherCard = await player.run(() => ChatMessage.create(itemCard(otherImpulse)));
+            const wrongCard = await ask("protectorTreeCreate", { ...data, messageId: otherCard.id });
+            assert.deepEqual(wrongCard, { ok: false, reason: "refused", error: "the card isn't Sylva's" });
+            assert.equal(made.length, 0);
+        });
+
+        it("refuses a square beyond 30 feet, an occupied one, or one off the grid", async (t) => {
+            const { scene, made, data, ask } = await setup(t);
+            const far = await ask("protectorTreeCreate", { ...data, x: 1000, y: 0 });
+            assert.deepEqual(far, { ok: false, reason: "refused", error: "the square is beyond 30 feet" });
+            // The caster's own square, then a goblin's
+            const own = await ask("protectorTreeCreate", { ...data, x: 0, y: 0 });
+            assert.deepEqual(own, { ok: false, reason: "refused", error: "the square is occupied" });
+            const goblin = addToken(world, scene, makeActor(world, { name: "Goblin", type: "npc" }));
+            Object.assign(goblin, { x: 300, y: 200 });
+            const occupied = await ask("protectorTreeCreate", data);
+            assert.deepEqual(occupied, { ok: false, reason: "refused", error: "the square is occupied" });
+            const offGrid = await ask("protectorTreeCreate", { ...data, x: 150, y: 200 });
+            assert.deepEqual(offGrid, { ok: false, reason: "refused", error: "that isn't a square" });
+            assert.equal(made.length, 0);
+        });
+
+        it("refuses the spell at a rank above what the caster can cast", async (t) => {
+            const { caster, made, data, ask } = await setup(t);
+            const spell = addItem(world, caster, { name: "Protector Tree", type: "spell", slug: "protector-tree" });
+            const request = { ...data, kind: "spell", itemUuid: spell.uuid, messageId: null };
+            const tooHigh = await ask("protectorTreeCreate", { ...request, rank: 9 });
+            assert.deepEqual(tooHigh, { ok: false, reason: "refused", error: "rank 9 is out of reach" });
+            assert.equal(made.length, 0);
+            const allowed = await ask("protectorTreeCreate", { ...request, rank: 2 });
+            assert.equal(allowed.ok, true);
+            assert.equal(made[0].data.system.attributes.hp.max, 20);
+        });
+
+        /** Sylva's active tree, with Valeros (the player's) beside it and Amiri (also the player's) far away */
+        function standingTree({ scene, caster }) {
+            const effect = addEffect(world, caster, { name: "Effect: Protector Tree" });
+            const tree = makeActor(world, { name: "Protector Tree (Sylva)", type: "hazard" });
+            tree.flags = {
+                [MODULE_ID]: { protectorTree: { caster: caster.uuid, effect: effect.uuid, rank: 1, active: true } },
+            };
+            tree.hitPoints = { value: 10, max: 10 };
+            const damaged = [];
+            tree.applyDamage = async ({ damage }) => void damaged.push(damage);
+            // In pixels, on a scene of 100 pixels a square
+            const at = (token, x, y) => Object.assign(token, { x, y });
+            const treeToken = at(addToken(world, scene, tree), 200, 200);
+            const valeros = at(
+                addToken(world, scene, makeActor(world, { name: "Valeros", owners: ["player"] })),
+                300,
+                200,
+            );
+            const amiri = at(
+                addToken(world, scene, makeActor(world, { name: "Amiri", owners: ["player"] })),
+                2000,
+                200,
+            );
+            return { tree, treeToken, valeros, amiri, damaged };
+        }
+
+        it("damages the tree next to the player's ally", async (t) => {
+            const setupData = await setup(t);
+            const { treeToken, valeros, damaged } = standingTree(setupData);
+            const answer = await setupData.ask("protectorTreeDamage", {
+                tokenUuid: treeToken.uuid,
+                amount: 7,
+                allyTokenUuid: valeros.uuid,
+            });
+            assert.equal(answer.ok, true);
+            assert.deepEqual(damaged, [7]);
+        });
+
+        it("refuses a tree the ally isn't next to, an ally the player doesn't own, or a token that isn't a tree", async (t) => {
+            const setupData = await setup(t);
+            const { scene, ask } = setupData;
+            const { treeToken, valeros, amiri, damaged } = standingTree(setupData);
+            const notNext = await ask("protectorTreeDamage", {
+                tokenUuid: treeToken.uuid,
+                amount: 7,
+                allyTokenUuid: amiri.uuid,
+            });
+            assert.deepEqual(notNext, { ok: false, reason: "refused", error: "no active tree protects Amiri" });
+
+            const kyra = Object.assign(addToken(world, scene, makeActor(world, { name: "Kyra" })), { x: 200, y: 300 });
+            const notTheirs = await ask("protectorTreeDamage", {
+                tokenUuid: treeToken.uuid,
+                amount: 7,
+                allyTokenUuid: kyra.uuid,
+            });
+            assert.deepEqual(notTheirs, {
+                ok: false,
+                reason: "refused",
+                error: "Player doesn't own the creature the tree protects",
+            });
+
+            const goblin = addToken(world, scene, makeActor(world, { name: "Goblin", type: "npc" }));
+            const notATree = await ask("protectorTreeDamage", {
+                tokenUuid: goblin.uuid,
+                amount: 7,
+                allyTokenUuid: valeros.uuid,
+            });
+            assert.deepEqual(notATree, { ok: false, reason: "refused", error: "no active tree protects Valeros" });
+            assert.deepEqual(damaged, []);
+        });
+    });
+}

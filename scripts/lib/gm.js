@@ -10,6 +10,12 @@
  *
  * The request is the feature's socket message as before (its action and data), with `gmRequest` added, so a GM
  * session on an earlier version still does the work during an update; it doesn't answer, so the asking session warns.
+ *
+ * The GM's session does what a player can't, so it doesn't take a request's data on trust: a request from a player
+ * (Foundry gives the socket's listeners the sender's user ID) goes through the action's `check` first, which reads
+ * again from the documents what it can (the save's outcome from its message, the range from the tokens), checks the
+ * player owns the creature acting, and refuses (`refuse`) a request that doesn't match its feature. A GM's requests
+ * aren't checked: a GM can do all of it.
  */
 
 import { confirmActiveGM } from "./session.js";
@@ -22,36 +28,76 @@ const ACCEPT = 10_000;
 /** How long to wait, once it's taken, for the work to be done */
 const FINISH = 60_000;
 
-/** The handlers, by socket action */
+/** The handlers, by socket action: { handler, check } */
 const handlers = new Map();
 /** Requests this session is waiting on, by ID */
 const pending = new Map();
 
 const log = (error) => console.error(`${MODULE_ID} | GM request`, error);
 
+/** A request the GM's session won't do: it doesn't match its feature, or the player can't ask for it */
+class RequestRefused extends Error {}
+
+/** Refuse a request, from an action's `check`: `reason` says why ("they don't own Ezren") */
+function refuse(reason) {
+    throw new RequestRefused(reason);
+}
+
+/** Whether a user owns a creature (or other document): a GM owns everything */
+function owns(user, document) {
+    if (!user || !document) return false;
+    return !!user.isGM || !!document.testUserPermission?.(user, "OWNER");
+}
+
+/** Whether a user made a chat message (rolled the check on it): a GM can act for anyone */
+function isAuthor(message, user) {
+    if (!user || !message) return false;
+    return !!user.isGM || message.author?.id === user.id;
+}
+
 /**
- * Handle a socket action for the active GM: the session that acts for them runs `handler(data)` and answers the
- * request, with what it returns (keep that small and serializable) or its error. Register at a script's top level.
+ * Handle a socket action for the active GM: the session that acts for them runs `handler(data, sender)` and answers
+ * the request, with what it returns (keep that small and serializable) or its error. Register at a script's top level.
+ *
+ * `check(data, sender)`, for a request from a player: resolves to the data the handler gets (read again from the
+ * documents where it can), or calls `refuse(reason)`. Every action a player's client asks for has one.
  */
-function onGMRequest(action, handler) {
-    handlers.set(action, handler);
+function onGMRequest(action, handler, { check = null } = {}) {
+    handlers.set(action, { handler, check });
+}
+
+/** Check a request, then do it: the answer to send back */
+async function handle(action, data, sender) {
+    const { handler, check } = handlers.get(action);
+    try {
+        if (!sender) refuse("the request's sender is unknown");
+        let work = data;
+        if (!sender.isGM && check) work = (await check({ ...data, action }, sender)) ?? data;
+        const result = await handler({ ...work, action }, sender);
+        return { ok: true, result };
+    } catch (error) {
+        const text = error?.message ?? String(error);
+        if (error instanceof RequestRefused) {
+            console.warn(
+                `${MODULE_ID} | GM request "${action}" from ${sender?.name ?? "an unknown user"} refused: ${text}`,
+            );
+            return { ok: false, reason: "refused", error: text };
+        }
+        log(error);
+        return { ok: false, reason: "failed", error: text };
+    }
 }
 
 /** Run the handler here, as the asking session's own work: the answer a GM session would give */
-async function runHere(action, data) {
-    try {
-        const result = await handlers.get(action)({ ...data, action });
-        return { ok: true, result };
-    } catch (error) {
-        log(error);
-        return { ok: false, reason: "failed", error: error?.message ?? String(error) };
-    }
+function runHere(action, data) {
+    return handle(action, data, game.user);
 }
 
 /**
  * Ask the active GM to do `action` with `data`, and wait until a GM session has done it. Resolves to
  * `{ ok: true, result }`, or `{ ok: false, reason }` with `reason` "absent" (no GM is logged in), "unanswered" (no
- * GM session took it, or it didn't finish, in time) or "failed" (the handler threw: `error` is its message).
+ * GM session took it, or it didn't finish, in time), "refused" (it doesn't match its feature: `error` says why) or
+ * "failed" (the handler threw: `error` is its message).
  *
  * `here`: run the handler in this session instead, as a GM can edit everything (the default for a GM's sessions).
  * `title` and `task`: warn the user when it didn't work, as `warnGM` does.
@@ -90,14 +136,16 @@ function send(action, data) {
 }
 
 /** An answer to one of this session's requests */
-function onAnswer({ gmRequest, state, ok, result, error }) {
+function onAnswer({ gmRequest, state, ok, result, error, refused }) {
     const request = pending.get(gmRequest);
     if (!request) return;
     if (state === "accepted") {
         request.accepted = true;
         request.wait(FINISH);
     } else if (state === "done") {
-        request.finish(ok ? { ok: true, result: result ?? null } : { ok: false, reason: "failed", error });
+        request.finish(
+            ok ? { ok: true, result: result ?? null } : { ok: false, reason: refused ? "refused" : "failed", error },
+        );
     }
 }
 
@@ -109,6 +157,7 @@ function warnGM(answer, title, task) {
         absent: `a GM must be logged in to ${task}.`,
         unanswered: `no GM session answered the request to ${task}: try again.`,
         failed: `the GM's session couldn't ${task}${answer?.error ? ` (${answer.error})` : ""}.`,
+        refused: `the GM's session wouldn't ${task}${answer?.error ? `: ${answer.error}` : ""}.`,
     }[answer?.reason];
     ui.notifications.warn(`${title}: ${text ?? `couldn't ${task}.`}`);
 }
@@ -122,29 +171,28 @@ function serializable(result) {
     }
 }
 
-/** A request on the socket: the GM session that acts for the GM runs it and answers */
-async function onRequest(data) {
-    const handler = handlers.get(data.action);
-    if (!handler || !(await confirmActiveGM())) return;
+/**
+ * A request on the socket: the GM session that acts for the GM checks it and runs it, and answers. `userId` is the
+ * sender's, which Foundry's server adds to every socket message (pf2e's own socket reads it the same way).
+ */
+async function onRequest(data, userId) {
+    if (!handlers.has(data.action) || !(await confirmActiveGM())) return;
     const id = typeof data.gmRequest === "string" ? data.gmRequest : null;
     const reply = (answer) => id && game.socket.emit(SOCKET, { action: ANSWER, gmRequest: id, ...answer });
     reply({ state: "accepted" });
-    const { gmRequest: _id, ...rest } = data;
-    try {
-        const result = await handler(rest);
-        reply({ state: "done", ok: true, result: serializable(result) });
-    } catch (error) {
-        log(error);
-        reply({ state: "done", ok: false, error: error?.message ?? String(error) });
-    }
+    const { gmRequest: _id, action, ...rest } = data;
+    const sender = typeof userId === "string" ? (game.users.get(userId) ?? null) : null;
+    const answer = await handle(action, rest, sender);
+    if (answer.ok) reply({ state: "done", ok: true, result: serializable(answer.result) });
+    else reply({ state: "done", ok: false, error: answer.error, refused: answer.reason === "refused" });
 }
 
 Hooks.once("ready", () => {
-    game.socket.on(SOCKET, (data) => {
+    game.socket.on(SOCKET, (data, userId) => {
         if (typeof data?.action !== "string") return;
         if (data.action === ANSWER) return onAnswer(data);
-        if (handlers.has(data.action)) onRequest(data).catch(log);
+        if (handlers.has(data.action)) onRequest(data, userId).catch(log);
     });
 });
 
-export { askGM, onGMRequest, warnGM };
+export { askGM, isAuthor, onGMRequest, owns, refuse, warnGM };

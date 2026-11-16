@@ -240,6 +240,28 @@ for (const [file, text] of codes) {
     }
 }
 
+// 4d. The GM's session does what a player can't, so each request a player's client sends is checked there first: every
+// onGMRequest() in a script gives a `check` (scripts/lib/gm.js)
+const gmFile = path.join("scripts", "lib", "gm.js");
+for (const [file, text] of codes) {
+    if (!relative(file).startsWith(`scripts${path.sep}`) || relative(file) === gmFile) continue;
+    for (const match of text.matchAll(/\bonGMRequest\(/g)) {
+        // The call's arguments, to its closing parenthesis
+        let depth = 0;
+        let end = match.index + match[0].length - 1;
+        for (; end < text.length; end++) {
+            if (text[end] === "(") depth++;
+            else if (text[end] === ")" && --depth === 0) break;
+        }
+        if (/\bcheck\s*:/.test(text.slice(match.index, end))) continue;
+        problems.push(
+            `${relative(file)}:${lineOf(text, match.index)} handles a GM request without a check: pass ` +
+                `{ check: (data, sender) => ... } to onGMRequest(), which reads again what it can and refuse()s ` +
+                `a request that doesn't match its feature`,
+        );
+    }
+}
+
 // 5. Compendium links are by ID: a name only resolves in pf2e's own build. Literal links only: templated ones
 // (`${PACK}.${ID}`) are checked by 6.
 const LINK = /Compendium\.([\w-]+)\.([\w-]+)\.([A-Z]\w*)\.([^\s"'`\]}),.]*)/g;

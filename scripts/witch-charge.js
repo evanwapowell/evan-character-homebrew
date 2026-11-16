@@ -6,7 +6,7 @@
  */
 
 import { findItems } from "./lib/items.js";
-import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest } from "./settings.js";
+import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest, owns, refuse } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -164,23 +164,28 @@ async function designateCharges(witchUuid, targetTokenUuids) {
     return { designated: designated.map((t) => t.uuid) };
 }
 
-/** Designate the user's targeted creatures as the witch's charges */
-function requestCharge(witch, requestId = foundry.utils.randomID()) {
-    const targetTokens = [...game.user.targets].map((t) => t.document).filter((t) => t?.actor);
+/** Why the witch can't designate these creatures as their charges, or null when they can */
+function chargeProblem(witch, targetTokens) {
     const maxCharges = getMaxCharges(witch);
     if (targetTokens.length === 0 || targetTokens.length > maxCharges) {
         const count = maxCharges === 1 ? "exactly one creature" : `up to ${maxCharges} creatures (Witch's Communion)`;
-        return ui.notifications.warn(`Witch's Charge: target ${count} to designate as your charge.`);
+        return `target ${count} to designate as your charge.`;
     }
-    if (targetTokens.some((t) => t.actor === witch)) {
-        return ui.notifications.warn("Witch's Charge: you can't be your own charge.");
-    }
+    if (targetTokens.some((t) => t.actor === witch)) return "you can't be your own charge.";
     // Seneschal Witch Dedication: "can't choose your familiar or another creature with the minion trait as a charge"
     const isSeneschal = hasFeat(witch, SENESCHAL_DEDICATION_ID, "Seneschal Witch Dedication");
     const isMinion = (actor) => actor.isOfType("familiar") || actor.traits?.has("minion");
     if (isSeneschal && targetTokens.some((t) => isMinion(t.actor))) {
-        return ui.notifications.warn("Witch's Charge: a seneschal can't choose a familiar or minion as a charge.");
+        return "a seneschal can't choose a familiar or minion as a charge.";
     }
+    return null;
+}
+
+/** Designate the user's targeted creatures as the witch's charges */
+function requestCharge(witch, requestId = foundry.utils.randomID()) {
+    const targetTokens = [...game.user.targets].map((t) => t.document).filter((t) => t?.actor);
+    const problem = chargeProblem(witch, targetTokens);
+    if (problem) return ui.notifications.warn(`Witch's Charge: ${problem}`);
 
     const targetTokenUuids = targetTokens.map((t) => t.uuid);
     if (!game.user.isGM && !game.users.activeGM) {
@@ -213,6 +218,20 @@ Hooks.once("init", () => {
     };
 });
 
-onGMRequest("designateCharge", (data) => designateCharges(data.witchUuid, data.targetTokenUuids));
+/** A player's designation: of a witch they own, within the charges the witch can have */
+function checkDesignation({ witchUuid, targetTokenUuids }, sender) {
+    const witch = typeof witchUuid === "string" ? fromUuidSync(witchUuid) : null;
+    if (!(witch instanceof Actor) || !owns(sender, witch)) refuse(`${sender.name} doesn't own the witch`);
+    const uuids = Array.isArray(targetTokenUuids) ? targetTokenUuids : [];
+    const targetTokens = uuids.map((uuid) => (typeof uuid === "string" ? fromUuidSync(uuid) : null));
+    if (targetTokens.some((t) => !t?.actor)) refuse("a creature is gone");
+    const problem = chargeProblem(witch, targetTokens);
+    if (problem) refuse(problem);
+    return { witchUuid: witch.uuid, targetTokenUuids: targetTokens.map((t) => t.uuid) };
+}
+
+onGMRequest("designateCharge", (data) => designateCharges(data.witchUuid, data.targetTokenUuids), {
+    check: checkDesignation,
+});
 
 export { designateCharges, requestCharge };

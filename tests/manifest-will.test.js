@@ -67,6 +67,12 @@ async function setup(t, version, { modules = {} } = {}) {
         duration: AURA.system.duration,
         rules: auraRules("primal"),
     });
+    // Ezren is her charge: pf2e's Effect: Witch's Charge, from her
+    addEffect(world, ezren, {
+        name: "Effect: Witch's Charge",
+        source: "Compendium.pf2e.feat-effects.Item.ugeStF0Rj8phBPWL",
+        origin: { actor: witch },
+    });
     const flatChecks = () => world.messages.filter((m) => FLAT_CHECK.test(m.flavor));
     return { world, tick, gm, player, scene, witch, goblin, ezren, tokens, aura, flatChecks };
 }
@@ -157,7 +163,7 @@ for (const version of ["v13", "v14"]) {
             assert.equal((await request).ok, true);
 
             assert.equal(witch.itemTypes.effect.length, 0, "the aura left the witch");
-            const [moved] = ezren.itemTypes.effect;
+            const moved = ezren.itemTypes.effect.find((e) => e.slug === "aura-manifest-will");
             assert.equal(moved?.slug, "aura-manifest-will");
             assert.equal(moved.origin, witch, "the witch is its caster, not the charge");
             assert.deepEqual(moved.system.context, {
@@ -181,7 +187,57 @@ for (const version of ["v13", "v14"]) {
             );
             await settle(world, tick);
             assert.equal((await request).ok, true);
-            assert.deepEqual(ezren.itemTypes.effect[0]?.system.context, context);
+            assert.deepEqual(
+                ezren.itemTypes.effect.find((e) => e.slug === "aura-manifest-will")?.system.context,
+                context,
+            );
+        });
+
+        it("isn't moved onto a creature that isn't the caster's charge, or by a player who doesn't own the caster", async (t) => {
+            const { world, tick, player, witch, goblin, ezren, aura } = await setup(t, version);
+            const { askGM } = player.scripts["settings.js"];
+            const ask = (data) => player.run(() => askGM("moveManifestWill", data));
+            const onGoblin = ask({ effectUuid: aura.uuid, centerUuid: goblin.uuid });
+            await settle(world, tick);
+            assert.deepEqual(await onGoblin, {
+                ok: false,
+                reason: "refused",
+                error: "Goblin isn't Finch <Lost>'s charge",
+            });
+            assert.equal(witch.itemTypes.effect.length, 1, "the aura stays on the witch");
+
+            // Any other effect, or someone else's aura
+            const fear = addEffect(world, goblin, { name: "Effect: Fear", slug: "effect-fear" });
+            const other = ask({ effectUuid: fear.uuid, centerUuid: witch.uuid });
+            await settle(world, tick);
+            assert.equal((await other).reason, "refused");
+            assert.equal(goblin.items.has(fear.id), true);
+
+            witch.testUserPermission = (user) => !!user.isGM;
+            const notTheirs = ask({ effectUuid: aura.uuid, centerUuid: ezren.uuid });
+            await settle(world, tick);
+            assert.deepEqual(await notTheirs, {
+                ok: false,
+                reason: "refused",
+                error: "Player doesn't own Finch <Lost>",
+            });
+            assert.equal(witch.itemTypes.effect.length, 1);
+        });
+
+        it("isn't moved onto a charge farther than 30 feet away", async (t) => {
+            const { world, tick, player, witch, ezren, tokens, aura } = await setup(t, version);
+            tokens.ezren.x = 10_000;
+            const { askGM } = player.scripts["settings.js"];
+            const request = player.run(() =>
+                askGM("moveManifestWill", { effectUuid: aura.uuid, centerUuid: ezren.uuid }),
+            );
+            await settle(world, tick);
+            assert.deepEqual(await request, {
+                ok: false,
+                reason: "refused",
+                error: "Ezren isn't within 30 feet of Finch <Lost>",
+            });
+            assert.equal(witch.itemTypes.effect.length, 1);
         });
     });
 

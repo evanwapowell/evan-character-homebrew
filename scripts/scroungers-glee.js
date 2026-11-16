@@ -10,7 +10,16 @@
  * at a Strike against a creature with the effect, the caster's user is asked whether to Dismiss the spell to heal them.
  */
 
-import { askGM, canAnimate, confirmPrimarySession, featureHooks, isEnabled, onGMRequest } from "./settings.js";
+import {
+    askGM,
+    canAnimate,
+    confirmPrimarySession,
+    featureHooks,
+    isEnabled,
+    onGMRequest,
+    owns,
+    refuse,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -36,8 +45,12 @@ function isGleeEffect(item) {
 }
 
 /** The healing on a Dismiss: 1d4, and 1d4 more every 2 ranks */
+function healingDice(rank) {
+    return Math.ceil(Math.max(1, Number(rank) || 1) / 2);
+}
+
 function healingFormula(rank) {
-    return `${Math.ceil(Math.max(1, rank) / 2)}d4`;
+    return `${healingDice(rank)}d4`;
 }
 
 /** An attack roll message that's a critically successful Strike, rather than a spell attack */
@@ -67,11 +80,16 @@ function playHealAnimation(token) {
 /** Messages already answered, so a Strike isn't asked about twice */
 const asked = new Set();
 
+/** The creature a Strike was against */
+function strikeTarget(context) {
+    const targetToken = context.target?.token ? fromUuidSync(context.target.token) : null;
+    return targetToken?.actor ?? (context.target?.actor ? fromUuidSync(context.target.actor) : null);
+}
+
 /** An ally's Strike critically succeeded against a creature: ask the caster of its Scrounger's Glee to Dismiss it */
 async function onStrikeCrit(message, context) {
     const attacker = message.actor;
-    const targetToken = context.target?.token ? fromUuidSync(context.target.token) : null;
-    const target = targetToken?.actor ?? (context.target?.actor ? fromUuidSync(context.target.actor) : null);
+    const target = strikeTarget(context);
     if (!attacker || !target || asked.has(message.id)) return;
 
     for (const effect of target.itemTypes.effect.filter((e) => isGleeEffect(e) && !e.remainingDuration.expired)) {
@@ -80,12 +98,12 @@ async function onStrikeCrit(message, context) {
         // One of the responder's sessions asks
         if (getResponder(caster) !== game.user || !(await confirmPrimarySession()) || asked.has(message.id)) continue;
         asked.add(message.id);
-        await promptDismiss({ caster, effect, attacker, attackerToken: message.token, target });
+        await promptDismiss({ caster, effect, attacker, attackerToken: message.token, target, strike: message });
         return;
     }
 }
 
-async function promptDismiss({ caster, effect, attacker, attackerToken, target }) {
+async function promptDismiss({ caster, effect, attacker, attackerToken, target, strike }) {
     const formula = healingFormula(effect.level);
     const content = [
         `<p>${esc(attacker.name)} critically succeeded at a Strike against ${esc(target.name)}.</p>`,
@@ -113,7 +131,12 @@ async function promptDismiss({ caster, effect, attacker, attackerToken, target }
         ].join(""),
     });
 
-    const data = { effectUuid: effect.uuid, allyTokenUuid: allyToken?.uuid ?? null, healing: roll.total };
+    const data = {
+        effectUuid: effect.uuid,
+        allyTokenUuid: allyToken?.uuid ?? null,
+        healing: roll.total,
+        strikeMessageId: strike?.id ?? null,
+    };
     const canDoItAll = effect.canUserModify(game.user, "delete") && (!allyToken || attacker.isOwner);
     if (canDoItAll) return dismissSpell(data);
     // Players can't edit creatures they don't own, so the active GM ends the spell and heals the ally
@@ -152,4 +175,34 @@ Hooks.once("init", () => {
     ];
 });
 
-onGMRequest("scroungersGlee", (data) => dismissSpell(data));
+/**
+ * A player's request to Dismiss: the effect is a Scrounger's Glee they own the caster of, the Strike is an ally's
+ * critical success against the creature with it, the healed token is that ally's, and the healing is what the spell's
+ * dice can roll
+ */
+async function checkDismiss(data, sender) {
+    const effect = typeof data.effectUuid === "string" ? await fromUuid(data.effectUuid).catch(() => null) : null;
+    if (!isGleeEffect(effect) || !effect.actor) refuse("that isn't a Scrounger's Glee effect");
+    const caster = effect.origin;
+    if (!caster || caster === effect.actor || !owns(sender, caster)) refuse(`${sender.name} doesn't own its caster`);
+    const strike = game.messages.get(data.strikeMessageId);
+    const context = strike?.flags.pf2e?.context;
+    if (!isStrikeCrit(context) || strikeTarget(context) !== effect.actor) {
+        refuse(`no critical Strike against ${effect.actor.name}`);
+    }
+    const attacker = strike.actor;
+    if (!attacker || attacker === caster || !attacker.isAllyOf(caster)) refuse("the Strike isn't an ally's");
+    let allyTokenUuid = null;
+    if (data.allyTokenUuid) {
+        const allyToken = await fromUuid(data.allyTokenUuid).catch(() => null);
+        if (allyToken?.actor !== attacker) refuse("the token healed isn't the ally's");
+        allyTokenUuid = allyToken.uuid;
+    }
+    const dice = healingDice(effect.level);
+    const healing = Math.trunc(Number(data.healing));
+    if (!(healing >= dice && healing <= dice * 4))
+        refuse(`${data.healing} isn't a roll of ${healingFormula(effect.level)}`);
+    return { effectUuid: effect.uuid, allyTokenUuid, healing };
+}
+
+onGMRequest("scroungersGlee", (data) => dismissSpell(data), { check: checkDismiss });

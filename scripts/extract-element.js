@@ -8,8 +8,9 @@
  */
 
 import { findItems } from "./lib/items.js";
+import { reportedSaveMessage, reportedToolbeltSave } from "./lib/saves.js";
 import { serially } from "./lib/serially.js";
-import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest } from "./settings.js";
+import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest, refuse } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -405,7 +406,7 @@ async function applyExtraction(data) {
  * A save against Extract Element was rolled by this user: find the use it answers, play the animation, and have the
  * active GM apply the result. `card` is the action's card when known (PF2e Toolbelt), otherwise the latest one.
  */
-async function onSave({ card, kineticist, item, targetToken, outcome, total }) {
+async function onSave({ card, kineticist, item, targetToken, outcome, total, message = null }) {
     const target = targetToken?.actor;
     if (!kineticist || !target || !DAMAGE[outcome]) return;
 
@@ -439,6 +440,8 @@ async function onSave({ card, kineticist, item, targetToken, outcome, total }) {
         outcome,
         total,
         cardId: card?.id ?? null,
+        // Where the GM reads the save again: its message, or (PF2e Toolbelt) the card
+        saveMessageId: message?.id ?? null,
     };
     // Players can't edit creatures they don't own, so the active GM applies the result
     await askGM("extractElement", data, { title: "Extract Element", task: "apply the result" });
@@ -452,7 +455,7 @@ function getSave(message) {
     if (!isExtractElement(item)) return null;
     const kineticist = (context.origin?.actor && fromUuidSync(context.origin.actor)) || item.actor;
     const targetToken = message.token ?? getSceneToken(message.actor, canvas.scene);
-    return { kineticist, item, targetToken, outcome: context.outcome, total: message.rolls[0]?.total };
+    return { kineticist, item, targetToken, outcome: context.outcome, total: message.rolls[0]?.total, message };
 }
 
 const log = (error) => console.error(`${MODULE_ID} | Extract Element`, error);
@@ -497,6 +500,40 @@ Hooks.on("deleteItem", async (item) => {
     }
 });
 
-onGMRequest("extractElement", (data) => resolveExtraction(data));
+/**
+ * A player's save against Extract Element: the outcome is read from their save's message (or PF2e Toolbelt's card),
+ * for its kineticist and target, and the element is one of the kineticist's, the use's when its card has one
+ */
+async function checkSave(data, sender) {
+    const targetToken = typeof data.targetTokenUuid === "string" ? await fromUuid(data.targetTokenUuid) : null;
+    if (!targetToken?.actor) refuse("the creature is gone");
+    let save;
+    if (data.saveMessageId) {
+        const message = reportedSaveMessage(data.saveMessageId, sender);
+        save = getSave(message);
+        if (!save) refuse("that isn't a save against Extract Element");
+        if (message.actor.uuid !== targetToken.actor.uuid || (message.token && message.token !== targetToken)) {
+            refuse(`the save isn't ${targetToken.name}'s`);
+        }
+    } else {
+        const used = game.messages.get(data.cardId);
+        if (!used || !isCard(used)) refuse("that isn't an Extract Element card");
+        save = { kineticist: used.actor, item: used.item, ...reportedToolbeltSave(used, targetToken, sender) };
+    }
+    const kineticist = save.kineticist;
+    if (!kineticist || kineticist.uuid !== data.kineticistUuid) refuse("the save isn't against that kineticist");
+
+    const card = data.cardId ? game.messages.get(data.cardId) : null;
+    if (data.cardId && (!card || !isCard(card) || card.actor?.uuid !== kineticist.uuid)) {
+        refuse(`that isn't ${kineticist.name}'s card`);
+    }
+    const record = card?.flags[MODULE_ID]?.extractElement;
+    if (record?.target && record.target !== targetToken.uuid) refuse(`${targetToken.name} isn't the use's target`);
+    const element = record?.element ?? data.element;
+    if (!ELEMENTS[element] || !getElements(kineticist).includes(element)) refuse(`${kineticist.name} can't extract it`);
+    return { ...data, element, outcome: save.outcome, total: save.total, itemUuid: save.item?.uuid ?? null };
+}
+
+onGMRequest("extractElement", (data) => resolveExtraction(data), { check: checkSave });
 
 export { getBypassRules, resolveExtraction };

@@ -7,6 +7,7 @@
 
 import { isSpellCast } from "./lib/casting.js";
 import { playCurse } from "./lib/finch.js";
+import { tokenDistance } from "./lib/geometry.js";
 import {
     askGM,
     canAnimate,
@@ -17,6 +18,8 @@ import {
     guardApi,
     isEnabled,
     onGMRequest,
+    owns,
+    refuse,
 } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -91,22 +94,35 @@ function getEligibleEffects(familiarToken) {
         if (!actor || token === familiarToken || token.hidden || !token.object || !familiarToken.object) continue;
         if (familiarToken.object.distanceTo(token.object) > RANGE) continue;
         // This is a curse effect
-        if (actor.attributes?.immunities?.some?.((i) => i.type === "curse")) continue;
+        if (isImmuneToCurses(actor)) continue;
 
         for (const effect of actor.itemTypes.effect) {
-            if (!ROUNDS_PER_UNIT[effect.system.duration.unit] || effect.remainingDuration.expired) continue;
-            if (isOncePerCase() && effect.flags[MODULE_ID]?.ongoingMisery) continue;
-
-            const conditions = actor.conditions.contents.filter(
-                (c) => c.flags.pf2e?.grantedBy?.id === effect.id && !POSITIVE_CONDITIONS.has(c.slug),
-            );
+            const conditions = prolongable(actor, effect);
             if (conditions.length === 0) continue;
-
             const rounds = Math.max(1, Math.ceil(effect.remainingDuration.remaining / 6));
             options.push({ token, effect, conditions, rounds });
         }
     }
     return options;
+}
+
+function isImmuneToCurses(actor) {
+    return !!actor.attributes?.immunities?.some?.((i) => i.type === "curse");
+}
+
+/** The negative conditions a timed effect grants, which prolonging it prolongs (none when it can't be prolonged) */
+function prolongable(actor, effect) {
+    if (!ROUNDS_PER_UNIT[effect.system.duration.unit] || effect.remainingDuration.expired) return [];
+    if (isOncePerCase() && effect.flags[MODULE_ID]?.ongoingMisery) return [];
+    return actor.conditions.contents.filter(
+        (c) => c.flags.pf2e?.grantedBy?.id === effect.id && !POSITIVE_CONDITIONS.has(c.slug),
+    );
+}
+
+function announce(familiar, token, conditions) {
+    const esc = Handlebars.escapeExpression;
+    const names = esc(conditions.map((c) => c.name).join(", "));
+    return `${esc(familiar.name)} curses ${esc(token.name)}, prolonging ${names} by 1 round.`;
 }
 
 /** Add 1 round to an effect's duration, mark it as extended, and announce it from the familiar */
@@ -211,8 +227,7 @@ async function promptOngoingMisery(actor) {
     });
     if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
     const { token, effect, conditions } = options[Number(choice)];
-    const conditionNames = esc(conditions.map((c) => c.name).join(", "));
-    const announcement = `${esc(familiar.name)} curses ${esc(token.name)}, prolonging ${conditionNames} by 1 round.`;
+    const announcement = announce(familiar, token, conditions);
     const extension = { familiarTokenUuid: familiarToken.uuid, announcement };
 
     const canExtend = effect.canUserModify(game.user, "update");
@@ -255,8 +270,41 @@ Hooks.once("init", () => {
     module.api = { ...module.api, ongoingMisery: guardApi("ongoingMisery", (actor) => promptOngoingMisery(actor)) };
 });
 
-onGMRequest("ongoingMisery", async (data) => {
-    const effect = await fromUuid(data.effectUuid);
-    if (!effect) throw new Error("the condition has ended");
-    await extendEffect(effect, data);
-});
+/**
+ * A player's request to prolong a condition: the familiar (with the ability) is theirs or their witch's, and the effect
+ * grants a negative condition with a timed duration to a creature within 15 feet of it. The announcement is written
+ * here, from the names.
+ */
+async function checkExtend(data, sender) {
+    const read = (uuid) => (typeof uuid === "string" ? fromUuid(uuid).catch(() => null) : null);
+    const familiarToken = await read(data.familiarTokenUuid);
+    const familiar = familiarToken?.actor;
+    const witch = familiar?.isOfType?.("familiar") ? familiar.master : null;
+    if (!witch || !hasOngoingMisery(witch, familiar)) refuse("that isn't a familiar of ongoing misery");
+    if (!owns(sender, familiar) && !owns(sender, witch)) refuse(`${sender.name} doesn't own ${familiar.name}`);
+    const effect = await read(data.effectUuid);
+    const actor = effect?.type === "effect" ? effect.actor : null;
+    if (!actor) throw new Error("the condition has ended");
+    const token = familiarToken.parent.tokens.find(
+        (t) => t.actor === actor && !t.hidden && tokenDistance(familiarToken, t) <= RANGE,
+    );
+    if (!token) refuse(`${actor.name} isn't within ${RANGE} feet of ${familiar.name}`);
+    if (isImmuneToCurses(actor)) refuse(`${actor.name} is immune to curses`);
+    const conditions = prolongable(actor, effect);
+    if (conditions.length === 0) refuse(`${effect.name} doesn't give a negative condition that can be prolonged`);
+    return {
+        effectUuid: effect.uuid,
+        familiarTokenUuid: familiarToken.uuid,
+        announcement: announce(familiar, token, conditions),
+    };
+}
+
+onGMRequest(
+    "ongoingMisery",
+    async (data) => {
+        const effect = await fromUuid(data.effectUuid);
+        if (!effect) throw new Error("the condition has ended");
+        await extendEffect(effect, data);
+    },
+    { check: checkExtend },
+);

@@ -185,5 +185,60 @@ for (const version of ["v13", "v14"]) {
             assert.equal(warnings(player).length, 1);
             assert.match(warnings(player)[0], /Ezren/);
         });
+
+        /**
+         * A designation the player's client sends, crafted by hand: the GM's session checks the witch is the player's
+         * and the targets are charges the witch can have (#64)
+         */
+        async function ask({ player }, data) {
+            let answer = null;
+            player.run(() => player.scripts["settings.js"].askGM("designateCharge", data)).then((a) => (answer = a));
+            await drain();
+            return answer;
+        }
+
+        it("refuses more charges than the witch can have, or the witch as her own charge", async (t) => {
+            const setupData = await setup(t);
+            t.mock.method(console, "warn", () => {});
+            const { scene, witch } = setupData;
+            const ally = makeActor(world, { name: "Ezren" });
+            const fighter = makeActor(world, { name: "Valeros" });
+            const tokens = [addToken(world, scene, ally), addToken(world, scene, fighter)];
+            // Without Witch's Communion, one charge
+            const two = await ask(setupData, { witchUuid: witch.uuid, targetTokenUuids: tokens.map((t) => t.uuid) });
+            assert.deepEqual(two, {
+                ok: false,
+                reason: "refused",
+                error: "target exactly one creature to designate as your charge.",
+            });
+            const [witchToken] = witch.getActiveTokens(true, true);
+            const self = await ask(setupData, { witchUuid: witch.uuid, targetTokenUuids: [witchToken.uuid] });
+            assert.deepEqual(self, { ok: false, reason: "refused", error: "you can't be your own charge." });
+            assert.deepEqual(
+                [ally, fighter, witch].map((a) => charges(a).length),
+                [0, 0, 0],
+            );
+        });
+
+        it("refuses a witch the player doesn't own, and keeps her charge", async (t) => {
+            const setupData = await setup(t);
+            t.mock.method(console, "warn", () => {});
+            const { scene } = setupData;
+            const hag = makeActor(world, { name: "Hag", type: "npc", items: [CHARGE_FEAT] });
+            const fighter = makeActor(world, { name: "Valeros" });
+            const ally = makeActor(world, { name: "Ezren" });
+            const earlier = addEffect(world, fighter, {
+                name: "Effect: Witch's Charge",
+                source: CHARGE_EFFECT_UUID,
+                origin: { actor: hag },
+            });
+            const answer = await ask(setupData, {
+                witchUuid: hag.uuid,
+                targetTokenUuids: [addToken(world, scene, ally).uuid],
+            });
+            assert.deepEqual(answer, { ok: false, reason: "refused", error: "Player doesn't own the witch" });
+            assert.equal(fighter.items.has(earlier.id), true);
+            assert.equal(charges(ally).length, 0);
+        });
     });
 }

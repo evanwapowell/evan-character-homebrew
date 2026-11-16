@@ -11,7 +11,8 @@
  */
 
 import { isSpellCast } from "./lib/casting.js";
-import { askGM, canAnimate, createdHere, featureHooks, onGMRequest } from "./settings.js";
+import { reportedSaveMessage, reportedToolbeltSave } from "./lib/saves.js";
+import { askGM, canAnimate, createdHere, featureHooks, isAuthor, onGMRequest, owns, refuse } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -492,7 +493,16 @@ async function resolveSave(data) {
 }
 
 /** A save rolled by this user against Sepulchral Mask: have the active GM apply its result */
-async function onSave({ card = null, caster, spell, targetToken, outcome, total, fromTurnCard = false }) {
+async function onSave({
+    card = null,
+    caster,
+    spell,
+    targetToken,
+    outcome,
+    total,
+    fromTurnCard = false,
+    message = null,
+}) {
     if (!caster || !targetToken?.actor || !RESULTS[outcome]) return;
     // Rolled from a turn-start card that's since been deleted (the GM's call): it answers nothing
     if (fromTurnCard && !card) {
@@ -509,6 +519,8 @@ async function onSave({ card = null, caster, spell, targetToken, outcome, total,
         total,
         cardId: card?.id ?? null,
         fromTurnCard,
+        // Where the GM reads the save again: its message, or (PF2e Toolbelt) the card
+        saveMessageId: message?.id ?? null,
     };
     // Players can't edit creatures they don't own, so the active GM applies the result
     await askGM("sepulchralMask", data, { title: "Sepulchral Mask", task: "apply the result" });
@@ -525,7 +537,7 @@ function getSave(message) {
     const identifier = typeof context.identifier === "string" ? context.identifier : "";
     const cardId = identifier.startsWith(SAVE_IDENTIFIER) ? identifier.slice(SAVE_IDENTIFIER.length) : null;
     const card = cardId ? (game.messages.get(cardId) ?? null) : null;
-    const save = { caster, spell, targetToken, outcome: context.outcome, total: message.rolls[0]?.total };
+    const save = { caster, spell, targetToken, outcome: context.outcome, total: message.rolls[0]?.total, message };
     return cardId ? { ...save, card, fromTurnCard: true } : save;
 }
 
@@ -645,6 +657,67 @@ hooks.on("createItem", (item, options, userId) => {
 
 hooks.onTurnStart(({ combat, combatant, round }) => onTurnStart(combat, { combatant, round }));
 
-onGMRequest("sepulchralMask", (data) => resolveSave(data));
-onGMRequest("sepulchralMaskDamage", (data) => resolveDamage(data));
+/** A turn-start card, made by the GM's session */
+function turnCard(cardId) {
+    const card = typeof cardId === "string" ? game.messages.get(cardId) : null;
+    const record = card?.flags[MODULE_ID]?.sepulchralMask;
+    return record && card.author?.isGM ? { card, record } : null;
+}
+
+/**
+ * A player's save against the mask: the outcome is read from their save's message (or PF2e Toolbelt's card), against
+ * that caster, from the turn-start card it names
+ */
+async function checkSave(data, sender) {
+    const targetToken = typeof data.targetTokenUuid === "string" ? await fromUuid(data.targetTokenUuid) : null;
+    if (!targetToken?.actor) refuse("the creature is gone");
+    let save;
+    if (data.saveMessageId) {
+        const message = reportedSaveMessage(data.saveMessageId, sender);
+        save = getSave(message);
+        if (!save) refuse("that isn't a save against Sepulchral Mask");
+        if (message.actor.uuid !== targetToken.actor.uuid) refuse(`the save isn't ${targetToken.name}'s`);
+    } else {
+        const card = game.messages.get(data.cardId);
+        if (!card || !isMaskCard(card)) refuse("that isn't a Sepulchral Mask card");
+        save = { caster: card.actor, spell: card.item, card, ...reportedToolbeltSave(card, targetToken, sender) };
+    }
+    if (!save.caster || save.caster.uuid !== data.casterUuid) refuse("the save isn't against that caster");
+    const fromTurnCard = !!save.fromTurnCard;
+    let cardId = save.card?.id ?? null;
+    if (fromTurnCard) {
+        if (!save.card || !turnCard(cardId)) refuse("the save's turn card is gone");
+    } else if (data.cardId) {
+        // The caster's latest card, which the player's client found
+        const card = game.messages.get(data.cardId);
+        if (!card || !isMaskCard(card) || card.actor?.uuid !== save.caster.uuid) refuse("that isn't the caster's card");
+        cardId = card.id;
+    }
+    const spell = save.spell ?? null;
+    return {
+        ...data,
+        cardId,
+        fromTurnCard,
+        outcome: save.outcome,
+        total: save.total,
+        spellUuid: spell?.uuid ?? null,
+        rank: spell?.rank ?? null,
+    };
+}
+
+/** A player's damage roll for a turn-start card: rolled by them, for a caster they own, from that card */
+function checkDamage({ cardId, damageMessageId }, sender) {
+    const turn = turnCard(cardId);
+    if (!turn) refuse("that isn't a Sepulchral Mask turn card");
+    const caster = turn.record.caster ? fromUuidSync(turn.record.caster) : null;
+    if (!caster || !owns(sender, caster)) refuse(`${sender.name} doesn't own the caster`);
+    const message = typeof damageMessageId === "string" ? game.messages.get(damageMessageId) : null;
+    const rolled = message?.flags[MODULE_ID]?.sepulchralMaskDamage;
+    if (!message || !isAuthor(message, sender) || rolled?.card !== cardId)
+        refuse("the damage wasn't rolled for that card");
+    return { cardId, damageMessageId };
+}
+
+onGMRequest("sepulchralMask", (data) => resolveSave(data), { check: checkSave });
+onGMRequest("sepulchralMaskDamage", (data) => resolveDamage(data), { check: checkDamage });
 export { resolveDamage };

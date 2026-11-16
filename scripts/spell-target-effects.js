@@ -12,7 +12,7 @@
 
 import { defaultEffects, parseHeightened, parseLinks } from "./lib/spell-effect-links.js";
 import { buildSpellEffectSource, getSceneToken, isAuraEffect } from "./lib/spell-effect-source.js";
-import { askGM, featureHooks, onGMRequest, warnGM } from "./settings.js";
+import { askGM, featureHooks, onGMRequest, owns, refuse, warnGM } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const TOOLBELT_ID = "pf2e-toolbelt";
@@ -200,16 +200,21 @@ function isInjected(value) {
  * src/module/rules/rule-element/choice-set/rule-element.ts, the same in pf2e 7.x and 8.x). Choices drawn from items or
  * settings are left for pf2e to ask. Returns false when the user cancels.
  */
-async function makeChoices(source, actor) {
-    const esc = Handlebars.escapeExpression;
+/** Whether a choice's predicate lets the creature have it (one drawn from the item is pf2e's to resolve) */
+function choiceTester(actor) {
     const options = new Set(actor.getRollOptions?.() ?? []);
-    const passes = (predicate) => {
+    return (predicate) => {
         if (!Array.isArray(predicate) || predicate.length === 0) return true;
         // A predicate drawn from the item ("{item|…}") is pf2e's to resolve
         if (isInjected(predicate)) return true;
         const Predicate = game.pf2e?.Predicate;
         return Predicate ? new Predicate(foundry.utils.deepClone(predicate)).test(options) : true;
     };
+}
+
+async function makeChoices(source, actor) {
+    const esc = Handlebars.escapeExpression;
+    const passes = choiceTester(actor);
     for (const rule of source.system.rules ?? []) {
         if (rule?.key !== "ChoiceSet" || !Array.isArray(rule.choices) || rule.selection != null) continue;
         if (Array.isArray(rule.predicate) && rule.predicate.length > 0) continue;
@@ -246,6 +251,31 @@ async function makeChoices(source, actor) {
     return true;
 }
 
+/** The choices made on an effect's ChoiceSet rules, by the rule's index (null for other rules) */
+function choicesMade(source) {
+    return (source.system.rules ?? []).map((rule) => (rule?.key === "ChoiceSet" ? (rule.selection ?? null) : null));
+}
+
+/**
+ * Make the choices a player made for an effect on its source: on a ChoiceSet rule with a list, one of the list's
+ * values whose predicate the creature passes, as the player's dialog offered them. Returns false otherwise.
+ */
+function applyChoicesMade(source, selections, actor) {
+    const rules = source.system.rules ?? [];
+    const passes = choiceTester(actor);
+    for (const [index, selection] of (Array.isArray(selections) ? selections : []).entries()) {
+        if (selection === null || selection === undefined) continue;
+        const rule = rules[index];
+        if (rule?.key !== "ChoiceSet" || !Array.isArray(rule.choices) || rule.selection != null) return false;
+        const choice = rule.choices.find(
+            (c) => c && "value" in c && JSON.stringify(c.value) === JSON.stringify(selection) && passes(c.predicate),
+        );
+        if (!choice) return false;
+        rule.selection = foundry.utils.deepClone(choice.value);
+    }
+    return true;
+}
+
 /** Replace the creature's copies of these effects from the caster with the new ones */
 async function applyToActor(actor, sources, deleteIds) {
     const ids = deleteIds.filter((id) => actor.items.get(id)?.type === "effect");
@@ -270,9 +300,10 @@ async function applyChoices(message, spell, choices) {
             if (!source) continue;
             // The GM's client creates it on a creature this user doesn't own, so the choices are made here
             if (!actor.isOwner && !(await makeChoices(source, actor))) continue;
-            if (!byActor.has(actor)) byActor.set(actor, { sources: [], deleteIds: [], names: [] });
+            if (!byActor.has(actor)) byActor.set(actor, { sources: [], deleteIds: [], names: [], effects: [] });
             const entry = byActor.get(actor);
             entry.sources.push(source);
+            entry.effects.push({ uuid: effect.uuid, selections: choicesMade(source) });
             entry.deleteIds.push(...findExisting(actor, effect.uuid, caster).map((e) => e.id));
             entry.names.push(effect.name);
         }
@@ -281,14 +312,22 @@ async function applyChoices(message, spell, choices) {
 
     const applied = [];
     const asked = [];
-    for (const [actor, { sources, deleteIds, names }] of byActor) {
+    for (const [actor, { sources, deleteIds, names, effects }] of byActor) {
         if (actor.isOwner) {
             await applyToActor(actor, sources, deleteIds);
             applied.push({ actor, names });
             continue;
         }
-        // Players can't edit creatures they don't own, so the active GM applies them: all asked at once
-        const data = { actorUuid: actor.uuid, sources, deleteIds };
+        // Players can't edit creatures they don't own, so the active GM applies them: all asked at once. The GM makes
+        // the effects again from the card and `effects`; `sources` and `deleteIds` are for a GM on an earlier version.
+        const data = {
+            messageId: message.id,
+            actorUuid: actor.uuid,
+            casterTokenUuid: casterToken?.uuid ?? null,
+            effects,
+            sources,
+            deleteIds,
+        };
         asked.push(askGM("applySpellTargetEffects", data).then((answer) => ({ actor, names, answer })));
     }
     const answers = await Promise.all(asked);
@@ -398,15 +437,62 @@ hooks.on("renderChatMessageHTML", (message, html) => {
     }
 });
 
-onGMRequest("spellTargetEffectsApplied", async ({ messageId }) => {
+/** A player's request about a spell's card: the card is a spell's, cast by a creature they own. Returns its spell. */
+function checkCaster(messageId, sender) {
     const message = game.messages.get(messageId);
-    if (!message) throw new Error("the card is gone");
-    if (!getCastSpell(message)) throw new Error("the card isn't a spell's");
-    await message.update({ [`flags.${MODULE_ID}.spellTargetEffects.applied`]: true });
-});
+    const spell = message ? getCastSpell(message) : null;
+    if (!spell) refuse("the card isn't a spell's");
+    if (!owns(sender, spell.actor)) refuse(`${sender.name} doesn't own ${spell.actor.name}`);
+    return { message, spell };
+}
 
-onGMRequest("applySpellTargetEffects", async (data) => {
-    const actor = await fromUuid(data.actorUuid);
-    if (!(actor instanceof Actor)) throw new Error("the creature is gone");
-    await applyToActor(actor, data.sources ?? [], data.deleteIds ?? []);
-});
+onGMRequest(
+    "spellTargetEffectsApplied",
+    async ({ messageId }) => {
+        const message = game.messages.get(messageId);
+        if (!message) throw new Error("the card is gone");
+        if (!getCastSpell(message)) throw new Error("the card isn't a spell's");
+        await message.update({ [`flags.${MODULE_ID}.spellTargetEffects.applied`]: true });
+    },
+    { check: (data, sender) => void checkCaster(data.messageId, sender) },
+);
+
+/**
+ * A player's request to apply effects: the GM makes them again, as the player's client did, from the card's spell and
+ * the effects it links, with the choices the player made, and replaces only the creature's earlier copies of them
+ */
+async function checkApply(data, sender) {
+    const { message, spell } = checkCaster(data.messageId, sender);
+    const actor = typeof data.actorUuid === "string" ? await fromUuid(data.actorUuid).catch(() => null) : null;
+    if (!(actor instanceof Actor)) refuse("the creature is gone");
+    const linked = new Set(getLinkedEffects(spell).map((e) => e.uuid));
+    const requested = Array.isArray(data.effects) ? data.effects : [];
+    if (requested.length === 0) refuse("no effects were named");
+    const caster = spell.actor;
+    // The token the player's client measured from, when it's the caster's
+    const named = typeof data.casterTokenUuid === "string" ? fromUuidSync(data.casterTokenUuid) : null;
+    const casterToken = message.token ?? (named?.actor === caster ? named : getSceneToken(caster));
+    const rollOptions = message.flags.pf2e?.origin?.rollOptions ?? null;
+    const sources = [];
+    const deleteIds = [];
+    for (const { uuid, selections } of requested) {
+        if (!linked.has(uuid)) refuse(`${spell.name} doesn't link that effect`);
+        const source = await buildSpellEffectSource(uuid, { spell, target: actor, casterToken, rollOptions });
+        if (!source) refuse("the effect was not found");
+        if (!applyChoicesMade(source, selections, actor))
+            refuse(`a choice for ${source.name} isn't one of its options`);
+        sources.push(source);
+        deleteIds.push(...findExisting(actor, uuid, caster).map((e) => e.id));
+    }
+    return { actorUuid: actor.uuid, sources, deleteIds };
+}
+
+onGMRequest(
+    "applySpellTargetEffects",
+    async (data) => {
+        const actor = await fromUuid(data.actorUuid);
+        if (!(actor instanceof Actor)) throw new Error("the creature is gone");
+        await applyToActor(actor, data.sources ?? [], data.deleteIds ?? []);
+    },
+    { check: checkApply },
+);

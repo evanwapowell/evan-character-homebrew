@@ -18,7 +18,18 @@
  */
 
 import { isSpellCast } from "./lib/casting.js";
-import { askGM, confirmActiveGM, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
+import { distanceBetween, spaceOf } from "./lib/geometry.js";
+import {
+    askGM,
+    confirmActiveGM,
+    createdHere,
+    featureHooks,
+    guardApi,
+    isEnabled,
+    onGMRequest,
+    owns,
+    refuse,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -88,50 +99,6 @@ function tokensOf(actor) {
 }
 
 /* Geometry, from the documents, so it works on scenes no one is viewing */
-
-/**
- * A token's space, in pixels, with its elevation and height in grid units (feet). A Tiny creature's space is the whole
- * square it's in, as pf2e measures it (`TokenPF2e#mechanicalBounds`: the grid square at its top-left corner, at least
- * a square wide and high).
- */
-function spaceOf(token, scene = token.parent) {
-    const size = scene.grid.size;
-    const distance = scene.grid.distance;
-    const width = Math.max(token.width, 0.5);
-    const height = Math.max(token.height, 0.5);
-    const z0 = Number(token.elevation) || 0;
-    const z1 = z0 + Math.max(width, height) * distance;
-    if (width < 1 || height < 1) {
-        const x0 = Math.floor(token.x / size) * size;
-        const y0 = Math.floor(token.y / size) * size;
-        return {
-            x0,
-            y0,
-            x1: x0 + Math.max(size, width * size),
-            y1: y0 + Math.max(size, height * size),
-            z0,
-            z1,
-        };
-    }
-    return { x0: token.x, y0: token.y, x1: token.x + width * size, y1: token.y + height * size, z0, z1 };
-}
-
-/**
- * The distance between two spaces as pf2e counts it on a square grid: the squares between them, every second diagonal
- * counting double, in feet. Spaces that touch are 5 feet apart.
- */
-function distanceBetween(a, b, scene) {
-    const size = scene.grid.size;
-    const along = (a0, a1, b0, b1) => {
-        if (a0 < b1 - 1 && b0 < a1 - 1) return 0;
-        const gap = Math.max(0, b0 - a1, a0 - b1);
-        return Math.round(gap / size) + 1;
-    };
-    const dx = along(a.x0, a.x1, b.x0, b.x1);
-    const dy = along(a.y0, a.y1, b.y0, b.y1);
-    const squares = Math.max(dx, dy) + Math.floor(Math.min(dx, dy) / 2);
-    return squares * scene.grid.distance;
-}
 
 /** Whether a creature is adjacent to the tree (or in its square, which doesn't impede movement), counting elevation */
 function isAdjacent(treeToken, token) {
@@ -563,7 +530,11 @@ function findTree(actor, params) {
     // Splash damage from a hit reaches creatures next to the target, which weren't hit by the Strike
     if (isSplashOnly(damage)) return null;
     if (treeData(actor) || !isStrikeHit(params)) return null;
+    return adjacentTree(actor, token);
+}
 
+/** The active tree a creature is next to, of a caster it's an ally of: { tree, treeToken, caster }, or null */
+function adjacentTree(actor, token) {
     for (const treeToken of token.parent.tokens) {
         // Trees are world actors, with linked tokens: other tokens' actors aren't read (or built)
         if (!treeToken.actorLink) continue;
@@ -663,10 +634,10 @@ async function getRemainder(roll, absorbed, outcome = null) {
  * Damage the tree: this user's own if they own it, or the active GM's. The ally's damage doesn't wait for the GM (it's
  * applied inside pf2e's `applyDamage`): when no GM session damages the tree, the user is told to do it by hand.
  */
-async function damageTree(treeToken, amount) {
+async function damageTree(treeToken, amount, allyToken = null) {
     const tree = treeToken.actor;
     if (tree.isOwner) return tree.applyDamage({ damage: amount, token: treeToken });
-    askGM("protectorTreeDamage", { tokenUuid: treeToken.uuid, amount })
+    askGM("protectorTreeDamage", { tokenUuid: treeToken.uuid, amount, allyTokenUuid: allyToken?.uuid ?? null })
         .then((answer) => {
             if (answer.ok) return;
             const why = {
@@ -695,7 +666,7 @@ async function interpose(actor, applyDamage, params, { tree, treeToken }) {
             : `<p><strong>${TITLE}</strong> The tree interposes its branches for ${target} and takes the Strike's ` +
               `${total} damage.</p>`;
     await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ token: treeToken }), content });
-    await damageTree(treeToken, total);
+    await damageTree(treeToken, total, params.token);
     if (overflow <= 0) return actor;
 
     let remainder = null;
@@ -854,12 +825,75 @@ Hooks.once("setup", () => {
     }
 });
 
-onGMRequest("protectorTreeCreate", (data) => createTree(data));
-onGMRequest("protectorTreeDamage", async (data) => {
-    const token = await fromUuid(data.tokenUuid);
-    const amount = Math.trunc(Number(data.amount));
-    if (!token?.actor || !treeData(token.actor)) throw new Error("the tree is gone");
-    if (amount > 0) await token.actor.applyDamage({ damage: amount, token });
-});
+const fromUuidOrNull = (uuid) => (typeof uuid === "string" ? fromUuid(uuid).catch(() => null) : null);
+
+/**
+ * A player's request to grow a tree: for a caster they own, from the impulse's or spell's card (or the item, from the
+ * macro), at the rank it allows, on a free square within 30 feet of the caster's token, at its elevation
+ */
+async function checkCreate(data, sender) {
+    const caster = await fromUuidOrNull(data.casterUuid);
+    if (!(caster instanceof Actor) || !owns(sender, caster)) refuse(`${sender.name} doesn't own the caster`);
+    const casterToken = await fromUuidOrNull(data.casterTokenUuid);
+    const scene = casterToken?.parent;
+    if (casterToken?.actor?.uuid !== caster.uuid || scene?.id !== data.sceneId) refuse("that isn't the caster's token");
+    const kind = data.kind;
+    if (!["impulse", "spell"].includes(kind)) refuse("it's neither the impulse nor the spell");
+
+    const message = data.messageId ? game.messages.get(data.messageId) : null;
+    if (data.messageId) {
+        const card = message ? getCard(message) : null;
+        if (card?.kind !== kind || message.actor?.uuid !== caster.uuid) refuse(`the card isn't ${caster.name}'s`);
+    }
+    const item = await fromUuidOrNull(data.itemUuid);
+    if (!message && (item?.actor?.uuid !== caster.uuid || !(kind === "impulse" ? isImpulse(item) : isSpell(item)))) {
+        refuse(`${caster.name} doesn't have the ${kind}`);
+    }
+    // The impulse's rank is half the kineticist's level; the spell's, its cast rank, at most what they can cast
+    const highest = getRank("impulse", { actor: caster });
+    const rank =
+        kind === "impulse" ? highest : message ? getRank("spell", { message, item: message.item }) : Number(data.rank);
+    if (!Number.isInteger(rank) || rank < 1 || rank > highest) refuse(`rank ${data.rank} is out of reach`);
+
+    const x = Number(data.x);
+    const y = Number(data.y);
+    const size = scene.grid.size;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x % size !== 0 || y % size !== 0) refuse("that isn't a square");
+    const square = { x0: x, y0: y, x1: x + size, y1: y + size };
+    if (distanceBetween(spaceOf(casterToken, scene), square, scene) > RANGE)
+        refuse(`the square is beyond ${RANGE} feet`);
+    const occupied = scene.tokens.some((t) => {
+        if (t.hidden) return false;
+        const s = spaceOf(t, scene);
+        return s.x0 < square.x1 - 1 && square.x0 < s.x1 - 1 && s.y0 < square.y1 - 1 && square.y0 < s.y1 - 1;
+    });
+    if (occupied) refuse("the square is occupied");
+    const elevation = Number(casterToken.elevation) || 0;
+    const itemUuid = item?.uuid ?? message?.item?.uuid ?? null;
+    return { ...data, kind, rank, itemUuid, sceneId: scene.id, x, y, elevation };
+}
+
+/** A player's request to damage a tree: it's the active tree next to their creature that the Strike hit */
+async function checkDamage(data, sender) {
+    const treeToken = await fromUuidOrNull(data.tokenUuid);
+    const allyToken = await fromUuidOrNull(data.allyTokenUuid);
+    const ally = allyToken?.actor;
+    if (!ally || !owns(sender, ally)) refuse(`${sender.name} doesn't own the creature the tree protects`);
+    const found = allyToken.parent ? adjacentTree(ally, allyToken) : null;
+    if (!treeToken || found?.treeToken !== treeToken) refuse(`no active tree protects ${allyToken.name}`);
+    return { tokenUuid: treeToken.uuid, amount: data.amount };
+}
+
+onGMRequest("protectorTreeCreate", (data) => createTree(data), { check: checkCreate });
+onGMRequest(
+    "protectorTreeDamage",
+    async (data) => {
+        const token = await fromUuid(data.tokenUuid);
+        const amount = Math.trunc(Number(data.amount));
+        if (!token?.actor || !treeData(token.actor)) throw new Error("the tree is gone");
+        if (amount > 0) await token.actor.applyDamage({ damage: amount, token });
+    },
+    { check: checkDamage },
+);
 
 export { createTree, distanceBetween, getRemainder, isAdjacent, isSplashOnly, isStrikeHit, remainderFormula, spaceOf };

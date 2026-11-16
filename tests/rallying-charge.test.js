@@ -147,3 +147,105 @@ for (const version of ["v13", "v14"]) {
         });
     });
 }
+
+/**
+ * A player's request to rally, checked by the GM's session (issue #64): until 1.26.20, the GM gave the effect to any
+ * creatures the request listed, for any marshal
+ */
+for (const version of ["v13", "v14"]) {
+    describe(`Rallying Charge: a player's request, checked by the GM (${version})`, () => {
+        /**
+         * Seelah (the player's marshal) with the feat; Ezren beside her; Amiri, an ally far away; Lem, an ally beside
+         * her but blinded; and a goblin beside her
+         */
+        async function setup(t) {
+            const tick = useFakeTimers(t);
+            const world = createWorld({
+                version,
+                users: [
+                    { id: "gm", name: "Gamemaster", isGM: true },
+                    { id: "player", name: "Player" },
+                ],
+            });
+            const gm = await world.connect("gm", { scripts: ["rallying-charge.js"] });
+            const player = await world.connect("player", { scripts: ["rallying-charge.js"] });
+            t.after(() => world.close());
+            tick(2_000);
+            await world.flush();
+            t.mock.method(console, "warn", () => {});
+            world.add({
+                uuid: EFFECT_UUID,
+                toObject: () => ({
+                    name: "Effect: Rallying Charge (Marshal)",
+                    type: "effect",
+                    slug: "effect-rallying-charge-marshal",
+                    _stats: {},
+                    system: { slug: "effect-rallying-charge-marshal" },
+                }),
+            });
+
+            const scene = makeScene(world);
+            const creature = (name, { x = 1, owners = [], type = "character", blinded = false } = {}) => {
+                const actor = withEffects(world, makeActor(world, { name, owners, type }));
+                Object.assign(actor, {
+                    isDead: false,
+                    hasCondition: (...slugs) => blinded && slugs.includes("blinded"),
+                });
+                return { actor, token: addToken(world, scene, actor, { x }) };
+            };
+            const seelah = creature("Seelah", { x: 0, owners: ["player"] });
+            const feat = addItem(world, seelah.actor, {
+                name: "Rallying Charge",
+                type: "feat",
+                slug: "rallying-charge-marshal",
+                source: FEAT_UUID,
+            });
+            const ezren = creature("Ezren");
+            const amiri = creature("Amiri", { x: 10_000 });
+            const lem = creature("Lem", { blinded: true });
+            const goblin = creature("Goblin", { type: "npc" });
+            const request = (marshal = seelah) => ({
+                marshalUuid: marshal.actor.uuid,
+                marshalTokenUuid: marshal.token.uuid,
+                featUuid: feat.uuid,
+                recipients: [ezren, amiri, lem, goblin].map((c) => c.token.uuid),
+            });
+            const ask = async (data) => {
+                const answer = player.run(() => player.scripts["settings.js"].askGM("rallyingCharge", data));
+                await settle(world, () => false);
+                return answer;
+            };
+            return { world, gm, creature, seelah, ezren, amiri, lem, goblin, request, ask };
+        }
+
+        it("gives the effect only to the marshal's allies within 60 feet who aren't blinded", async (t) => {
+            const { seelah, ezren, amiri, lem, goblin, request, ask } = await setup(t);
+            const answer = await ask(request());
+            assert.equal(answer.ok, true);
+            const [effect] = ezren.actor.itemTypes.effect;
+            assert.equal(effect?.system.context.origin.actor, seelah.actor.uuid);
+            for (const other of [amiri, lem, goblin])
+                assert.equal(other.actor.itemTypes.effect.length, 0, other.actor.name);
+        });
+
+        it("refuses a marshal the player doesn't own, one without the feat, or no ally to rally", async (t) => {
+            const { world, creature, ezren, request, ask } = await setup(t);
+            const valeros = creature("Valeros", { x: 0 });
+            addItem(world, valeros.actor, { name: "Rallying Charge", type: "feat", slug: "rallying-charge-marshal" });
+            const notTheirs = await ask(request(valeros));
+            assert.deepEqual(notTheirs, { ok: false, reason: "refused", error: "Player doesn't own the marshal" });
+
+            const kyra = creature("Kyra", { x: 0, owners: ["player"] });
+            const noFeat = await ask(request(kyra));
+            assert.deepEqual(noFeat, { ok: false, reason: "refused", error: "Kyra doesn't have Rallying Charge" });
+
+            const nobody = await ask({ ...request(), recipients: [] });
+            assert.deepEqual(nobody, {
+                ok: false,
+                reason: "refused",
+                error: "none of them is an ally within 60 feet of Seelah",
+            });
+            assert.equal(ezren.actor.itemTypes.effect.length, 0);
+        });
+    });
+}

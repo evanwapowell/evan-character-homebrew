@@ -48,12 +48,35 @@ async function setup(t, { gm = true, scripts = ["counteract.js"] } = {}) {
 }
 
 const askGM = (session, ...args) => session.run(() => session.scripts["settings.js"].askGM(...args));
+
+/**
+ * A counteract check the player rolled (a roll made outside the module: its flavor says Counteract), whose result
+ * counteracts a rank 1 effect at rank 3 (total 25 against DC 15)
+ */
+const counteractRoll = (player, total = 25) =>
+    player.run(() =>
+        ChatMessage.create({
+            flavor: "<strong>Counteract</strong>",
+            rolls: [{ total, dice: [{ faces: 20, total: 15 }] }],
+        }),
+    );
+
+/** What Counteract asks the GM for: to remove the effect the roll counteracted */
+async function removal(player, effect, { total = 25 } = {}) {
+    const roll = await counteractRoll(player, total);
+    const request = {
+        id: "request-1",
+        rank: 3,
+        targets: [{ label: "Fear", rank: 1, dc: 15, removable: true, items: [effect.uuid] }],
+    };
+    return { uuids: [effect.uuid], rollMessageId: roll.id, request };
+}
 const warnings = (session) => session.notifications.filter((n) => n.type === "warn").map((n) => n.message);
 
 describe("requests to the active GM (scripts/lib/gm.js)", () => {
     it("is done once the GM's session answers, with what the handler returned", async (t) => {
         const { player, goblin, fear } = await setup(t);
-        const pending = askGM(player, "counteractRemove", { uuids: [fear.uuid] });
+        const pending = askGM(player, "counteractRemove", await removal(player, fear));
         await drain();
         assert.deepEqual(await pending, { ok: true, result: [fear.uuid] });
         assert.equal(goblin.items.has(fear.id), false);
@@ -65,9 +88,8 @@ describe("requests to the active GM (scripts/lib/gm.js)", () => {
         // The GM is logged in, but their only window is frozen
         gm.unreachable = true;
         let answer = null;
-        askGM(player, "counteractRemove", { uuids: [fear.uuid] }, { title: "Counteract", task: "end it" }).then(
-            (a) => (answer = a),
-        );
+        const data = await removal(player, fear);
+        askGM(player, "counteractRemove", data, { title: "Counteract", task: "end it" }).then((a) => (answer = a));
         await drain();
         tick(ACCEPT - 1);
         await drain();
@@ -109,7 +131,8 @@ describe("requests to the active GM (scripts/lib/gm.js)", () => {
         gm.disconnect({ silently: true });
 
         let answer = null;
-        askGM(player, "counteractRemove", { uuids: [fear.uuid] }).then((a) => (answer = a));
+        const data = await removal(player, fear);
+        askGM(player, "counteractRemove", data).then((a) => (answer = a));
         await drain();
         assert.equal(answer, null, "the second window first asks whether the first is there");
         tick(CONFIRM);
@@ -136,9 +159,138 @@ describe("requests to the active GM (scripts/lib/gm.js)", () => {
 
     it("still handles a request from an earlier version, with no request ID", async (t) => {
         const { player, goblin, fear } = await setup(t);
-        player.run(() => game.socket.emit(SOCKET, { action: "counteractRemove", uuids: [fear.uuid] }));
+        const data = await removal(player, fear);
+        player.run(() => game.socket.emit(SOCKET, { action: "counteractRemove", ...data }));
         await drain();
         assert.equal(goblin.items.has(fear.id), false);
+    });
+
+    it("gives the handler and the check the sender, as Foundry's server does", async (t) => {
+        const { gm, player } = await setup(t);
+        const seen = [];
+        for (const session of [gm, player]) {
+            session.run(() =>
+                session.scripts["settings.js"].onGMRequest(
+                    "test",
+                    (data, sender) => void seen.push(["work", sender.id]),
+                    {
+                        check: (data, sender) => void seen.push(["check", sender.id]),
+                    },
+                ),
+            );
+        }
+        const pending = askGM(player, "test", {});
+        await drain();
+        assert.deepEqual(await pending, { ok: true, result: null });
+        assert.deepEqual(seen, [
+            ["check", "player"],
+            ["work", "player"],
+        ]);
+    });
+
+    it("refuses a player's request its check refuses, says why and does nothing", async (t) => {
+        const { gm, player, goblin, fear } = await setup(t);
+        const logged = [];
+        t.mock.method(console, "warn", (...args) => logged.push(args.join(" ")));
+        // No roll at all, as a crafted request would be
+        const pending = askGM(
+            player,
+            "counteractRemove",
+            { uuids: [fear.uuid] },
+            { title: "Counteract", task: "end it" },
+        );
+        await drain();
+        assert.deepEqual(await pending, {
+            ok: false,
+            reason: "refused",
+            error: "the counteract check isn't theirs, or isn't in chat",
+        });
+        assert.equal(goblin.items.has(fear.id), true);
+        assert.deepEqual(warnings(player), [
+            "Counteract: the GM's session wouldn't end it: the counteract check isn't theirs, or isn't in chat.",
+        ]);
+        assert.equal(logged.length, 1);
+        assert.match(logged[0], /GM request "counteractRemove" from Player refused/);
+        assert.deepEqual(warnings(gm), []);
+    });
+
+    it("doesn't run a GM's own requests through the check", async (t) => {
+        const { gm, goblin, fear } = await setup(t);
+        const answer = await askGM(gm, "counteractRemove", { uuids: [fear.uuid] });
+        assert.deepEqual(answer, { ok: true, result: [fear.uuid] });
+        assert.equal(goblin.items.has(fear.id), false);
+    });
+
+    it("refuses a request whose sender is unknown", async (t) => {
+        const { gm, player, goblin, fear } = await setup(t);
+        t.mock.method(console, "warn", () => {});
+        const data = await removal(player, fear);
+        // A socket message without the sender's ID (Foundry's server always adds it)
+        gm.run(() => {
+            const [listener] = gm.socketHandlers.get(SOCKET);
+            gm.socketHandlers.set(SOCKET, [(payload) => listener(payload, undefined)]);
+        });
+        player.run(() => game.socket.emit(SOCKET, { action: "counteractRemove", ...data, gmRequest: "id-1" }));
+        await drain();
+        assert.equal(goblin.items.has(fear.id), true);
+    });
+});
+
+describe("Counteract's removal, checked by the GM's session (scripts/counteract.js)", () => {
+    const ask = (player, data) => askGM(player, "counteractRemove", data);
+
+    it("removes only what the roll counteracts", async (t) => {
+        const { player, goblin, fear } = await setup(t);
+        const haste = addEffect(world, goblin, { name: "Effect: Haste", slug: "effect-haste" });
+        const data = await removal(player, fear);
+        // Haste is rank 7: a critical success at rank 3 (25 against DC 15) reaches rank 6
+        data.request.targets.push({ label: "Haste", rank: 7, dc: 15, removable: true, items: [haste.uuid] });
+        data.uuids.push(haste.uuid);
+        const pending = ask(player, data);
+        await drain();
+        assert.deepEqual(await pending, { ok: true, result: [fear.uuid] });
+        assert.equal(goblin.items.has(fear.id), false);
+        assert.equal(goblin.items.has(haste.id), true);
+    });
+
+    it("refuses what the roll doesn't counteract, or an item the request doesn't name", async (t) => {
+        const { player, goblin, fear } = await setup(t);
+        t.mock.method(console, "warn", () => {});
+        // A critical failure (total 5 against DC 15) counteracts nothing
+        const failed = ask(player, await removal(player, fear, { total: 5 }));
+        await drain();
+        assert.deepEqual(await failed, { ok: false, reason: "refused", error: "the check counteracts none of it" });
+
+        const haste = addEffect(world, goblin, { name: "Effect: Haste", slug: "effect-haste" });
+        const data = await removal(player, fear);
+        data.uuids = [haste.uuid];
+        const unnamed = ask(player, data);
+        await drain();
+        assert.equal((await unnamed).reason, "refused");
+        assert.equal(goblin.items.has(fear.id), true);
+        assert.equal(goblin.items.has(haste.id), true);
+    });
+
+    it("refuses a roll that isn't the player's, or isn't a counteract check", async (t) => {
+        const { gm, player, goblin, fear } = await setup(t);
+        t.mock.method(console, "warn", () => {});
+        const data = await removal(player, fear);
+        const gmsRoll = await counteractRoll(gm);
+        const notTheirs = ask(player, { ...data, rollMessageId: gmsRoll.id });
+        await drain();
+        assert.equal((await notTheirs).reason, "refused");
+
+        const chat = await player.run(() =>
+            ChatMessage.create({ content: "hello", rolls: [{ total: 25, dice: [{ faces: 20, total: 15 }] }] }),
+        );
+        const notCounteract = ask(player, { ...data, rollMessageId: chat.id });
+        await drain();
+        assert.deepEqual(await notCounteract, {
+            ok: false,
+            reason: "refused",
+            error: "the check wasn't rolled for this counteract",
+        });
+        assert.equal(goblin.items.has(fear.id), true);
     });
 });
 
@@ -159,13 +311,13 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
             },
         ],
     });
-    const rollMessage = (id) => ({ id, rolls: [{ total: 25, dice: [{ faces: 20, total: 15 }] }], flags: {} });
+    const rollMessage = (player) => counteractRoll(player);
     const resolve = (session, ...args) => session.run(() => session.scripts["counteract.js"].resolve(...args));
     const card = () => world.messages.find((m) => m.flags["evan-character-homebrew"]?.counteract);
 
     it("says the effect was ended once the GM's session ended it", async (t) => {
         const { player, goblin, fear } = await setup(t);
-        const pending = resolve(player, rollMessage("roll-1"), request(fear));
+        const pending = resolve(player, await rollMessage(player), request(fear));
         await drain();
         await pending;
         assert.equal(goblin.items.has(fear.id), false);
@@ -176,7 +328,7 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
     it("doesn't say it was ended when no GM session answered, and a reroll ends it", async (t) => {
         const { tick, gm, player, goblin, fear } = await setup(t);
         gm.unreachable = true;
-        const first = resolve(player, rollMessage("roll-1"), request(fear));
+        const first = resolve(player, await rollMessage(player), request(fear));
         await drain();
         tick(ACCEPT);
         await drain();
@@ -187,7 +339,7 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
 
         // The GM's window is back, and the check is rerolled
         gm.unreachable = false;
-        const reroll = resolve(player, rollMessage("roll-2"), request(fear));
+        const reroll = resolve(player, await rollMessage(player), request(fear));
         await drain();
         await reroll;
         assert.equal(goblin.items.has(fear.id), false);
@@ -199,7 +351,7 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
         const { tick, gm, player, goblin, fear } = await setup(t);
         // The GM's window is slow: the request arrives after the player has stopped waiting, and is still done
         gm.latency = ACCEPT + 5_000;
-        const first = resolve(player, rollMessage("roll-1"), request(fear));
+        const first = resolve(player, await rollMessage(player), request(fear));
         await drain();
         tick(ACCEPT);
         await drain();
@@ -210,7 +362,7 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
         assert.equal(goblin.items.has(fear.id), false, "the GM's session removed it late");
 
         gm.latency = 0;
-        const reroll = resolve(player, rollMessage("roll-2"), request(fear));
+        const reroll = resolve(player, await rollMessage(player), request(fear));
         await drain();
         await reroll;
         assert.equal(card().flags["evan-character-homebrew"].counteract.results[0].removed, true);
@@ -220,9 +372,10 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
     it("resolves a reroll after the roll before it, on one card", async (t) => {
         const { tick, gm, player, goblin, fear } = await setup(t);
         gm.unreachable = true;
-        const first = resolve(player, rollMessage("roll-1"), request(fear));
+        const first = resolve(player, await rollMessage(player), request(fear));
         // Rerolled while the first roll's request is still waiting
-        const reroll = resolve(player, rollMessage("roll-2"), request(fear));
+        const rerolled = await rollMessage(player);
+        const reroll = resolve(player, rerolled, request(fear));
         await drain();
         // The first roll's request is lost; the GM's window is back before it's given up on
         gm.unreachable = false;
@@ -235,6 +388,6 @@ describe("Counteract through the active GM (scripts/counteract.js)", () => {
         assert.equal(cards.length, 1);
         assert.equal(goblin.items.has(fear.id), false);
         assert.match(cards[0].content, /counteracted and ended/);
-        assert.equal(cards[0].flags["evan-character-homebrew"].counteract.rollMessage, "roll-2");
+        assert.equal(cards[0].flags["evan-character-homebrew"].counteract.rollMessage, rerolled.id);
     });
 });

@@ -5,6 +5,7 @@
  */
 
 import { auraFiles, finchAuraRules, playAura } from "./lib/finch.js";
+import { tokenDistance } from "./lib/geometry.js";
 import {
     askGM,
     canAnimate,
@@ -15,6 +16,8 @@ import {
     isEnabled,
     isFinchVersion,
     onGMRequest,
+    owns,
+    refuse,
 } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -184,17 +187,21 @@ function findAuraEffect(caster) {
     return null;
 }
 
+/** Whether a creature is the caster's charge: it has Effect: Witch's Charge from the caster */
+function isChargeOf(actor, caster) {
+    return actor.itemTypes.effect.some((e) => {
+        const fromCompendium = [e.sourceId, e.uuid].some((u) => String(u ?? "").endsWith(`.${CHARGE_EFFECT_ID}`));
+        // Without an origin, the effect counts as its holder's own: assume it's from this caster
+        return (fromCompendium || e.name === "Effect: Witch's Charge") && [caster, actor].includes(e.origin);
+    });
+}
+
 /** Tokens of the caster's charges within 30 feet: creatures with Effect: Witch's Charge from the caster */
 function getChargeTokens(caster, casterToken) {
     return canvas.scene.tokens.filter((token) => {
         const actor = token.actor;
         if (!actor || actor === caster || !token.object || !casterToken.object) return false;
-        const isCharge = actor.itemTypes.effect.some((e) => {
-            const fromCompendium = [e.sourceId, e.uuid].some((u) => String(u ?? "").endsWith(`.${CHARGE_EFFECT_ID}`));
-            // Without an origin, the effect counts as its holder's own: assume it's from this caster
-            return (fromCompendium || e.name === "Effect: Witch's Charge") && [caster, actor].includes(e.origin);
-        });
-        return isCharge && casterToken.object.distanceTo(token.object) <= CHARGE_RANGE;
+        return isChargeOf(actor, caster) && casterToken.object.distanceTo(token.object) <= CHARGE_RANGE;
     });
 }
 
@@ -367,7 +374,33 @@ Hooks.once("init", () => {
     ];
 });
 
-onGMRequest("moveManifestWill", (data) => moveAuraEffect(data.effectUuid, data.centerUuid));
+/**
+ * A player's request to re-center the aura: it's Aura: Manifest Will, cast by a creature they own, and the new center
+ * is the caster or their charge within 30 feet of them
+ */
+async function checkMove({ effectUuid, centerUuid }, sender) {
+    const read = (uuid) => (typeof uuid === "string" ? fromUuid(uuid).catch(() => null) : null);
+    const effect = await read(effectUuid);
+    if (effect?.type !== "effect" || effect.slug !== "aura-manifest-will" || !effect.actor) {
+        refuse("that isn't Aura: Manifest Will");
+    }
+    // Without an origin, pf2e takes the effect's holder as its caster
+    const caster = effect.origin ?? effect.actor;
+    if (!owns(sender, caster)) refuse(`${sender.name} doesn't own ${caster.name}`);
+    const center = await read(centerUuid);
+    if (!(center instanceof Actor)) refuse("the creature is gone");
+    if (center !== caster) {
+        if (!isChargeOf(center, caster)) refuse(`${center.name} isn't ${caster.name}'s charge`);
+        const casterTokens = caster.getActiveTokens(true, true);
+        const near = center
+            .getActiveTokens(true, true)
+            .some((token) => casterTokens.some((casterToken) => tokenDistance(casterToken, token) <= CHARGE_RANGE));
+        if (!near) refuse(`${center.name} isn't within ${CHARGE_RANGE} feet of ${caster.name}`);
+    }
+    return { effectUuid: effect.uuid, centerUuid: center.uuid };
+}
+
+onGMRequest("moveManifestWill", (data) => moveAuraEffect(data.effectUuid, data.centerUuid), { check: checkMove });
 
 // The aura's area is measured on the canvas: a session viewing the combatant's scene does it
 hooks.onTurnStart(({ combatant }) => onTurnStart(combatant));
