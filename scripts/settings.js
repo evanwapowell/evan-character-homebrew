@@ -15,7 +15,7 @@ import {
     isActiveGM,
     isPrimarySession,
 } from "./lib/session.js";
-import { askGM, onGMRequest, warnGM } from "./lib/gm.js";
+import { askGM, isAuthor, onGMRequest, owns, refuse, warnGM } from "./lib/gm.js";
 import { onTurnEnd, onTurnStart } from "./lib/turns.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -440,11 +440,14 @@ export {
     guardApi,
     hasModuleData,
     isActiveGM,
+    isAuthor,
     isEnabled,
     isFinchVersion,
     isPrimarySession,
     menuContent,
     onGMRequest,
+    owns,
+    refuse,
     saveMenu,
     switchKey,
     warnGM,

@@ -15,7 +15,17 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
-import { askGM, confirmActiveGM, createdHere, featureHooks, guardApi, hasModuleData, onGMRequest } from "./settings.js";
+import {
+    askGM,
+    confirmActiveGM,
+    createdHere,
+    featureHooks,
+    guardApi,
+    hasModuleData,
+    onGMRequest,
+    owns,
+    refuse,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -520,7 +530,19 @@ hooks.onTurnStart(async ({ combat, combatant, round }) => {
     if (game.settings.get(MODULE_ID, "sustainReminder")) await postReminder(combat, { combatant, round });
 });
 
-onGMRequest("recordSustained", (data) => recordSustained(data.effectUuids ?? []));
+/** A player's Sustain: only sustained effects whose caster they own are recorded */
+function checkSustained({ effectUuids }, sender) {
+    const uuids = (Array.isArray(effectUuids) ? effectUuids : []).filter((uuid) => {
+        const effect = typeof uuid === "string" ? fromUuidSync(uuid) : null;
+        if (effect?.type !== "effect" || !effect.system.duration?.sustained) return false;
+        const caster = fromUuidSync(getCasterUuid(effect));
+        return owns(sender, caster);
+    });
+    if (uuids.length === 0) refuse(`none of those are sustained spells of ${sender.name}'s`);
+    return { effectUuids: uuids };
+}
+
+onGMRequest("recordSustained", (data) => recordSustained(data.effectUuids ?? []), { check: checkSustained });
 
 Hooks.once("init", () => {
     game.settings.register(MODULE_ID, "sustainedDurations", {

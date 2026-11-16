@@ -19,7 +19,19 @@
  * play each step.
  */
 
-import { askGM, canAnimate, createdHere, guardApi, hasModuleData, isEnabled, onGMRequest } from "./settings.js";
+import { tokenDistance } from "./lib/geometry.js";
+import {
+    askGM,
+    canAnimate,
+    createdHere,
+    guardApi,
+    hasModuleData,
+    isAuthor,
+    isEnabled,
+    onGMRequest,
+    owns,
+    refuse,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
@@ -669,7 +681,7 @@ Hooks.on("createChatMessage", (message, options, userId) => {
             `${KINDS[record.kind]?.title}: the result was already applied. Adjust a reroll by hand.`,
         );
     }
-    const data = { cardId, outcome: context.outcome };
+    const data = { cardId, outcome: context.outcome, saveMessageId: message.id };
     // Players can't edit the familiar's card, or creatures they don't own, so the active GM applies the result
     const title = KINDS[record.kind]?.title ?? "Familiar";
     askGM("familiarStrikeSave", data, { title, task: "apply the result" }).catch(log);
@@ -754,7 +766,48 @@ Hooks.once("init", () => {
     };
 });
 
-onGMRequest("familiarStrikeSave", (data) => resolveSave(data));
-onGMRequest("shedSpiritHeal", (data) => resolveHeal(data));
+/** A card's record, on a card made by a user who owns the familiar or the witch */
+function readCard(cardId) {
+    const card = game.messages.get(cardId);
+    const record = card?.flags[MODULE_ID]?.familiarStrike;
+    if (!KINDS[record?.kind]) refuse("that isn't a Shed Spirit or Stitching Strike card");
+    const witch = record.witch ? fromUuidSync(record.witch) : null;
+    const familiar = record.familiar ? fromUuidSync(record.familiar) : null;
+    if (!owns(card.author, familiar) && !owns(card.author, witch)) refuse("the card isn't the familiar's");
+    return { card, record, witch, familiar };
+}
+
+/** A player's save from the card: the result is read from their save's message, rolled from this card */
+function checkSave(data, sender) {
+    const save = game.messages.get(data.saveMessageId);
+    const context = save?.flags.pf2e?.context;
+    if (!save || !isAuthor(save, sender) || context?.type !== "saving-throw" || !OUTCOMES.includes(context.outcome)) {
+        refuse("the save isn't theirs, or isn't in chat");
+    }
+    if (context.identifier !== `${SAVE_IDENTIFIER}${data.cardId}`) refuse("the save wasn't rolled from that card");
+    const { record } = readCard(data.cardId);
+    const target = fromUuidSync(record.target)?.actor;
+    if (!target || save.actor?.uuid !== target.uuid || !owns(sender, target)) refuse("the save isn't the target's");
+    return { cardId: data.cardId, outcome: context.outcome };
+}
+
+/** A player's choice of the ally Shed Spirit heals: theirs to make, and an ally within 30 feet of the enemy */
+function checkHeal({ cardId, allyTokenUuid }, sender) {
+    const { record, witch, familiar } = readCard(cardId);
+    if (!owns(sender, familiar) && !owns(sender, witch)) refuse(`${sender.name} doesn't own ${familiar?.name}`);
+    if (!allyTokenUuid) return { cardId, allyTokenUuid: null };
+    const allyToken = typeof allyTokenUuid === "string" ? fromUuidSync(allyTokenUuid) : null;
+    const targetToken = fromUuidSync(record.target);
+    const ally = allyToken?.actor;
+    const isAlly = !!ally && ally !== familiar && (ally === witch || !!ally.isAllyOf?.(witch));
+    if (!isAlly || allyToken === targetToken) refuse(`${allyToken?.name ?? "that creature"} isn't the witch's ally`);
+    if (!(tokenDistance(targetToken, allyToken) <= HEAL_RANGE)) {
+        refuse(`${allyToken.name} isn't within ${HEAL_RANGE} feet of ${targetToken?.name ?? "the enemy"}`);
+    }
+    return { cardId, allyTokenUuid: allyToken.uuid };
+}
+
+onGMRequest("familiarStrikeSave", (data) => resolveSave(data), { check: checkSave });
+onGMRequest("shedSpiritHeal", (data) => resolveHeal(data), { check: checkHeal });
 
 export { degreeOf, getCardKind, getDice, getKind };

@@ -28,7 +28,7 @@ import {
     rankFromText,
     spellRankDC,
 } from "./lib/counteract-rules.js";
-import { askGM, createdHere, featureHooks, guardApi, onGMRequest } from "./settings.js";
+import { askGM, createdHere, featureHooks, guardApi, isAuthor, onGMRequest, owns, refuse } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const TOOLBELT_ID = "pf2e-toolbelt";
@@ -618,8 +618,11 @@ function getOutcomes(request, message, rolled) {
     });
 }
 
-/** Delete counteracted effects, conditions and afflictions: directly where the user can, or through the active GM */
-async function removeItems(uuids) {
+/**
+ * Delete counteracted effects, conditions and afflictions: directly where the user can, or through the active GM, who
+ * checks them against the roll's message and the request it was rolled for
+ */
+async function removeItems(uuids, { message = null, request = null } = {}) {
     const byActor = new Map();
     for (const uuid of uuids) {
         const item = resolveSync(uuid);
@@ -642,7 +645,7 @@ async function removeItems(uuids) {
         // Players can't edit creatures they don't own, so the active GM removes them, and says which it removed
         const answer = await askGM(
             "counteractRemove",
-            { uuids: forGM },
+            { uuids: forGM, rollMessageId: message?.id ?? null, request },
             { title: "Counteract", task: "end effects on creatures you don't own" },
         );
         if (answer.ok && Array.isArray(answer.result)) {
@@ -673,7 +676,35 @@ async function removeForGM({ uuids }) {
     }
     return removed;
 }
-onGMRequest("counteractRemove", removeForGM);
+/**
+ * A player's request to remove what their roll counteracted: the roll is theirs, rolled for this request (or a
+ * counteract roll made otherwise), and only what it counteracts by the request's ranks is removed. The ranks and DCs
+ * are the ones the player's dialog worked out or had typed in, as the card shows them.
+ */
+function checkRemoval({ uuids, rollMessageId, request }, sender) {
+    const message = game.messages.get(rollMessageId);
+    if (!message || !isAuthor(message, sender)) refuse("the counteract check isn't theirs, or isn't in chat");
+    if (message.actor && !owns(sender, message.actor)) refuse(`${sender.name} doesn't own ${message.actor.name}`);
+    const targets = Array.isArray(request?.targets) ? request.targets : null;
+    if (!targets || !Number.isFinite(Number(request.rank))) refuse("the request has no rank or targets");
+    const id = requestIdOf(message);
+    if (id ? id !== request.id : !isOtherCounteractRoll(message)) refuse("the check wasn't rolled for this counteract");
+    const rolled = readRoll(message);
+    if (!rolled) refuse("the check has no roll");
+    const outcomes = getOutcomes(request, message, rolled);
+    const counteracted = new Set(
+        targets.flatMap((target, i) =>
+            target?.removable && Array.isArray(target.items) && counteracts(outcomes[i], request.rank, target.rank)
+                ? target.items
+                : [],
+        ),
+    );
+    const allowed = (Array.isArray(uuids) ? uuids : []).filter((uuid) => counteracted.has(uuid));
+    if (allowed.length === 0) refuse("the check counteracts none of it");
+    return { uuids: allowed };
+}
+
+onGMRequest("counteractRemove", removeForGM, { check: checkRemoval });
 
 /** One target's line on the result card */
 function resultLine(target, result, rank) {
@@ -731,7 +762,7 @@ async function resolveNow(message, request, { sourceName = null } = {}) {
         results[i].success && !results[i].removed && t.removable ? t.items : [],
     );
     if (toRemove.length > 0) {
-        const done = await removeItems(toRemove);
+        const done = await removeItems(toRemove, { message, request });
         request.targets.forEach((t, i) => {
             if (!results[i].success || !t.removable || results[i].removed) return;
             // Ended now, or already gone (a GM session that answered too late still removed it)

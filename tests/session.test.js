@@ -154,9 +154,25 @@ function counteractTarget() {
     return { effect, deletions };
 }
 
-/** A player asks the GM to remove an effect (counteract.js's request), as a player's client does */
-const requestRemoval = (player, effect) =>
-    player.run(() => game.socket.emit(SOCKET, { action: "counteractRemove", uuids: [effect.uuid] }));
+/**
+ * A player asks the GM to remove an effect (counteract.js's request), as a player's client does: after their counteract
+ * check, which counteracts it
+ */
+async function requestRemoval(player, effect) {
+    const request = {
+        id: "request-1",
+        rank: 3,
+        targets: [{ label: "Bless", rank: 1, dc: 15, removable: true, items: [effect.uuid] }],
+    };
+    const roll = await player.run(() =>
+        ChatMessage.create({
+            rolls: [{ total: 25, dice: [{ faces: 20, total: 15 }] }],
+            flags: { "evan-character-homebrew": { counteractRoll: request.id } },
+        }),
+    );
+    const data = { action: "counteractRemove", uuids: [effect.uuid], rollMessageId: roll.id, request };
+    player.run(() => game.socket.emit(SOCKET, data));
+}
 
 describe("confirming who does the work (scripts/lib/session.js)", () => {
     it("a GM's only session doesn't drop work given in its first seconds: it waits, then does it", async (t) => {
@@ -166,7 +182,7 @@ describe("confirming who does the work (scripts/lib/session.js)", () => {
         const player = await world.connect("player");
         const confirmed = helpers(gm).confirmActiveGM();
         const { effect, deletions } = counteractTarget();
-        requestRemoval(player, effect);
+        await requestRemoval(player, effect);
         await world.flush();
         assert.equal(await peek(confirmed), "pending");
         assert.deepEqual(deletions, []);
@@ -194,7 +210,7 @@ describe("confirming who does the work (scripts/lib/session.js)", () => {
         assert.equal(await peek(asked), false);
 
         const { effect, deletions } = counteractTarget();
-        requestRemoval(player, effect);
+        await requestRemoval(player, effect);
         for (let i = 0; i < 3; i++) await world.flush();
         assert.deepEqual(deletions, [effect.id]);
         tick(CONFIRM);
@@ -213,7 +229,7 @@ describe("confirming who does the work (scripts/lib/session.js)", () => {
         const { tick, first, second, player } = await connectAll(t, { scripts: ["counteract.js"] });
         first.disconnect({ silently: true });
         const { effect, deletions } = counteractTarget();
-        requestRemoval(player, effect);
+        await requestRemoval(player, effect);
         await world.flush();
         assert.deepEqual(deletions, []);
 
@@ -246,7 +262,7 @@ describe("confirming who does the work (scripts/lib/session.js)", () => {
         tick(HEARTBEAT * 2);
         await world.flush();
         const { effect, deletions } = counteractTarget();
-        requestRemoval(player, effect);
+        await requestRemoval(player, effect);
         const asked = helpers(second).confirmActiveGM();
         for (let elapsed = 0; elapsed < CONFIRM * 2; elapsed += 250) {
             tick(250);

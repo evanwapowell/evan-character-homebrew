@@ -10,7 +10,7 @@
 
 import { getGrantedConditions, OUTCOMES, parseSpellOutcome, preselectDegree } from "./lib/spell-condition-parser.js";
 import { buildSpellEffectSource, getSceneToken } from "./lib/spell-effect-source.js";
-import { askGM, onGMRequest } from "./settings.js";
+import { askGM, onGMRequest, owns, refuse } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const log = (error) => console.error(`${MODULE_ID} | Spell conditions`, error);
@@ -611,13 +611,28 @@ Hooks.once("init", () => {
     Hooks.on("renderChatMessageHTML", render);
 });
 
-/** A player who can't update the message (it's someone else's) has the GM record whom it was applied to */
-onGMRequest("spellConditionsApplied", async ({ messageId, actorUuids }) => {
+/** A player's record of whom they applied it to: only the creatures they own that saved against the spell */
+function checkApplied({ messageId, actorUuids }, sender) {
     const message = game.messages.get(messageId);
-    if (!message) throw new Error("the message is gone");
+    if (!message) refuse("the message is gone");
     const saves = getSave(message) ? [getSave(message)] : getToolbeltSaves(message);
-    if (saves.length === 0) throw new Error("the message isn't a save against a spell");
-    const uuids = (Array.isArray(actorUuids) ? actorUuids : []).filter((uuid) => typeof uuid === "string");
-    const applied = [...new Set([...getApplied(message), ...uuids])];
-    await message.update({ [`flags.${MODULE_ID}.spellConditions.applied`]: applied });
-});
+    const owned = new Set(saves.filter((save) => owns(sender, save.target)).map((save) => save.target.uuid));
+    const uuids = (Array.isArray(actorUuids) ? actorUuids : []).filter((uuid) => owned.has(uuid));
+    if (uuids.length === 0) refuse(`none of those creatures saved against the spell and are ${sender.name}'s`);
+    return { messageId, actorUuids: uuids };
+}
+
+/** A player who can't update the message (it's someone else's) has the GM record whom it was applied to */
+onGMRequest(
+    "spellConditionsApplied",
+    async ({ messageId, actorUuids }) => {
+        const message = game.messages.get(messageId);
+        if (!message) throw new Error("the message is gone");
+        const saves = getSave(message) ? [getSave(message)] : getToolbeltSaves(message);
+        if (saves.length === 0) throw new Error("the message isn't a save against a spell");
+        const uuids = (Array.isArray(actorUuids) ? actorUuids : []).filter((uuid) => typeof uuid === "string");
+        const applied = [...new Set([...getApplied(message), ...uuids])];
+        await message.update({ [`flags.${MODULE_ID}.spellConditions.applied`]: applied });
+    },
+    { check: checkApplied },
+);

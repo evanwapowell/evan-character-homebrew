@@ -12,7 +12,18 @@
  * miss, or the end of the marshal's turn spends the charge with no effect.
  */
 
-import { askGM, canAnimate, createdHere, featureHooks, guardApi, onGMRequest, warnGM } from "./settings.js";
+import { tokenDistance } from "./lib/geometry.js";
+import {
+    askGM,
+    canAnimate,
+    createdHere,
+    featureHooks,
+    guardApi,
+    onGMRequest,
+    owns,
+    refuse,
+    warnGM,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -321,4 +332,27 @@ Hooks.once("init", () => {
     };
 });
 
-onGMRequest("rallyingCharge", (data) => applyEffects(data));
+/**
+ * A player's request to rally: their marshal has the feat, and each recipient is an ally on the marshal's scene within
+ * 60 feet who isn't blinded or unconscious (whether a wall blocks their sight was checked on the player's canvas)
+ */
+function checkRally({ marshalUuid, marshalTokenUuid, recipients }, sender) {
+    const marshalToken = typeof marshalTokenUuid === "string" ? fromUuidSync(marshalTokenUuid) : null;
+    const marshal = marshalToken?.actor;
+    if (!marshal || marshal.uuid !== marshalUuid || !owns(sender, marshal))
+        refuse(`${sender.name} doesn't own the marshal`);
+    const feat = marshal.items.find(isChargeFeat);
+    if (!feat) refuse(`${marshal.name} doesn't have Rallying Charge`);
+    const allies = (Array.isArray(recipients) ? recipients : []).filter((uuid) => {
+        const token = typeof uuid === "string" ? fromUuidSync(uuid) : null;
+        const actor = token?.actor;
+        if (!actor || token.parent !== marshalToken.parent || actor === marshal || !actor.isAllyOf(marshal))
+            return false;
+        if (!actor.isOfType?.("character", "npc", "familiar") || actor.isDead) return false;
+        return !actor.hasCondition("blinded", "unconscious") && tokenDistance(marshalToken, token) <= RANGE;
+    });
+    if (allies.length === 0) refuse(`none of them is an ally within ${RANGE} feet of ${marshal.name}`);
+    return { marshalUuid: marshal.uuid, marshalTokenUuid: marshalToken.uuid, featUuid: feat.uuid, recipients: allies };
+}
+
+onGMRequest("rallyingCharge", (data) => applyEffects(data), { check: checkRally });

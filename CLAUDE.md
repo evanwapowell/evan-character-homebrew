@@ -15,7 +15,7 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       `featureHooks` (with `onTurnStart` and `onTurnEnd` from `lib/turns.js`), `isEnabled`, `guardApi`, `canAnimate`,
       for the Finch version, `canAnimateFinch` and `isFinchVersion`, from `lib/session.js`, `confirmActiveGM`,
       `confirmPrimarySession`, `createdHere` and `hasModuleData` (and `isActiveGM` and `isPrimarySession`, for tests),
-      and from `lib/gm.js`, `askGM`, `onGMRequest` and `warnGM`.
+      and from `lib/gm.js`, `askGM`, `onGMRequest`, `warnGM`, `refuse`, `owns` and `isAuthor`.
     - `lib/session.js`: a user (the GM especially) can be connected more than once, in two windows or on two devices,
       and each session runs the hooks. A user's sessions announce themselves over the module socket (whether they're
       shown, and the scene they view), and one of them is chosen to act for the user: for work on a scene, one viewing
@@ -25,10 +25,21 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
     - `lib/gm.js`: work a player's client hands to the active GM. `askGM(action, data, { title, task })` sends the
       request with an ID on the module socket and waits: the GM session that acts (`confirmActiveGM`) answers that it
       took the request (within 10 seconds), then that it's done (within 60), with what the handler registered by
-      `onGMRequest(action, handler)` returned, or its error. It resolves to `{ ok: true, result }` or
-      `{ ok: false, reason }` ("absent": no GM logged in; "unanswered"; "failed"), warning the user when `title` is
-      given (`warnGM` for a warning of one's own). A GM's own requests run in their session. Requests keep each
-      action's payload, so a GM session on an earlier version still does the work during an update.
+      `onGMRequest(action, handler, { check })` returned, or its error. It resolves to `{ ok: true, result }` or
+      `{ ok: false, reason }` ("absent": no GM logged in; "unanswered"; "refused"; "failed"), warning the user when
+      `title` is given (`warnGM` for a warning of one's own). A GM's own requests run in their session. Requests keep
+      each action's payload, so a GM session on an earlier version still does the work during an update. The GM's
+      session doesn't take a player's data on trust: Foundry gives the socket's listeners the sender's user ID (pf2e's
+      own socket reads it), and a request from a player goes through the action's `check(data, sender)` first, which
+      reads again from the documents what it can (a save's outcome from its message, a range from the tokens, a rank
+      from the item), checks the player owns the creature acting (`owns`) and made the message (`isAuthor`), and
+      `refuse(reason)`s a request that doesn't match its feature (logged with one `console.warn`, and answered
+      "refused"). It returns the data the handler gets; the handler gets `(data, sender)`. A GM's requests skip it.
+    - `lib/geometry.js`: distances between tokens from their documents (`spaceOf`, `distanceBetween`, `tokenDistance`),
+      as pf2e counts them on a square grid, for checks on a scene the GM's session isn't viewing.
+    - `lib/saves.js`: a save a player's client reports, read again where it was rolled: `reportedSaveMessage` (their
+      save message, for a creature they own) or `reportedToolbeltSave` (PF2e Toolbelt's result on the card,
+      `toolbeltSave`).
     - `lib/turns.js`: the turns of an encounter. A combat update also arrives when the turn order goes back, and when
       the turn's index shifts under the creature whose turn it is (a combatant added, removed or moved in the order),
       so it reads what an update did, once for every script: the turn that ended and the turn that started, only going
@@ -244,7 +255,10 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
 - Players can't edit creatures they don't own. When a change has to reach another creature, the user's client asks the
   active GM with `askGM`, and the script registers the GM's side with `onGMRequest` at its top level; don't use the
   module socket directly. Record the work as done (on a card, in a flag) only when the answer is `ok`, and return from
-  the handler what the asker needs to know (Counteract's handler returns what it removed).
+  the handler what the asker needs to know (Counteract's handler returns what it removed). Every `onGMRequest` gives a
+  `check`, since anyone can send any data on the socket: send what the GM can read again (the save's or roll's message
+  ID, the card's ID) and have the check derive the rest from the documents (outcome, rank, range, allegiance, who owns
+  the creature acting), not from the payload, and build chat text on the GM's side from names.
 - A user can have more than one session, so check `await confirmActiveGM()` for the active GM's work, never
   `game.user === game.users.activeGM`, and `createdHere(document, options, userId)` in `createChatMessage` and
   `createItem` hooks, never `userId === game.user.id`. Work given to a user (a prompt for whoever answers for a
@@ -302,7 +316,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   top-level script is in `esmodules`, no test of the bare `flags[MODULE_ID]` on a message, no comparing `game.user`
   with `game.users.activeGM` or `userId` with `game.user.id` outside `lib/session.js`, no `isActiveGM()` or
   `isPrimarySession()` in `scripts/` (`confirmActiveGM()` and `confirmPrimarySession()` instead), no direct use of the
-  module socket in `scripts/` outside `lib/session.js` and `lib/gm.js` (`askGM` and `onGMRequest`), no `updateCombat`
+  module socket in `scripts/` outside `lib/session.js` and `lib/gm.js` (`askGM` and `onGMRequest`), every
+  `onGMRequest` in `scripts/` with a `check`, no `updateCombat`
   hook in `scripts/` outside `lib/turns.js` (`onTurnStart` and `onTurnEnd`), compendium links (in `src/packs/` and
   string literals in `scripts/`) end in a 16-character ID, and the module's own items the scripts use exist in
   `src/packs/`.
@@ -322,7 +337,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   and always runs them. To move to newer pf2e data, change the commits in `tools/pf2e.json`, fetch, update the
   baselines and review their diff. `node tools/parse-spells.mjs` runs the parsers without writing anything.
 - Tests of the real scripts on a Foundry stand-in (`tests/harness/`): `foundry.mjs` fakes the globals the scripts touch
-  (`Hooks`, `game` with users, settings, modules, the module socket and messages, `ui.notifications`, `foundry.utils`,
+  (`Hooks`, `game` with users, settings, modules, the module socket (its listeners get the sender's user ID, as
+  from Foundry's server) and messages, `ui.notifications`, `foundry.utils`,
   `ChatMessage.create` running `preCreateChatMessage` and then `createChatMessage` in every session, `fromUuid`, `Roll`
   (each die rolls its middle; `toMessage` reads `rollMode` on v13 and `messageMode` on v14, as Foundry does), and jsdom
   for `document` and `DOMParser`); `pf2e.mjs` builds pf2e-shaped actors, items, effects, scenes, tokens, encounters and
@@ -353,7 +369,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   actor. `addSkills(actor, skills)` gives a creature pf2e's skill statistics (`withRollOptions`, a `check` whose
   modifiers are tested against roll options, `roll` recorded in `actor.skillRolls`), totalled by
   `game.pf2e.StatisticModifier`. `tests/guards.test.js` checks that pf2e's messages reach the features and the module's
-  own don't, `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM,
+  own don't, `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM (with
+  their checks: the sender, refusals, Counteract's removal),
   `tests/turns.test.js` the turns of an encounter with Manifest Will's and Sustain's work on them,
   `tests/sustain.test.js` what one Sustain keeps going (a casting, an aura's copies) and whom an ending is told,
   `tests/sepulchral-mask.test.js` the turn-start card's buttons and a save from a deleted card,

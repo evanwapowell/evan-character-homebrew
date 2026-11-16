@@ -806,7 +806,9 @@ class World {
             if (session === from || session.unreachable) continue;
             const latency = Math.max(from.latency, session.latency);
             for (const handler of session.socketHandlers.get(event) ?? []) {
-                const deliver = () => session.connected && !session.unreachable && session.run(() => handler(payload));
+                // Foundry's server adds the sender's user ID
+                const deliver = () =>
+                    session.connected && !session.unreachable && session.run(() => handler(payload, from.user.id));
                 if (latency > 0) {
                     setTimeout(deliver, latency);
                     continue;

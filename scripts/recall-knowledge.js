@@ -34,7 +34,18 @@ import {
     ordinal,
     trimReveal,
 } from "./lib/recall-knowledge-facts.js";
-import { askGM, confirmActiveGM, createdHere, guardApi, hasModuleData, isEnabled, onGMRequest } from "./settings.js";
+import {
+    askGM,
+    confirmActiveGM,
+    createdHere,
+    guardApi,
+    hasModuleData,
+    isAuthor,
+    isEnabled,
+    onGMRequest,
+    owns,
+    refuse,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 const TITLE = "Recall Knowledge";
@@ -1442,7 +1453,30 @@ Hooks.once("init", () => {
     };
 });
 
-onGMRequest("recallKnowledgeStart", async (data) => ({ rerolled: !!(await onStart(data))?.rerolled }));
-onGMRequest("recallKnowledgeQuestion", (data) => onQuestion(data));
+/**
+ * A player's check: they rolled it, for a creature they own, and against the creature the check names (otherwise one
+ * of their targets). What kind of check it is and whether it's a reroll are read from it. Only the roller's player
+ * asks its question.
+ */
+function checkRoll(data, sender) {
+    const message = typeof data.messageId === "string" ? game.messages.get(data.messageId) : null;
+    const check = message ? getCheck(message) : null;
+    if (!check || !isAuthor(message, sender)) refuse("the check isn't theirs, or isn't in chat");
+    const actor = getRoller(message);
+    if (!actor || !owns(sender, actor)) refuse(`${sender.name} doesn't own the creature that rolled`);
+    const target = message.flags.pf2e?.context?.target?.token;
+    if (target && target !== data.tokenUuid) refuse("the check wasn't against that creature");
+    return { ...data, kind: check.kind, reroll: !!message.flags.pf2e?.context?.isReroll };
+}
+
+onGMRequest("recallKnowledgeStart", async (data) => ({ rerolled: !!(await onStart(data))?.rerolled }), {
+    check: checkRoll,
+});
+onGMRequest("recallKnowledgeQuestion", (data) => onQuestion(data), {
+    check: (data, sender) => {
+        const { messageId, tokenUuid } = checkRoll(data, sender);
+        return { messageId, tokenUuid, question: data.question, other: data.other };
+    },
+});
 
 export { getCheck };

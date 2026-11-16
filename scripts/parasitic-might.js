@@ -9,7 +9,18 @@
 
 import { isSpellCast } from "./lib/casting.js";
 import { serially } from "./lib/serially.js";
-import { askGM, canAnimate, createdHere, featureHooks, guardApi, isEnabled, onGMRequest } from "./settings.js";
+import { reportedSaveMessage } from "./lib/saves.js";
+import {
+    askGM,
+    canAnimate,
+    createdHere,
+    featureHooks,
+    guardApi,
+    isEnabled,
+    onGMRequest,
+    owns,
+    refuse,
+} from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
@@ -319,7 +330,8 @@ hooks.on("createChatMessage", (message, options, userId) => {
     if (context?.type !== "saving-throw" || !OUTCOMES.includes(context.outcome)) return;
     const identifier = typeof context.identifier === "string" ? context.identifier : "";
     if (identifier.startsWith(SAVE_IDENTIFIER)) {
-        const data = { cardId: identifier.slice(SAVE_IDENTIFIER.length), outcome: context.outcome };
+        const cardId = identifier.slice(SAVE_IDENTIFIER.length);
+        const data = { cardId, outcome: context.outcome, saveMessageId: message.id };
         // Players can't edit the witch's card, or creatures they don't own, so the active GM applies the result
         return void askGM("parasiticMight", data, { title: TITLE, task: "apply the result" }).catch(log);
     }
@@ -385,6 +397,22 @@ Hooks.once("init", () => {
     };
 });
 
-onGMRequest("parasiticMight", (data) => resolveSave(data));
+/**
+ * A player's save from the card: the result is read from their save's message, rolled from this card, which the witch's
+ * user made, by the creature it names
+ */
+function checkSave(data, sender) {
+    const message = reportedSaveMessage(data.saveMessageId, sender);
+    const context = message.flags.pf2e.context;
+    if (context.identifier !== `${SAVE_IDENTIFIER}${data.cardId}`) refuse("the save wasn't rolled from that card");
+    const card = game.messages.get(data.cardId);
+    const record = card?.flags[MODULE_ID]?.parasiticMight;
+    const witch = record?.witch ? fromUuidSync(record.witch) : null;
+    if (!witch || !owns(card.author, witch)) refuse("that isn't a Familiar of Parasitic Might card");
+    if (fromUuidSync(record.target)?.actor?.uuid !== message.actor.uuid) refuse("the save isn't the card's creature's");
+    return { cardId: card.id, outcome: context.outcome };
+}
+
+onGMRequest("parasiticMight", (data) => resolveSave(data), { check: checkSave });
 
 export { resolveSave };
