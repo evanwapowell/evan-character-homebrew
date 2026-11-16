@@ -34,6 +34,7 @@ import {
     ordinal,
     trimReveal,
 } from "./lib/recall-knowledge-facts.js";
+import { nameForPlayers, nameForUser } from "./lib/names.js";
 import {
     askGM,
     confirmActiveGM,
@@ -518,7 +519,9 @@ function describeCheck(row, attempt) {
 
 /** Ask the roller's player what they want to know about the creature: { question, other }, or null */
 async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
-    const name = esc(tokenDoc.name);
+    // Not the creature's name, when players can't see it: learning it can be the point
+    const shown = nameForUser(tokenDoc);
+    const name = esc(shown);
     const choices = QUESTIONS.map(
         (q, i) =>
             `<label style="display: block"><input type="radio" name="question" value="${q.id}" ${
@@ -535,7 +538,7 @@ async function askQuestion(actor, tokenDoc, { exploit = false } = {}) {
     ].join("");
 
     const result = await foundry.applications.api.DialogV2.wait({
-        window: { title: `${TITLE}: ${tokenDoc.name}` },
+        window: { title: `${TITLE}: ${shown}` },
         content,
         buttons: [
             {
@@ -1044,7 +1047,9 @@ async function send(card, result, { tokenDoc, target, actor, profile }) {
     const now = Date.now();
     const facts = [];
     const lines = [];
-    const creature = esc(tokenDoc.name);
+    // Whispered to the roller: the creature's name only when players can see it (a critical failure's false name
+    // would give the true one away)
+    const creature = esc(nameForPlayers(tokenDoc));
 
     if (result.exploit) {
         lines.push(`<p><strong>${EXPLOIT_TITLE}</strong> ${esc(result.exploit.text)}</p>`);
@@ -1375,9 +1380,9 @@ async function showKnown(tokenDoc = game.user.targets.first()?.document) {
     const content =
         facts.length > 0
             ? `<ul>${facts.map(describe).join("")}</ul>`
-            : `<p>Nothing is known about ${esc(tokenDoc.name)} yet.</p>`;
+            : `<p>Nothing is known about ${esc(nameForUser(tokenDoc))} yet.</p>`;
     await foundry.applications.api.DialogV2.prompt({
-        window: { title: `${TITLE}: ${tokenDoc.name}` },
+        window: { title: `${TITLE}: ${nameForUser(tokenDoc)}` },
         content,
         rejectClose: false,
     });

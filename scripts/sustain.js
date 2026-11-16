@@ -15,6 +15,7 @@
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
+import { nameMarkup } from "./lib/names.js";
 import {
     askGM,
     confirmActiveGM,
@@ -140,7 +141,7 @@ async function endUnsustained(combat, { combatant, round }) {
             const target = effect.actor;
             await effect.delete();
             const esc = Handlebars.escapeExpression;
-            const on = target === caster ? "" : ` on ${esc(target.name)}`;
+            const on = target === caster ? "" : ` on ${nameMarkup(target)}`;
             const reason = `${esc(caster.name)} didn't Sustain it.`;
             // An NPC's spells, and effects pf2e keeps unidentified, are the GM's to know about
             const secret = !caster.hasPlayerOwner || effect.system.unidentified;
