@@ -13,6 +13,7 @@
  */
 
 import { tokenDistance } from "./lib/geometry.js";
+import { nameMarkup } from "./lib/names.js";
 import {
     askGM,
     canAnimate,
@@ -219,10 +220,11 @@ async function rally({ marshalToken, feat = null, target = null, card = null, da
 
     const recipients = getRecipients(marshalToken);
     const charisma = Number(marshal.abilities?.cha?.mod ?? marshal.system.abilities?.cha?.mod ?? 0);
+    // The target's token's name, which players see only when its nameplate shows to them
     const hit = target
-        ? `${esc(marshal.name)}'s charge hits ${esc(target.name)}`
+        ? `${esc(marshal.name)}'s charge hits ${nameMarkup(target, { unseen: "its target" })}`
         : `${esc(marshal.name)}'s charge hits`;
-    const names = recipients.map((t) => esc(t.name)).join(", ");
+    const names = recipients.map((t) => nameMarkup(t, { unseen: "an ally" })).join(", ");
     const content =
         charisma <= 0
             ? `<p><strong>${TITLE}</strong> ${hit}, but their Charisma modifier grants no temporary Hit Points.</p>`
@@ -300,7 +302,8 @@ async function onStrikeDamage(message) {
     // The Strike has to damage an enemy, not an ally
     const target = message.target?.actor ?? null;
     if (target && (target === marshal || target.isAllyOf(marshal))) return;
-    await rally({ marshalToken, feat: card.item, target, card, damageMessage: message });
+    const targetToken = message.target?.token ?? target;
+    await rally({ marshalToken, feat: card.item, target: targetToken, card, damageMessage: message });
 }
 
 hooks.on("preCreateChatMessage", (message) => {

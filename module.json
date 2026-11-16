@@ -2,7 +2,7 @@
   "id": "evan-character-homebrew",
   "title": "Evan's Character Homebrew",
   "description": "A collection of content for characters in Evan's games",
-  "version": "1.26.21",
+  "version": "1.26.22",
   "authors": [
     {
       "name": "Evan Powell",
@@ -72,7 +72,7 @@
       "type": "Item",
       "system": "pf2e",
       "ownership": {
-        "PLAYER": "OWNER",
+        "PLAYER": "OBSERVER",
         "ASSISTANT": "OWNER"
       },
       "flags": {}

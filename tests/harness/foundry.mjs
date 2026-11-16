@@ -587,6 +587,7 @@ class Session {
                 actions: {},
                 Predicate: FakePredicate,
                 StatisticModifier: FakeStatisticModifier,
+                settings: world.pf2eSettings,
             },
             ready: false,
         };
@@ -707,6 +708,11 @@ class World {
     embeddedItems = new Map();
     messages = new Collection();
     settings = new Map();
+    /**
+     * pf2e's settings the scripts read (`game.pf2e.settings`, src/module/system/settings/), set by a test: "Token name
+     * visibility" (`tokens.nameVisibility`) and "Show DCs to players" (`metagame.dcs`), both off by default
+     */
+    pf2eSettings = { tokens: { nameVisibility: false }, metagame: { dcs: false } };
     sessions = [];
     /** The world's time in seconds (game.time.worldTime), which an encounter moves on with its rounds */
     time = 0;

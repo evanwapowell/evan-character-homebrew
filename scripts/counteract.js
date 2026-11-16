@@ -14,7 +14,12 @@
  * level rounded up, against the DC for their level), afflictions (their DC), conditions not granted by an effect, and
  * the creature itself (like a summoned creature). The rank and DC of what can't be worked out are filled in by hand.
  *
- * Players can't edit creatures they don't own, so the active GM removes what's counteracted on those.
+ * Players can't edit creatures they don't own, so the active GM removes what's counteracted on those. An aura from an
+ * ability (not an effect) is reported, not removed: pf2e would give its effects back. A blind roll's result goes to the
+ * GM alone, whose card ends what it counteracts when they say.
+ *
+ * What players don't see: the rank and DC worked out from an NPC's level (its own, or an effect's on it), effects pf2e
+ * keeps unidentified, names behind nameplates they can't see (lib/names.js), and DCs pf2e would hide.
  */
 
 import {
@@ -28,6 +33,7 @@ import {
     rankFromText,
     spellRankDC,
 } from "./lib/counteract-rules.js";
+import { UNSEEN, forPlayers, nameForUser, playersCanSeeName, shownName } from "./lib/names.js";
 import { askGM, createdHere, featureHooks, guardApi, isAuthor, onGMRequest, owns, refuse } from "./settings.js";
 
 const MODULE_ID = "evan-character-homebrew";
@@ -40,6 +46,8 @@ const IDENTIFIER = "ehb-counteract:";
 const REMOVABLE_TYPES = ["effect", "condition", "affliction"];
 /** Traits that mark an effect as magic, which is what's usually counteracted */
 const MAGIC_TRAITS = ["magical", "arcane", "divine", "occult", "primal"];
+/** What players see in place of an effect pf2e keeps unidentified */
+const UNIDENTIFIED = "Unidentified effect";
 
 const esc = (text) => Handlebars.escapeExpression(String(text ?? ""));
 const log = (error) => console.error(`${MODULE_ID} | Counteract`, error);
@@ -128,12 +136,31 @@ function describeSource(item) {
     };
 }
 
-/** An aura's effect is counteracted at its source: the effect with the aura, on the creature emitting it */
+/** An ability's counteract rank and DC: by its creature's level */
+function describeAbility(creature) {
+    const level = Number(creature?.level ?? 0);
+    return {
+        caster: creature,
+        spell: null,
+        spellName: null,
+        fromSpell: false,
+        rank: rankFromLevel(level),
+        dc: levelDC(level, { pwol: isPwol() }),
+        dcFrom: "level",
+    };
+}
+
+/**
+ * An aura's effect is counteracted at its source: the item with the aura, on the creature emitting it. That's usually an
+ * effect (a spell's); an aura from a feat, a class feature or an NPC's ability can't be ended by deleting anything,
+ * since pf2e gives its effects again at its next aura check (ActorPF2e#applyAreaEffects in src/module/actor/base.ts).
+ */
 function findAuraSource(effect) {
     const aura = effect.flags?.pf2e?.aura;
     const emitter = actorOf(resolveSync(aura?.origin));
     if (!emitter || !aura?.slug) return null;
-    return emitter.itemTypes.effect.find((e) => e.rules?.some((r) => r.key === "Aura" && r.slug === aura.slug)) ?? null;
+    const hasAura = (item) => item.rules?.some((r) => r.key === "Aura" && r.slug === aura.slug);
+    return emitter.itemTypes.effect.find(hasAura) ?? [...emitter.items].find(hasAura) ?? null;
 }
 
 /** The conditions an item grants on its creature, which end with it */
@@ -159,6 +186,15 @@ function isDCSecret(info) {
 }
 
 /**
+ * Whether a rank and DC worked out from a level are kept from players, since they give the level away: a creature's
+ * own, or an effect's on a creature, unless pf2e shows DCs, or the creature (or the effect's caster) is a player's,
+ * whose sheet shows it anyway
+ */
+function isLevelSecret(creature, caster = null) {
+    return !showDCs() && !creature?.hasPlayerOwner && !caster?.hasPlayerOwner;
+}
+
+/**
  * The things on a creature that can be counteracted, each with what ending it removes. `main` ones are listed first:
  * spells, auras, afflictions, conditions and other magic; the rest are tucked away.
  */
@@ -176,8 +212,13 @@ function getCandidates(actor, { counteractor = null } = {}) {
         // An aura is counteracted at its source, so its effects on each creature in it are one entry
         const source = effect.fromAura ? findAuraSource(effect) : effect.isAura ? effect : null;
         const item = source ?? effect;
-        const info = describeSource(item);
+        // pf2e hides unidentified effects from players altogether
+        const identified = effect.isIdentified !== false && item.isIdentified !== false;
+        if (!identified && !isGM) continue;
+        // An aura from an ability (a feat, a class feature, an NPC's ability) is reported, not removed
+        const ability = !!source && source.type !== "effect";
         const holder = item.actor ?? actor;
+        const info = ability ? describeAbility(holder) : describeSource(item);
         const key = source ? `aura:${source.uuid}` : (spellKey(holder, info, item) ?? `item:${item.uuid}`);
         const known = byKey.get(key);
         if (known) {
@@ -187,31 +228,35 @@ function getCandidates(actor, { counteractor = null } = {}) {
             continue;
         }
 
-        const identified = item.isIdentified !== false || isGM;
-        const name = identified ? (info.spellName ?? item.name) : "Unidentified effect";
-        const from = info.caster && info.caster !== holder ? ` from ${info.caster.name}` : "";
-        const detail = source
-            ? `aura on ${holder.name}${from}`
-            : info.fromSpell
-              ? `spell${from}`
-              : Number.isFinite(Number(item.system?.level?.value))
-                ? `level ${item.system.level.value}${from}`
-                : from.trim();
+        const level = Number(item.system?.level?.value);
+        const levelSecret = info.dcFrom === "level" && isLevelSecret(holder, info.caster);
+        const from = info.caster && info.caster !== holder ? ` from ${nameForUser(info.caster)}` : "";
+        const detail = ability
+            ? `aura from an ability of ${nameForUser(holder)}: what counteracting it ends is the GM's call`
+            : source
+              ? `aura on ${nameForUser(holder)}${from}`
+              : info.fromSpell
+                ? `spell${from}`
+                : Number.isFinite(level) && (isGM || !levelSecret)
+                  ? `level ${level}${from}`
+                  : from.trim();
         const traits = item.system?.traits?.value ?? [];
         const row = {
             key,
-            kind: source ? "aura" : info.fromSpell ? "spell" : "effect",
-            label: name,
-            detail,
+            kind: ability ? "abilityAura" : source ? "aura" : info.fromSpell ? "spell" : "effect",
+            label: info.spellName ?? item.name,
+            unidentified: !identified,
+            detail: identified ? detail : ["unidentified: players don't see it", detail].filter((t) => t).join(", "),
             img: item.img,
             creature: actor,
-            items: [item.uuid],
+            items: ability ? [] : [item.uuid],
             grants: grantedConditions(holder, item).map(conditionName),
-            removable: true,
+            removable: !ability,
             rank: info.rank,
             dc: info.dc,
             dcFrom: info.dcFrom,
-            dcSecret: isDCSecret(info),
+            dcSecret: isDCSecret(info) || levelSecret,
+            rankSecret: levelSecret,
             main:
                 !!source ||
                 info.fromSpell ||
@@ -224,11 +269,12 @@ function getCandidates(actor, { counteractor = null } = {}) {
 
     for (const affliction of actor.itemTypes.affliction ?? []) {
         const info = describeSource(affliction);
+        const levelSecret = info.dcFrom !== null && isLevelSecret(actor, info.caster);
         rows.push({
             key: `item:${affliction.uuid}`,
             kind: "affliction",
             label: affliction.name,
-            detail: `affliction, level ${affliction.system?.level?.value ?? "?"}`,
+            detail: isGM || !levelSecret ? `affliction, level ${affliction.system?.level?.value ?? "?"}` : "affliction",
             img: affliction.img,
             creature: actor,
             items: [affliction.uuid],
@@ -237,7 +283,8 @@ function getCandidates(actor, { counteractor = null } = {}) {
             rank: info.rank,
             dc: info.dc,
             dcFrom: info.dcFrom,
-            dcSecret: isDCSecret(info),
+            dcSecret: isDCSecret(info) || levelSecret,
+            rankSecret: levelSecret,
             main: true,
         });
     }
@@ -269,6 +316,7 @@ function getCandidates(actor, { counteractor = null } = {}) {
             dc: info.dc,
             dcFrom: info.dcFrom,
             dcSecret: isDCSecret(info),
+            rankSecret: false,
             main: true,
         });
     }
@@ -276,10 +324,12 @@ function getCandidates(actor, { counteractor = null } = {}) {
     // The creature itself, like a summoned creature: reported, not removed
     if (actor !== counteractor && actor.isOfType?.("creature")) {
         const level = actor.level ?? 0;
+        // Its level isn't the players' to know, unless pf2e shows DCs
+        const secret = isLevelSecret(actor);
         rows.push({
             key: `creature:${actor.uuid}`,
             kind: "creature",
-            label: `${actor.name} itself`,
+            label: `${nameForUser(actor)} itself`,
             detail: "a summoned or magical creature: by its level unless you change them",
             img: actor.img,
             creature: actor,
@@ -289,7 +339,8 @@ function getCandidates(actor, { counteractor = null } = {}) {
             rank: rankFromLevel(level),
             dc: levelDC(level, { pwol: isPwol() }),
             dcFrom: "level",
-            dcSecret: false,
+            dcSecret: secret,
+            rankSecret: secret,
             main: false,
         });
     }
@@ -371,10 +422,13 @@ function numberField(name, value, placeholder, width = "4em") {
 /** A candidate's line: a checkbox, what it is, and its rank and DC (fields where they're unknown, or for the GM) */
 function rowHtml(row, index, checked) {
     const editable = game.user.isGM;
+    const hidden = `<input type="hidden" name="rank-${index}" value="${row.rank}">`;
     const rank =
         editable || row.rank === null
             ? `rank ${numberField(`rank-${index}`, row.rank, "?")}`
-            : `rank ${row.rank}<input type="hidden" name="rank-${index}" value="${row.rank}">`;
+            : row.rankSecret
+              ? `rank hidden${hidden}`
+              : `rank ${row.rank}${hidden}`;
     const dc =
         editable || row.dc === null
             ? `DC ${numberField(`dc-${index}`, row.dc, "auto")}`
@@ -408,6 +462,7 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
     const preselect = rows.filter((r) => r.main && r.kind !== "creature" && r.creature !== counteractor);
 
     const sections = creatures.map((actor) => {
+        const name = esc(nameForUser(actor));
         const own = rows.map((row, i) => ({ row, i })).filter(({ row }) => row.creature === actor);
         const main = own.filter(({ row }) => row.main);
         const rest = own.filter(({ row }) => !row.main);
@@ -415,15 +470,15 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
         const itself = rest.some(({ row }) => row.kind === "creature");
         const summary = itself
             ? rest.length > 1
-                ? `Other effects, and ${esc(actor.name)} itself`
-                : `${esc(actor.name)} itself`
+                ? `Other effects, and ${name} itself`
+                : `${name} itself`
             : "Other effects";
         const more =
             rest.length > 0
                 ? `<details><summary>${summary} (${rest.length})</summary>${rest.map(line).join("")}</details>`
                 : "";
-        const empty = main.length === 0 ? `<p style="opacity: 0.75">Nothing magical on ${esc(actor.name)}.</p>` : "";
-        return `<fieldset><legend>${esc(actor.name)}</legend>${main.map(line).join("")}${empty}${more}</fieldset>`;
+        const empty = main.length === 0 ? `<p style="opacity: 0.75">Nothing magical on ${name}.</p>` : "";
+        return `<fieldset><legend>${name}</legend>${main.map(line).join("")}${empty}${more}</fieldset>`;
     });
 
     const sourceField = sources
@@ -437,9 +492,11 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
         : "";
     const rankHint = sources
         ? "Leave it blank for the spell's rank, or else half your level rounded up."
-        : rolled
-          ? `Checked against the roll of ${rolled.total}.`
-          : "The spell's rank as cast.";
+        : rolled?.blind && !game.user.isGM
+          ? "Checked against your blind roll: the GM gets the result."
+          : rolled
+            ? `Checked against the roll of ${rolled.total}.`
+            : "The spell's rank as cast.";
     const content = [
         sourceField,
         `<div class="form-group"><label>Your counteract rank</label>`,
@@ -486,7 +543,8 @@ async function pickTargets({ title, counteractor, creatures, rank, sources = nul
         if (Number.isFinite(target.dc)) continue;
         target.dc = spellRankDC(target.rank, { pwol: isPwol() });
         target.dcByRank = true;
-        target.dcSecret = false;
+        // A rank kept from players keeps its DC from them too
+        target.dcSecret = !!target.rankSecret;
     }
     if (targets.length === 0) {
         ui.notifications.warn("Counteract: check what to counteract.");
@@ -510,13 +568,17 @@ function readForm(form, rows) {
         targets.push({
             label: row.label,
             kind: row.kind,
-            creature: row.creature.name,
+            creature: shownName(row.creature),
             creatureUuid: row.creature.uuid,
+            // Whether players see the creature's name, and the effect's
+            creatureVisible: playersCanSeeName(row.creature),
+            unidentified: !!row.unidentified,
             items: row.items,
             removable: row.removable,
             rank,
             dc,
             dcSecret: row.dcSecret,
+            rankSecret: !!row.rankSecret,
         });
     });
     if (form["pick-other"]?.checked) {
@@ -530,6 +592,7 @@ function readForm(form, rows) {
             rank: number("rank-other"),
             dc: number("dc-other"),
             dcSecret: false,
+            rankSecret: false,
         });
     }
     return { sourceId: form.source?.value ?? null, rank: number("rank"), modifier: number("modifier"), targets };
@@ -559,9 +622,11 @@ async function rollCheck({ request, source, modifier, actor, token = null, event
     try {
         if (source?.statistic) {
             const name = game.i18n.localize("PF2E.Check.Specific.Counteract");
-            const dc = single ? { value: single.dc, label: `${single.label} DC`, visible: !single.dcSecret } : null;
+            // pf2e puts both in its card as HTML (CheckPF2e's title, and the DC in target-dc-result.hbs)
+            const dcLabel = `${esc(publicLabel(single ?? {}))} DC`;
+            const dc = single ? { value: single.dc, label: dcLabel, visible: !single.dcSecret } : null;
             const args = {
-                label: `${name}: ${source.name}`,
+                label: `${esc(name)}: ${esc(source.name)}`,
                 identifier: `${IDENTIFIER}${request.id}`,
                 extraRollNotes: rollNotes(request.rank),
                 traits: [...new Set(source.traits ?? [])],
@@ -604,7 +669,7 @@ function readRoll(message) {
     if (!roll || !Number.isFinite(roll.total)) return null;
     const die = roll.dice?.find((d) => d.faces === 20);
     const natural = die && Number.isFinite(die.total) ? die.total : null;
-    return { total: roll.total, natural };
+    return { total: roll.total, natural, blind: !!message.blind };
 }
 
 /* Resolving */
@@ -676,12 +741,12 @@ async function removeForGM({ uuids }) {
     }
     return removed;
 }
+
 /**
- * A player's request to remove what their roll counteracted: the roll is theirs, rolled for this request (or a
- * counteract roll made otherwise), and only what it counteracts by the request's ranks is removed. The ranks and DCs
- * are the ones the player's dialog worked out or had typed in, as the card shows them.
+ * A counteract check a player rolled, as the GM's session reads it again: theirs, for a creature they own, rolled for
+ * this request (or a counteract roll made otherwise), with a roll
  */
-function checkRemoval({ uuids, rollMessageId, request }, sender) {
+function checkRoll({ rollMessageId, request }, sender) {
     const message = game.messages.get(rollMessageId);
     if (!message || !isAuthor(message, sender)) refuse("the counteract check isn't theirs, or isn't in chat");
     if (message.actor && !owns(sender, message.actor)) refuse(`${sender.name} doesn't own ${message.actor.name}`);
@@ -691,6 +756,17 @@ function checkRemoval({ uuids, rollMessageId, request }, sender) {
     if (id ? id !== request.id : !isOtherCounteractRoll(message)) refuse("the check wasn't rolled for this counteract");
     const rolled = readRoll(message);
     if (!rolled) refuse("the check has no roll");
+    return { message, rolled, targets };
+}
+
+/**
+ * A player's request to remove what their roll counteracted: the roll is theirs (`checkRoll`), not blind (its result is
+ * the GM's to tell), and only what it counteracts by the request's ranks is removed. The ranks and DCs are the ones the
+ * player's dialog worked out or had typed in, as the card shows them.
+ */
+function checkRemoval({ uuids, rollMessageId, request }, sender) {
+    const { message, rolled, targets } = checkRoll({ rollMessageId, request }, sender);
+    if (message.blind) refuse("the check was rolled blind: the GM ends what it counteracts");
     const outcomes = getOutcomes(request, message, rolled);
     const counteracted = new Set(
         targets.flatMap((target, i) =>
@@ -706,20 +782,54 @@ function checkRemoval({ uuids, rollMessageId, request }, sender) {
 
 onGMRequest("counteractRemove", removeForGM, { check: checkRemoval });
 
+/** A player's blind counteract check, for the GM's session to resolve: the roll is theirs (`checkRoll`), and blind */
+function checkBlind({ rollMessageId, request, sourceName }, sender) {
+    const { message } = checkRoll({ rollMessageId, request }, sender);
+    if (!message.blind) refuse("the check wasn't rolled blind");
+    return { rollMessageId, request, sourceName: typeof sourceName === "string" ? sourceName : null };
+}
+
+/** The GM's side of a player's blind check: the result card, for the GM, with what's counteracted left to end */
+async function resolveBlindForGM({ rollMessageId, request, sourceName }) {
+    const message = game.messages.get(rollMessageId);
+    if (!message) throw new Error("the counteract check isn't in chat");
+    await resolve(message, request, { sourceName });
+}
+
+onGMRequest("counteractBlind", resolveBlindForGM, { check: checkBlind });
+
+/** What players see a target called: an unidentified effect isn't named, nor a creature whose name they can't see */
+function publicLabel(target) {
+    if (target.unidentified) return UNIDENTIFIED;
+    if (target.kind === "creature" && target.creatureVisible === false) return `${UNSEEN} itself`;
+    return target.label ?? "";
+}
+
+/** A number kept from players on the result card */
+const secret = (text, hidden) => (hidden ? `<span data-ehb-counteract-secret>${text}</span>` : text);
+
 /** One target's line on the result card */
 function resultLine(target, result, rank) {
-    const where = target.creature ? ` on ${esc(target.creature)}` : "";
+    const label = publicLabel(target);
+    const name = forPlayers(target.label, label, label === target.label);
+    const where =
+        target.creature && target.kind !== "creature"
+            ? ` on ${forPlayers(target.creature, UNSEEN, target.creatureVisible !== false)}`
+            : "";
     const byRank = target.dcByRank ? " for its rank" : "";
-    const dc = Number.isFinite(target.dc)
-        ? `<span ${target.dcSecret ? "data-ehb-counteract-secret" : ""}>, DC ${target.dc}${byRank}</span>`
-        : "";
-    const head = `<strong>${esc(target.label)}</strong>${where} (rank ${target.rank}${dc})`;
+    const dc = Number.isFinite(target.dc) ? secret(`, DC ${target.dc}${byRank}`, target.dcSecret) : "";
+    const numbers = target.rankSecret ? secret(` (rank ${target.rank}${dc})`, true) : ` (rank ${target.rank}${dc})`;
+    const head = `<strong>${name}</strong>${where}${numbers}`;
     const outcome = outcomeLabel(result.outcome);
     let text;
     if (result.success && result.removed) {
         text = `counteracted and ended.`;
+    } else if (result.success && target.removable && result.held) {
+        text = `counteracted: end it with the button below once you've told the table.`;
     } else if (result.success && target.removable) {
         text = `counteracted, but not ended: end it by hand (only a GM can end it on a creature you don't own).`;
+    } else if (result.success && target.kind === "abilityAura") {
+        text = `counteracted: its aura comes from an ability, so what that ends is the GM's call.`;
     } else if (result.success) {
         text = target.kind === "creature" ? `counteracted: dismiss it.` : `counteracted: end it by hand.`;
     } else if (result.outcome === "criticalFailure") {
@@ -732,22 +842,61 @@ function resultLine(target, result, rank) {
     return `<li>${head}: ${esc(outcome)}, ${text}${undo}</li>`;
 }
 
-function cardContent({ request, results, rolled, sourceName }) {
+function cardContent({ request, results, rolled, sourceName, held = false }) {
     const natural = rolled.natural === 20 || rolled.natural === 1 ? ` (natural ${rolled.natural})` : "";
+    const blind = held ? ` <em>Rolled blind: only the GM sees this.</em>` : "";
     return [
         `<p><strong>Counteract</strong>${sourceName ? `: ${esc(sourceName)}` : ""}, counteract rank ${request.rank}, `,
-        `check ${rolled.total}${natural}.</p>`,
+        `check ${rolled.total}${natural}.${blind}</p>`,
         `<ul>${request.targets.map((t, i) => resultLine(t, results[i], request.rank)).join("")}</ul>`,
     ].join("");
 }
 
+/** What's counteracted and not yet ended, to end */
+const toEnd = (request, results) =>
+    request.targets.flatMap((t, i) => (results[i].success && !results[i].removed && t.removable ? t.items : []));
+
+/** End what's counteracted, and mark what's gone as ended on the results */
+async function endCounteracted(request, results, { message = null } = {}) {
+    const items = toEnd(request, results);
+    if (items.length === 0) return;
+    const done = await removeItems(items, { message, request });
+    request.targets.forEach((t, i) => {
+        if (!results[i].success || !t.removable || results[i].removed) return;
+        // Ended now, or already gone (a GM session that answered too late still removed it)
+        const gone = t.items.length > 0 && t.items.every((uuid) => !resolveSync(uuid));
+        if (gone || t.items.some((uuid) => done.has(uuid))) results[i].removed = true;
+    });
+}
+
+/** A player's blind check goes to the GM's session, which posts its result for the GM alone */
+async function resolveBlind(message, request, sourceName) {
+    const answer = await askGM(
+        "counteractBlind",
+        { rollMessageId: message.id, request, sourceName: sourceName ?? request.sourceName ?? null },
+        { title: "Counteract", task: "resolve your blind counteract check" },
+    );
+    if (answer.ok) {
+        sentToGM.add(message.id);
+        ui.notifications.info("Counteract: the check was rolled blind, so its result went to the GM.");
+    }
+}
+
+/** Blind rolls this session sent to the GM, whose result cards it can't see */
+const sentToGM = new Set();
+
 /**
  * Work out what the roll counteracts, end it, and post (or, after a reroll, update) the result card. A reroll ends
  * what the new result counteracts; what the earlier one ended stays ended, with a note to restore it by hand.
+ *
+ * A blind roll's result is the GM's to tell: the active GM's session posts the card, whispered to the GMs, and what's
+ * counteracted is ended from its button, since an effect vanishing would give the result away.
  */
 async function resolveNow(message, request, { sourceName = null } = {}) {
     const rolled = readRoll(message);
     if (!rolled) return;
+    const held = !!message.blind;
+    if (held && !game.user.isGM) return resolveBlind(message, request, sourceName);
     const outcomes = getOutcomes(request, message, rolled);
     const card = findCard(request.id);
     const previous = card?.flags[MODULE_ID].counteract.results ?? [];
@@ -756,35 +905,31 @@ async function resolveNow(message, request, { sourceName = null } = {}) {
         const outcome = outcomes[i];
         const success = counteracts(outcome, request.rank, target.rank);
         const removed = !!previous[i]?.removed;
-        return { outcome, success, removed, restore: removed && !success };
+        return { outcome, success, removed, restore: removed && !success, held };
     });
-    const toRemove = request.targets.flatMap((t, i) =>
-        results[i].success && !results[i].removed && t.removable ? t.items : [],
-    );
-    if (toRemove.length > 0) {
-        const done = await removeItems(toRemove, { message, request });
-        request.targets.forEach((t, i) => {
-            if (!results[i].success || !t.removable || results[i].removed) return;
-            // Ended now, or already gone (a GM session that answered too late still removed it)
-            const gone = t.items.length > 0 && t.items.every((uuid) => !resolveSync(uuid));
-            if (gone || t.items.some((uuid) => done.has(uuid))) results[i].removed = true;
-        });
-    }
+    if (!held) await endCounteracted(request, results, { message });
 
     const name = sourceName ?? request.sourceName ?? card?.flags[MODULE_ID].counteract.sourceName ?? null;
-    const content = cardContent({ request, results, rolled, sourceName: name });
-    const flag = { request, results, sourceName: name, rollMessage: message.id };
+    const content = cardContent({ request, results, rolled, sourceName: name, held });
+    const flag = { request, results, sourceName: name, rollMessage: message.id, rolled, held };
     if (card) return card.update({ content, [`flags.${MODULE_ID}.counteract`]: flag });
-    const whisper =
-        message.whisper?.length > 0
-            ? [...new Set([...message.whisper, ...game.users.filter((u) => u.isGM).map((u) => u.id)])]
-            : [];
+    const gms = game.users.filter((u) => u.isGM).map((u) => u.id);
+    const whisper = held ? gms : message.whisper?.length > 0 ? [...new Set([...message.whisper, ...gms])] : [];
     await ChatMessage.create({
         speaker: message.speaker,
         content,
         whisper,
         flags: { [MODULE_ID]: { counteract: flag } },
     });
+}
+
+/** A blind check's card: the GM ends what it counteracts */
+async function endHeld(card) {
+    const data = card.flags[MODULE_ID].counteract;
+    const results = data.results.map((r) => ({ ...r }));
+    await endCounteracted(data.request, results);
+    const content = cardContent({ ...data, results });
+    await card.update({ content, [`flags.${MODULE_ID}.counteract.results`]: results });
 }
 
 /** Each request's resolving, so a reroll waits for the roll before it (whose removal can wait on the GM) */
@@ -940,16 +1085,31 @@ function addResolveButton(message, html) {
     if (!(message.isAuthor || game.user.isGM) || !isOtherCounteractRoll(message)) return;
     const content = html?.querySelector?.(".message-content");
     if (!content) return;
-    const resolved = game.messages.contents.some((m) => m.flags?.[MODULE_ID]?.counteract?.rollMessage === message.id);
+    // A blind roll's card is the GM's, which a player's session doesn't have
+    const resolved =
+        sentToGM.has(message.id) ||
+        game.messages.contents.some((m) => m.flags?.[MODULE_ID]?.counteract?.rollMessage === message.id);
     if (resolved) return;
     const tooltip = "Pick what this roll counteracts on your targets, and end what's counteracted";
     content.append(makeButton("Counteract: pick targets", "fa-ban", tooltip, () => resolveOtherRoll(message)));
+}
+
+/** A blind check's card, for the GM: a button to end what it counteracts, once they've told the table */
+function addEndButton(message, html) {
+    const data = message.flags?.[MODULE_ID]?.counteract;
+    if (!game.user.isGM || !data?.held || !data.request || !Array.isArray(data.results)) return;
+    if (toEnd(data.request, data.results).length === 0) return;
+    const content = html?.querySelector?.(".message-content");
+    if (!content) return;
+    const tooltip = "End what this check counteracts (players see it end)";
+    content.append(makeButton("End what's counteracted", "fa-ban", tooltip, () => endHeld(message)));
 }
 
 hooks.on("renderChatMessageHTML", (message, html) => {
     try {
         takeOverSpellButton(message, html);
         addResolveButton(message, html);
+        addEndButton(message, html);
     } catch (error) {
         log(error);
     }
@@ -967,7 +1127,8 @@ hooks.on("createChatMessage", (message, options, userId) => {
     const id = requestIdOf(message);
     if (!id) return;
     const request = pending.get(id) ?? findCard(id)?.flags[MODULE_ID].counteract.request ?? null;
-    pending.delete(id);
+    // A blind check's card is the GM's, so a reroll's request is kept here
+    if (!message.blind) pending.delete(id);
     if (!request) return;
     resolve(message, request).catch((error) => {
         log(error);
@@ -981,4 +1142,15 @@ Hooks.once("init", () => {
     module.api = { ...module.api, counteract: guardApi("counteract", (options) => counteractManually(options)) };
 });
 
-export { describeSource, getCandidates, getOutcomes, isOtherCounteractRoll, readForm, removeItems, resolve };
+export {
+    describeSource,
+    endHeld,
+    getCandidates,
+    getOutcomes,
+    isOtherCounteractRoll,
+    readForm,
+    removeItems,
+    resolve,
+    resultLine,
+    rollCheck,
+};

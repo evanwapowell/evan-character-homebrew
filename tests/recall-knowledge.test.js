@@ -229,6 +229,28 @@ for (const version of ["v13", "v14"]) {
             assert.equal(next.flags[MODULE_ID].recallKnowledge.checks[0].dc, 17);
         });
 
+        it("doesn't name a creature whose nameplate players can't see, in the question or the whisper (#65)", async (t) => {
+            const s = await setup(t, version);
+            s.world.pf2eSettings.tokens.nameVisibility = true;
+            const failed = await s.roll({ die: 3 }); // 10 vs 15: failure
+            const question = s.dialogs.find((d) => d.kind === "question");
+            assert.match(question.form.textContent, /What does Ezren want to know about the creature\?/);
+            assert.doesNotMatch(question.form.textContent, /Zombie/);
+            const failure = await s.send(s.cardFor(failed));
+            assert.match(failure.content, /doesn't recall anything useful about the creature\./);
+            assert.doesNotMatch(failure.content, /Zombie/);
+
+            // A success tells the name, as the answer
+            const succeeded = await s.roll({ die: 15 });
+            const success = await s.send(s.cardFor(succeeded));
+            assert.match(success.content, /recalls about the creature:.*Name: <strong>Zombie Shambler<\/strong>/);
+
+            // Once the nameplate shows, the token's name (renamed here) is used
+            Object.assign(s.token, { displayName: 50, name: "Shambling Thing" });
+            const third = await s.send(s.cardFor(await s.roll({ die: 15 })));
+            assert.match(third.content, /recalls about Shambling Thing:/);
+        });
+
         it("a reroll updates the card of the roll it replaces, without asking again (#55)", async (t) => {
             const s = await setup(t, version);
             const first = await s.roll({ die: 3 }); // 10 vs 15: failure

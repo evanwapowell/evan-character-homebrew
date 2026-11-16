@@ -27,7 +27,9 @@ export const pf2eItemUuid = (pack, id) => `Compendium.pf2e.${pack}.Item.${id}`;
  * messages and fromUuid find it. `isOwner` is true for a GM and the users in `owners` (as the session running sees it),
  * unless a test sets it. `auras` are those of its effects' Aura rules (src/module/rules/rule-element/aura.ts), a rule
  * counting when its predicate's roll options are the ones its effect's ChoiceSet rules chose. With `token`, it's that
- * unlinked token's own actor (addToken makes them), not a world actor.
+ * unlinked token's own actor (addToken makes them), not a world actor. `hasPlayerOwner` (Foundry's) is whether a player
+ * is among its `owners` (unless a test sets it), and its `prototypeToken` has its name and `displayName` (the nameplate's display mode, Foundry's
+ * TOKEN_DISPLAY_MODES: none by default, as Foundry's).
  */
 export function makeActor(
     world,
@@ -39,9 +41,11 @@ export function makeActor(
         owners = [],
         alliance = type === "npc" ? "opposition" : "party",
         token = null,
+        displayName = 0,
     } = {},
 ) {
     let isOwner = null;
+    let hasPlayerOwner = null;
     const actor = {
         documentName: "Actor",
         id,
@@ -51,6 +55,13 @@ export function makeActor(
         token,
         name,
         type,
+        prototypeToken: { name, displayName },
+        get hasPlayerOwner() {
+            return hasPlayerOwner ?? owners.some((userId) => world.users.get(userId) && !world.users.get(userId).isGM);
+        },
+        set hasPlayerOwner(value) {
+            hasPlayerOwner = value;
+        },
         flags: {},
         system: { details: { level: { value: 1 } } },
         items: new Collection(),
@@ -265,12 +276,25 @@ export function makeScene(world, { id = makeId("scene"), name = "Scene" } = {}) 
  * items and `deltaItems` (addItem's data), built only when `actor` is first read, as Foundry builds a synthetic actor.
  * Until then pf2e's `hasConstructedActor` is false and its items are in its source (`_source.delta.items`); `builds`
  * counts the actors built.
+ *
+ * `name` and `displayName` (the nameplate's display mode) are the prototype token's unless given, and
+ * `playersCanSeeName` is pf2e's (TokenDocumentPF2e in src/module/scene/token-document/document.ts): shown to anyone,
+ * always or on hover, or a party member.
  */
 export function addToken(
     world,
     scene,
     actor,
-    { id = makeId("token"), x = 0, y = 0, hidden = false, unlinked = false, deltaItems = [] } = {},
+    {
+        id = makeId("token"),
+        x = 0,
+        y = 0,
+        hidden = false,
+        unlinked = false,
+        deltaItems = [],
+        name = actor.prototypeToken?.name ?? actor.name,
+        displayName = actor.prototypeToken?.displayName ?? 0,
+    } = {},
 ) {
     let synthetic = null;
     const token = {
@@ -278,7 +302,12 @@ export function addToken(
         id,
         _id: id,
         uuid: `${scene.uuid}.Token.${id}`,
-        name: actor.name,
+        name,
+        displayName,
+        get playersCanSeeName() {
+            const { ALWAYS, HOVER } = CONST.TOKEN_DISPLAY_MODES;
+            return [ALWAYS, HOVER].includes(this.displayName) || this.actor?.alliance === "party";
+        },
         parent: scene,
         actorId: actor.id,
         actorLink: !unlinked,
@@ -381,6 +410,10 @@ export function addItem(
         get slug() {
             return this.system.slug;
         },
+        /** Its rule elements (ItemPF2e#rules), here their sources */
+        get rules() {
+            return this.system.rules ?? [];
+        },
         toObject() {
             return structuredClone({ _id: id, name: this.name, type, system: this.system, flags: this.flags });
         },
@@ -424,6 +457,10 @@ export function addItem(
             },
             remainingDuration: () => remainingDuration(item),
             isExpired: () => item.remainingDuration.expired,
+            // EffectPF2e's (src/module/item/effect/document.ts)
+            isIdentified: () => !item.system.unidentified,
+            isAura: () => (item.system.rules ?? []).some((r) => r.key === "Aura"),
+            fromAura: () => !!item.flags.pf2e?.aura,
         };
         for (const [key, get] of Object.entries(derived)) {
             const set = (value) => Object.defineProperty(item, key, { value, writable: true, configurable: true });
@@ -617,7 +654,8 @@ export function checkMessage({
  * when it has none (AbstractEffectPF2e#origin in src/module/item/abstract-effect/document.ts). Put on its actor without
  * being created there, it has no start, so it never expires; one made with `createEmbeddedDocuments` starts at the
  * world's time and expires as pf2e's do (`remainingDuration`, `isExpired`). Expired effects stay on their actor, as
- * with pf2e's "remove expired effects" off.
+ * with pf2e's "remove expired effects" off. With `unidentified`, pf2e hides it from players (`isIdentified` is false);
+ * `isAura` is whether it has an Aura rule, and `fromAura` whether it's a copy an aura gave (`flags.pf2e.aura`).
  */
 export function addEffect(
     world,
@@ -631,6 +669,7 @@ export function addEffect(
         level = 1,
         rules = [],
         flags = {},
+        unidentified = false,
     } = {},
 ) {
     const effect = addItem(world, actor, {
@@ -641,6 +680,7 @@ export function addEffect(
         flags,
         system: {
             level: { value: level },
+            unidentified,
             rules,
             duration,
             context: origin

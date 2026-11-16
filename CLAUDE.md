@@ -67,6 +67,11 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       unlinked tokens on every scene), without building the actor of an unlinked token that holds none: an unbuilt
       token (pf2e's `hasConstructedActor`) is read from its source's delta items, so `test` reads only what items and
       sources share (`type`, `name`, `flags`, `system`, `_stats`). Never loop over every token's `actor`.
+    - `lib/names.js`: a creature's name as players may see it, by pf2e's rule (`playersCanSeeName`: "Token name
+      visibility" off, or the token's nameplate shown to anyone, or a party member). `nameForPlayers` (the token's name
+      or "the creature") for text only players read, `nameForUser` for a dialog, and `nameMarkup` (or `forPlayers` for
+      other text) in a message everyone reads: the name, replaced with the stand-in when a player's session renders it,
+      as pf2e does for damage taken. Public text names the token, never the actor.
     - `lib/serially.js`: `serially(key, work)` runs work on one thing (a card) after the work queued before it, so two
       saves for one card arriving together are applied in turn (Extract Element, Parasitic Might).
     - `witch-charge.js`: the Designate Witch's Charge action. The active GM gives each target Effect: Witch's Charge
@@ -161,12 +166,16 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       with `system.counteraction`, like Dispel Magic) only rolls the check; this takes it over (removing its
       `data-action` in `renderChatMessageHTML`, which runs before pf2e attaches its listeners). The caster checks what
       to counteract on their targets: a spell's effects and conditions from one casting (rank cast at, caster's spell
-      DC), an aura's effects at their source, other effects (half their level, DC for their level), afflictions (their
-      DC), conditions, the creature itself or something else (both reported, not removed). Unknown ranks are typed in, a
-      DC left blank is the DC for the rank, and DCs of NPCs' spells are hidden from players unless pf2e shows DCs. The
-      check is rolled through pf2e's counteract statistic (against the DC, for one target) with an identifier, and when
-      its message arrives, what's counteracted is removed (through the active GM for creatures the user doesn't own) and
-      a result card is posted; a reroll updates the card. Counteract rolls made otherwise (an item's `[[/r 1d20+N
+      DC), an aura's effects at their source (an aura from an ability, not an effect, is reported, not removed: pf2e
+      would give its effects back), other effects (half their level, DC for their level), afflictions (their DC),
+      conditions, the creature itself or something else (both reported, not removed). Unknown ranks are typed in, a DC
+      left blank is the DC for the rank, and DCs of NPCs' spells are hidden from players unless pf2e shows DCs, as are
+      the rank and DC worked out from an NPC's level (its own, or an effect's on it). Players aren't shown effects pf2e
+      keeps unidentified, or names behind nameplates they can't see (`lib/names.js`). The check is rolled through pf2e's
+      counteract statistic (against the DC, for one target) with an identifier, and when its message arrives, what's
+      counteracted is removed (through the active GM for creatures the user doesn't own) and a result card is posted; a
+      reroll updates the card. A blind roll's card is posted by the active GM, whispered to the GMs, and what it
+      counteracts is ended from the card's button. Counteract rolls made otherwise (an item's `[[/r 1d20+N
       #Counteract]]`, a counteract `@Check`) get a button to resolve them the same way, and `api.counteract()` is a
       macro that rolls with the selected creature's spellcasting, a skill or a set modifier. The rules library has no
       Foundry dependencies.
@@ -361,6 +370,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   `spellCard(world, spell, { actualCast })` is a spell's card, marked as cast where the pf2e version does, and
   `embeddedSpellCard(world, actor, spell)` a scroll or wand's spell with its card (the spell's UUID finds nothing, as in
   pf2e). Actors have pf2e's `alliance` and `isAllyOf`, and `game.pf2e.Predicate` tests plain roll options.
+  Tokens have pf2e's `playersCanSeeName` (from their `displayName`), and `world.pf2eSettings` holds pf2e's settings
+  the scripts read (`tokens.nameVisibility`, `metagame.dcs`).
   `makeCombat(world, { scene, combatants })` is an encounter: `startCombat`, `nextTurn`, `previousTurn`,
   `removeCombatant` and `setInitiative` send the updates Foundry and pf2e send (the turn's index shifting included), and
   pf2e's turn records are written on the combatants after each, on pf2e 7.x's conditions. The world's time
@@ -368,7 +379,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   it and expires as pf2e's do (`remainingDuration`, pf2e's `calculateRemainingDuration`); expired effects stay on their
   actor. `addSkills(actor, skills)` gives a creature pf2e's skill statistics (`withRollOptions`, a `check` whose
   modifiers are tested against roll options, `roll` recorded in `actor.skillRolls`), totalled by
-  `game.pf2e.StatisticModifier`. `tests/guards.test.js` checks that pf2e's messages reach the features and the module's
+  `game.pf2e.StatisticModifier`. `tests/hidden-information.test.js` checks what players aren't shown (Counteract's levels, unidentified effects and
+  names; names behind nameplates) with Counteract's ability auras and blind rolls, `tests/guards.test.js` checks that pf2e's messages reach the features and the module's
   own don't, `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM (with
   their checks: the sender, refusals, Counteract's removal),
   `tests/turns.test.js` the turns of an encounter with Manifest Will's and Sustain's work on them,

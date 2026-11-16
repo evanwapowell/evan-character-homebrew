@@ -9,6 +9,7 @@
  */
 
 import { getGrantedConditions, OUTCOMES, parseSpellOutcome, preselectDegree } from "./lib/spell-condition-parser.js";
+import { nameMarkup } from "./lib/names.js";
 import { buildSpellEffectSource, getSceneToken } from "./lib/spell-effect-source.js";
 import { askGM, onGMRequest, owns, refuse } from "./settings.js";
 
@@ -521,9 +522,10 @@ async function applyProposal(save, { effects, conditions }) {
     const label = (c) => (unvalued.includes(c) ? `${c.name} (no value given)` : c.name);
     const notApplied = skipped.length ? ` Not applied: ${esc(skipped.map(label).join(", "))}.` : "";
     const had = unchanged.length ? ` Already had: ${esc(summarize({ effects: [], conditions: unchanged }))}.` : "";
-    const applied = `${esc(target.name)}: ${esc(summary || "nothing")}.${notApplied}${had}`;
+    // The token's name, which players see only when its nameplate shows to them
+    const applied = `${nameMarkup(targetToken ?? target)}: ${esc(summary || "nothing")}.${notApplied}${had}`;
     await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: target }),
+        speaker: ChatMessage.getSpeaker({ actor: target, token: targetToken }),
         content: `<p><strong>${esc(spell.name)}</strong> ${applied}</p>`,
     });
 }
