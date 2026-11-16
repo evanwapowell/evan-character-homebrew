@@ -42,9 +42,11 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       on a seneschal's charge.
     - `sustain.js`: the Sustain buttons (actor sheet and PF2e HUD), reposting the spell's card, and ending sustained
       effects that weren't Sustained. pf2e's Sustain action prompts with the caster's sustained spells on any creature
-      in the scene (buffs on allies included), one entry per spell. At the start of a player's creature's turn in an
-      encounter, the active GM posts a chat reminder whispered to its owners listing its sustained spells, each with a
-      Sustain button (it shows Sustained or Ended as that changes).
+      in the scene (buffs on allies included), one entry per casting (the effects sharing a spell and pf2e's start, and
+      pf2e's copies of an aura's effect with the aura); a spell's Sustain button asks which casting when there are two.
+      An NPC's spell, or an unidentified effect, ending for not being Sustained is whispered to the GM. At the start of
+      a player's creature's turn in an encounter, the active GM posts a chat reminder whispered to its owners listing
+      its sustained spells, each with a Sustain button (it shows Sustained or Ended as that changes).
     - `ongoing-misery.js`: Familiar of Ongoing Misery.
     - `lib/casting.js`: whether a spell's card is from casting it or only sent to chat (`isSpellCast`). pf2e marks a
       cast from 8.5.0 (`origin:action:slug:cast-a-spell` in the card's `flags.pf2e.origin.rollOptions`); before that
@@ -79,8 +81,9 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       ordinary tree, and deleting its token removes its actor.
     - `sepulchral-mask.js`: Sepulchral Mask (psychopomp sorcerer): puts Aura: Sepulchral Mask on the caster when the
       spell is cast (pf2e 8.5 marks real casts) or when pf2e's spell effect is dragged from the card, posts a card for
-      each enemy that starts its turn in the emanation (the caster rolls the damage, the creature its Will save), and
-      applies the damage and Will penalty for the save's result.
+      each enemy that starts its turn in the emanation (the caster rolls the damage, or the GM for them, the creature
+      its Will save; players see an NPC caster's DC only when pf2e shows DCs), and applies the damage and Will penalty
+      for the save's result. A save from a turn card the GM deleted is applied nowhere.
     - `parasitic-might.js`: Familiar of Parasitic Might (Devourer of Decay witch): on a hex's Cast or Sustain, the witch
       picks a creature within 15 feet of the familiar below half its Hit Points, and a card from the familiar has it
       roll a Fortitude save against the witch's spell DC; a failure makes it sickened 1. Saves rolled from the box pf2e
@@ -352,6 +355,8 @@ Run `npm test` and `npm run build` before pushing; the Checks workflow runs them
   `game.pf2e.StatisticModifier`. `tests/guards.test.js` checks that pf2e's messages reach the features and the module's
   own don't, `tests/session.test.js` the session helpers, `tests/gm-requests.test.js` the requests to the GM,
   `tests/turns.test.js` the turns of an encounter with Manifest Will's and Sustain's work on them,
+  `tests/sustain.test.js` what one Sustain keeps going (a casting, an aura's copies) and whom an ending is told,
+  `tests/sepulchral-mask.test.js` the turn-start card's buttons and a save from a deleted card,
   `tests/manifest-will.test.js` Manifest Will's flat check, re-centering and Finch aura, `tests/hex-casts.test.js` casts
   told from cards sent to chat and the hex familiars on each, `tests/spell-conditions.test.js` the Apply button's
   timers, from a save's message through its dialog to the turn the effect expires at

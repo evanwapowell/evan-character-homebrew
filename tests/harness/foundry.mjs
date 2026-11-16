@@ -206,6 +206,16 @@ function getProperty(object, key) {
     return key.split(".").reduce((value, part) => value?.[part], object);
 }
 
+/** Foundry's foundry.utils.hasProperty: whether the object has the dotted key, set to anything */
+function hasProperty(object, key) {
+    let target = object;
+    for (const part of key.split(".")) {
+        if (!target || typeof target !== "object" || !(part in target)) return false;
+        target = target[part];
+    }
+    return true;
+}
+
 function setProperty(object, key, value) {
     const parts = key.split(".");
     const last = parts.pop();
@@ -250,6 +260,7 @@ const FOUNDRY_UTILS = {
     isNewerVersion,
     duplicate: (value) => structuredClone(value),
     getProperty,
+    hasProperty,
     setProperty,
     expandObject,
     mergeObject,

@@ -253,9 +253,14 @@ async function rollTurnSave(card) {
     });
 }
 
-/** Whether a player who owns the caster is logged in, to roll its damage rather than the GM */
-function hasActivePlayerOwner(actor) {
-    return game.users.contents.some((u) => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"));
+/** The logged-in players who own the caster, who roll its damage, though the GM can roll it for them */
+function activePlayerOwners(actor) {
+    return game.users.contents.filter((u) => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"));
+}
+
+/** pf2e's "Show DCs to players" setting */
+function showDCs() {
+    return !!game.pf2e?.settings?.metagame?.dcs;
 }
 
 /**
@@ -294,16 +299,21 @@ async function rollTurnDamage(card, event) {
 
     const data = { cardId: card.id, damageMessageId: message.id };
     // Players can't edit the card or the creature, so the active GM records the roll and applies it
-    await askGM("sepulchralMaskDamage", data, { title: "Sepulchral Mask", task: "apply the damage" });
+    const answer = await askGM("sepulchralMaskDamage", data, { title: "Sepulchral Mask", task: "apply the damage" });
+    // The caster's player and the GM can both roll it: the first roll to reach the GM is the one used
+    if (answer.ok && answer.result?.recorded === false) {
+        ui.notifications.info("Sepulchral Mask: the damage was already rolled, so this roll isn't applied.");
+    }
 }
 
 /** Record the damage rolled for a turn-start card, and apply it if the save is in. Run by a GM. */
 async function resolveDamage({ cardId, damageMessageId }) {
     const card = game.messages.get(cardId);
     const record = card?.flags[MODULE_ID]?.sepulchralMask;
-    if (!record || record.damage || !game.messages.get(damageMessageId)) return;
+    if (!record || record.damage || !game.messages.get(damageMessageId)) return { recorded: false };
     await card.update({ [`flags.${MODULE_ID}.sepulchralMask.damage`]: damageMessageId });
     await applyTurnDamage(card);
+    return { recorded: true };
 }
 
 /** Cards whose damage is being applied, so a save and a damage roll arriving together don't both apply it */
@@ -431,6 +441,8 @@ async function resolveSave(data) {
     const target = targetToken?.actor;
     if (!caster || !target || !RESULTS[outcome]) return;
     const card = cardId ? game.messages.get(cardId) : null;
+    // The turn-start card was deleted: the save answers nothing (the spell's own card isn't what it was rolled for)
+    if (fromTurnCard && !card) return;
     const record = card?.flags[MODULE_ID]?.sepulchralMask;
     const spell = getSpell(caster, { spellUuid: record?.spell ?? data.spellUuid, rank: record?.rank ?? data.rank });
     if (!spell) return;
@@ -482,6 +494,10 @@ async function resolveSave(data) {
 /** A save rolled by this user against Sepulchral Mask: have the active GM apply its result */
 async function onSave({ card = null, caster, spell, targetToken, outcome, total, fromTurnCard = false }) {
     if (!caster || !targetToken?.actor || !RESULTS[outcome]) return;
+    // Rolled from a turn-start card that's since been deleted (the GM's call): it answers nothing
+    if (fromTurnCard && !card) {
+        return ui.notifications.warn("Sepulchral Mask: the save's turn card was deleted, so its result isn't applied.");
+    }
     // A save against the spell's card answers the caster's latest one, unless PF2e Toolbelt says which
     card ??= game.messages.contents.findLast((m) => isMaskCard(m) && m.actor?.uuid === caster.uuid) ?? null;
     const data = {
@@ -519,8 +535,8 @@ hooks.on("createChatMessage", (message, options, userId) => {
     // pf2e 8.5 marks a spell that was cast, rather than posted to chat: put the mask on the caster
     if (isMaskCard(message) && message.actor && isSpellCast(message)) {
         const rank = message.flags.pf2e.origin?.castRank ?? message.item.rank;
-        const options = { rank, spellUuid: message.item.uuid, tokenUuid: message.token?.uuid ?? null };
-        return void applyAura(message.actor, options).catch(log);
+        const cast = { rank, spellUuid: message.item.uuid, tokenUuid: message.token?.uuid ?? null };
+        return void applyAura(message.actor, cast).catch(log);
     }
 
     const save = getSave(message);
@@ -557,9 +573,9 @@ function cardControl(html, { label, icon, onClick } = {}) {
 }
 
 /**
- * The turn-start card's controls, from where it stands: a Roll Damage button for the caster's player (or the GM, when
- * no player who owns the caster is logged in) and a Will Save button for whoever can roll the creature's save. Others
- * see what it's waiting on.
+ * The turn-start card's controls, from where it stands: a Roll Damage button for whoever owns the caster (the GM's says
+ * whom it's rolled for while a player who owns the caster is logged in) and a Will Save button for whoever can roll the
+ * creature's save. Others see what it's waiting on. Players see the DC of a player's caster, or when pf2e shows DCs.
  */
 function renderTurnCard(message, html) {
     const record = message.flags[MODULE_ID]?.sepulchralMask;
@@ -589,8 +605,11 @@ function renderTurnCard(message, html) {
         // Unaffected: no damage to roll
     } else if (record.damage) {
         items.push(cardControl(`Damage rolled: it's applied once ${targetName}'s Will save is rolled.`));
-    } else if (caster?.isOwner && (!game.user.isGM || !hasActivePlayerOwner(caster))) {
-        const label = `Roll Damage: ${targetName}`;
+    } else if (caster?.isOwner) {
+        // The GM can roll it for a player who's logged in but away; the first roll is the one used
+        const players = game.user.isGM ? activePlayerOwners(caster) : [];
+        const forWhom = players.length > 0 ? ` for ${esc(players.map((u) => u.name).join(" or "))}` : "";
+        const label = `Roll Damage${forWhom}: ${targetName}`;
         items.push(cardControl(null, { label, icon: "fa-dice", onClick: (event) => rollTurnDamage(message, event) }));
     } else {
         items.push(cardControl(`Waiting for ${casterName}'s damage roll.`));
@@ -599,7 +618,8 @@ function renderTurnCard(message, html) {
     if (outcome) {
         items.push(cardControl(`Will save: ${outcome}.`));
     } else if (target?.isOwner) {
-        const label = `Will Save DC ${record.dc}: ${targetName}`;
+        const dcShown = game.user.isGM || showDCs() || !!caster?.hasPlayerOwner;
+        const label = `Will Save${dcShown ? ` DC ${record.dc}` : ""}: ${targetName}`;
         items.push(cardControl(null, { label, icon: "fa-dice-d20", onClick: () => rollTurnSave(message) }));
     } else {
         items.push(cardControl(`Waiting for ${targetName}'s Will save.`));
@@ -614,8 +634,8 @@ hooks.on("createItem", (item, options, userId) => {
     // pf2e's spell effect, dragged from the spell's card: make it the aura, at the rank and with the origin it has
     if (isSystemEffect(item)) {
         const origin = item.system.context?.origin;
-        const options = { rank: item.level, spellUuid: origin?.item ?? null, tokenUuid: origin?.token ?? null };
-        return void applyAura(item.actor, options).catch(log);
+        const cast = { rank: item.level, spellUuid: origin?.item ?? null, tokenUuid: origin?.token ?? null };
+        return void applyAura(item.actor, cast).catch(log);
     }
     if (isAuraEffect(item)) {
         playCastAnimation(item);
@@ -627,3 +647,4 @@ hooks.onTurnStart(({ combat, combatant, round }) => onTurnStart(combat, { combat
 
 onGMRequest("sepulchralMask", (data) => resolveSave(data));
 onGMRequest("sepulchralMaskDamage", (data) => resolveDamage(data));
+export { resolveDamage };
