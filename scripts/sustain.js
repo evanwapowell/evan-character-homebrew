@@ -8,6 +8,10 @@
  * extends it to the end of their following turn, up to its maximum duration. Each sustained effect records the round
  * it was last cast or Sustained, and at the end of the caster's turn, those not cast or Sustained that round end.
  *
+ * A Sustain keeps one casting going ("Choose one of your effects that has a sustained duration"): the effects made
+ * when it was cast, on any creature, and pf2e's copies of its aura's effect on the creatures in the aura. A spell cast
+ * twice is two entries.
+ *
  * At the start of a player's creature's turn, a whispered chat message lists its sustained spells with Sustain buttons.
  */
 
@@ -35,6 +39,35 @@ function getCasterUuid(effect) {
     return effect.system.context?.origin?.actor ?? effect.actor?.uuid;
 }
 
+/**
+ * The effect with the aura that pf2e copied an effect from onto a creature in it (ActorPF2e#applyAreaEffects in
+ * src/module/actor/base.ts: `flags.pf2e.aura` names the emitter and the aura's slug, which is its Aura rule's, else
+ * the item's, as AuraRuleElement sets it in src/module/rules/rule-element/aura.ts)
+ */
+function getAuraSource(effect) {
+    const aura = effect.flags.pf2e?.aura;
+    const emitter = aura?.origin && aura.slug ? fromUuidSync(aura.origin) : null;
+    const emits = (e) => (e.system.rules ?? []).some((r) => r.key === "Aura" && (r.slug ?? e.slug) === aura.slug);
+    return emitter?.itemTypes?.effect.find((e) => e !== effect && emits(e)) ?? null;
+}
+
+/**
+ * Which casting an effect is from. pf2e gives an effect its start when it's created, the world's time and the
+ * initiative of its origin's turn (EffectPF2e#_preCreate in src/module/item/effect/document.ts), so the effects one
+ * casting made on its turn share a spell and a start, and another casting of the spell has another start. An aura's
+ * copies on the creatures in it are the casting of the effect with the aura.
+ */
+function castingKey(effect, seen = new Set()) {
+    // An aura's effect can carry the aura itself (Soothing Song), so its copies are followed back once each
+    seen.add(effect);
+    const source = effect.flags.pf2e?.aura ? getAuraSource(effect) : null;
+    if (source && !seen.has(source)) return castingKey(source, seen);
+    const spell = effect.system.context?.origin?.item;
+    if (!spell) return effect.uuid;
+    const start = effect.system.start;
+    return start ? `${spell}@${start.value}/${start.initiative ?? ""}` : spell;
+}
+
 /** A caster's sustained effects on any creature in a scene */
 function getSustainedEffects(caster, scene) {
     const actors = new Set([caster, ...(scene?.tokens.map((t) => t.actor).filter((a) => a) ?? [])]);
@@ -53,14 +86,20 @@ async function recordSustained(effectUuids) {
     }
 }
 
-/** The effects a Sustain keeps going: the chosen one, and the caster's sustained effects from the same spell */
+/**
+ * The effects a Sustain keeps going: the chosen one and the rest of its casting, or with only the spell, the caster's
+ * sustained effects from it (the Sustain buttons ask which casting first when there are two)
+ */
 function getEffectsToSustain(caster, { spell, effect }) {
     const effects = getSustainedEffects(caster, canvas.scene);
-    const spellUuid = spell?.uuid ?? effect?.system.context?.origin?.item;
-    const fromSpell = effects.filter((e) => spellUuid && e.system.context?.origin?.item === spellUuid);
+    if (effect) {
+        const key = castingKey(effect);
+        return [...new Set([effect, ...effects.filter((e) => castingKey(e) === key)])];
+    }
+    const fromSpell = effects.filter((e) => spell && e.system.context?.origin?.item === spell.uuid);
     // Effects not applied from the spell's chat card are matched by name, like "Aura: Manifest Will (Arcane)"
     const byName = spell && fromSpell.length === 0 ? effects.filter((e) => e.name.includes(spell.name)) : [];
-    return [...new Set([effect, ...fromSpell, ...byName].filter((e) => e))];
+    return [...new Set([...fromSpell, ...byName])];
 }
 
 async function sustainEffects(caster, data) {
@@ -93,9 +132,12 @@ async function endUnsustained(combat, { combatant, round }) {
             const esc = Handlebars.escapeExpression;
             const on = target === caster ? "" : ` on ${esc(target.name)}`;
             const reason = `${esc(caster.name)} didn't Sustain it.`;
+            // An NPC's spells, and effects pf2e keeps unidentified, are the GM's to know about
+            const secret = !caster.hasPlayerOwner || effect.system.unidentified;
             await ChatMessage.create({
                 speaker: ChatMessage.getSpeaker({ actor: caster }),
                 content: `<p><strong>${esc(effect.name)}</strong>${on} ends: ${reason}</p>`,
+                ...(secret ? { whisper: ChatMessage.getWhisperRecipients("GM").map((u) => u.id) } : {}),
             });
         }
     }
@@ -142,26 +184,31 @@ async function sustain(actor, { spell = null, effect = null, castRank = null } =
 }
 
 /**
- * A caster's sustained spells: their sustained effects on any creature in the scene, one entry per spell (Sustaining
- * one of a spell's effects Sustains them all), each with the creatures it's on
+ * A caster's sustained spells: their sustained effects on any creature in the scene, one entry per casting (Sustaining
+ * one of its effects Sustains them all), each with its effects and the creatures they're on
  */
 function getSustainedSpells(caster, scene = canvas.scene) {
     const spells = new Map();
     for (const effect of getSustainedEffects(caster, scene)) {
         if (effect.remainingDuration.expired) continue;
-        const key = effect.system.context?.origin?.item ?? effect.uuid;
-        if (!spells.has(key)) spells.set(key, { effect, name: getOriginSpell(effect)?.name ?? effect.name, on: [] });
+        const key = castingKey(effect);
+        const spell = getOriginSpell(effect);
+        if (!spells.has(key)) spells.set(key, { effect, spell, name: spell?.name ?? effect.name, effects: [], on: [] });
         const entry = spells.get(key);
         // Sustain the caster's own effect when there is one, so it's the one named
         if (effect.actor === caster && entry.effect.actor !== caster) entry.effect = effect;
+        entry.effects.push(effect);
         if (!entry.on.includes(effect.actor)) entry.on.push(effect.actor);
     }
     return [...spells.values()];
 }
 
-/** Choose which of a caster's sustained spells to Sustain, whether its effects are on the caster or other creatures */
-async function promptSustain(actor, { skipIfSingle = false } = {}) {
-    const spells = getSustainedSpells(actor);
+/**
+ * Choose which of a caster's sustained spells to Sustain, whether its effects are on the caster or other creatures.
+ * `spell`: only its castings, for its Sustain button.
+ */
+async function promptSustain(actor, { skipIfSingle = false, spell = null } = {}) {
+    const spells = getSustainedSpells(actor).filter((s) => !spell || s.spell?.uuid === spell.uuid);
     if (spells.length === 0) {
         ui.notifications.info(
             `${actor.name} has no sustained effects. Use the Sustain button beside the spell's Cast button instead.`,
@@ -172,12 +219,14 @@ async function promptSustain(actor, { skipIfSingle = false } = {}) {
 
     const esc = Handlebars.escapeExpression;
     const content = spells
-        .map(({ name, on }, index) => {
+        .map(({ name, on, effect }, index) => {
             const others = on.filter((a) => a !== actor).map((a) => a.name);
-            const where =
-                others.length > 0
-                    ? ` <em>(on ${esc([...(on.includes(actor) ? ["you"] : []), ...others].join(", "))})</em>`
-                    : "";
+            const details =
+                others.length > 0 ? [`on ${[...(on.includes(actor) ? ["you"] : []), ...others].join(", ")}`] : [];
+            // The same spell cast twice: what's left of each tells them apart
+            if (spells.some((s) => s.effect !== effect && s.name === name)) details.push(timeLeft(effect));
+            const shown = details.filter((d) => d);
+            const where = shown.length > 0 ? ` <em>(${esc(shown.join("; "))})</em>` : "";
             return [
                 `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
                 `<input type="radio" name="choice" value="${index}" ${index === 0 ? "checked" : ""}>`,
@@ -203,6 +252,16 @@ async function promptSustain(actor, { skipIfSingle = false } = {}) {
     });
     if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
     return sustain(actor, { effect: spells[Number(choice)]?.effect });
+}
+
+/**
+ * A spell's Sustain button: with the spell cast twice and both going, ask which casting; with one, Sustain it; with
+ * none tracked (an effect not applied from the spell's card), Sustain the spell
+ */
+async function sustainSpell(actor, spell, castRank) {
+    const castings = getSustainedSpells(actor).filter((s) => s.spell?.uuid === spell.uuid);
+    if (castings.length > 1) return promptSustain(actor, { spell });
+    return sustain(actor, { spell, effect: castings[0]?.effect ?? null, castRank });
 }
 
 const BUTTON_GAP = 4;
@@ -239,7 +298,7 @@ function addSheetSustainButtons(sheet, html) {
             event.preventDefault();
             event.stopPropagation();
             const rank = Number(castRank) || spell.rank;
-            sustain(actor, { spell, castRank: rank }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+            sustainSpell(actor, spell, rank).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
         });
 
         const wrapper = document.createElement("div");
@@ -282,7 +341,7 @@ function addHudSustainButtons(app, element) {
             event.preventDefault();
             event.stopPropagation();
             const rank = Number(castRank) || spell.rank;
-            sustain(actor, { spell, castRank: rank }).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
+            sustainSpell(actor, spell, rank).catch((error) => console.error(`${MODULE_ID} | Sustain`, error));
         });
         cast.before(button);
     }
@@ -346,6 +405,13 @@ function wasSustained(effect, reminder) {
     return record?.combat === reminder.combat && record.round >= reminder.round;
 }
 
+/** What's left of an effect's duration, in rounds ("3 rounds left"), or nothing when it doesn't run out */
+function timeLeft(effect) {
+    const remaining = effect.remainingDuration?.remaining;
+    const rounds = Number.isFinite(remaining) ? Math.max(1, Math.ceil(remaining / 6)) : null;
+    return rounds ? `${rounds} ${rounds === 1 ? "round" : "rounds"} left` : "";
+}
+
 /** The reminder's rows: each spell with where it is, what's left of it, and a Sustain button for its owners */
 function renderReminder(message, html) {
     const reminder = message.flags[MODULE_ID]?.sustainReminder;
@@ -362,13 +428,10 @@ function renderReminder(message, html) {
         label.style.flex = "1";
         let detail = "";
         if (effect && actor) {
-            const on = getSustainedSpells(actor).find((s) => s.effect === effect || s.name === name)?.on ?? [];
+            const on = getSustainedSpells(actor).find((s) => s.effects.includes(effect))?.on ?? [];
             const others = on.filter((a) => a !== actor).map((a) => a.name);
             const where = others.length > 0 ? [...(on.includes(actor) ? ["you"] : []), ...others].join(", ") : "";
-            const remaining = effect.remainingDuration?.remaining;
-            const rounds = Number.isFinite(remaining) ? Math.max(1, Math.ceil(remaining / 6)) : null;
-            const left = rounds ? `${rounds} ${rounds === 1 ? "round" : "rounds"} left` : "";
-            detail = [where && `on ${esc(where)}`, left].filter((d) => d).join("; ");
+            detail = [where && `on ${esc(where)}`, esc(timeLeft(effect))].filter((d) => d).join("; ");
         }
         label.innerHTML = `<strong>${esc(name)}</strong>${detail ? ` <em>(${detail})</em>` : ""}`;
         row.append(label);
@@ -492,4 +555,4 @@ Hooks.once("init", () => {
     };
 });
 
-export { isSystemSustain };
+export { getSustainedSpells, isSystemSustain, sustain, sustainSpell };
