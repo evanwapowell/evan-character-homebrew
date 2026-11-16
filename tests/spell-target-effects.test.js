@@ -309,4 +309,97 @@ for (const version of ["v13", "v14"]) {
             assert.equal(button.disabled, false);
         });
     });
+
+    /**
+     * Requests the player's client sends the GM, crafted by hand: the GM's session makes the effects again from the
+     * card's spell and the effects it links, with the player's choices, and refuses what doesn't match (#64). Until
+     * 1.26.20 it created whatever effect sources the request carried, on any creature.
+     */
+    describe(`Spell effects for targets: requests checked by the GM (${version})`, () => {
+        const RESIST = effectUuid(EFFECTS.resist.id);
+
+        async function ask(world, player, action, data) {
+            let answer = null;
+            player.run(() => player.scripts["settings.js"].askGM(action, data)).then((a) => (answer = a));
+            await settle(world, () => answer !== null);
+            return answer;
+        }
+
+        it("makes the effect from the spell's link, with the player's choice, whatever sources the request has", async (t) => {
+            const { world, player, actors, cast } = await setup(t, version);
+            const { message } = await cast("resist", { targets: ["ezren"] });
+            const forged = { type: "effect", name: "Forged", system: { rules: [{ key: "FlatModifier", value: 50 }] } };
+            const answer = await ask(world, player, "applySpellTargetEffects", {
+                messageId: message.id,
+                actorUuid: actors.ezren.uuid,
+                effects: [{ uuid: RESIST, selections: ["fire", null] }],
+                sources: [forged],
+                deleteIds: [],
+            });
+            assert.equal(answer.ok, true);
+            assert.deepEqual(
+                actors.ezren.itemTypes.effect.map((e) => e.name),
+                [EFFECTS.resist.name],
+            );
+            const [effect] = actors.ezren.itemTypes.effect;
+            assert.deepEqual(
+                effect.system.rules.map((r) => r.key),
+                ["ChoiceSet", "Resistance"],
+            );
+            assert.equal(effect.system.rules[0].selection, "fire");
+            assert.equal(effect.system.context.origin.actor, actors.kyra.uuid);
+        });
+
+        it("refuses an effect the spell doesn't link, or a choice that isn't one of its options", async (t) => {
+            const { world, player, actors, cast } = await setup(t, version);
+            t.mock.method(console, "warn", () => {});
+            const { message } = await cast("resist", { targets: ["ezren"] });
+            const unlinked = await ask(world, player, "applySpellTargetEffects", {
+                messageId: message.id,
+                actorUuid: actors.ezren.uuid,
+                effects: [{ uuid: effectUuid(EFFECTS.bless.id), selections: [] }],
+            });
+            assert.deepEqual(unlinked, {
+                ok: false,
+                reason: "refused",
+                error: "Resist Energy doesn't link that effect",
+            });
+            const badChoice = await ask(world, player, "applySpellTargetEffects", {
+                messageId: message.id,
+                actorUuid: actors.ezren.uuid,
+                effects: [{ uuid: RESIST, selections: ["cold", null] }],
+            });
+            assert.deepEqual(badChoice, {
+                ok: false,
+                reason: "refused",
+                error: "a choice for Spell Effect: Resist Energy isn't one of its options",
+            });
+            // Sonic is offered only to an NPC: Ezren's dialog wouldn't have listed it
+            const notOffered = await ask(world, player, "applySpellTargetEffects", {
+                messageId: message.id,
+                actorUuid: actors.ezren.uuid,
+                effects: [{ uuid: RESIST, selections: ["sonic", null] }],
+            });
+            assert.equal(notOffered.reason, "refused");
+            assert.deepEqual(actors.ezren.itemTypes.effect, []);
+        });
+
+        it("refuses a card whose caster the player doesn't own", async (t) => {
+            const { world, player, actors, cast } = await setup(t, version);
+            t.mock.method(console, "warn", () => {});
+            const { message } = await cast("resist", { targets: ["ezren"] });
+            actors.kyra.testUserPermission = (user) => !!user.isGM;
+            const apply = await ask(world, player, "applySpellTargetEffects", {
+                messageId: message.id,
+                actorUuid: actors.ezren.uuid,
+                effects: [{ uuid: RESIST, selections: ["fire", null] }],
+            });
+            assert.deepEqual(apply, { ok: false, reason: "refused", error: "Player doesn't own Kyra" });
+            assert.deepEqual(actors.ezren.itemTypes.effect, []);
+
+            const mark = await ask(world, player, "spellTargetEffectsApplied", { messageId: message.id });
+            assert.equal(mark.reason, "refused");
+            assert.equal(message.flags[MODULE_ID].spellTargetEffects?.applied, undefined);
+        });
+    });
 }

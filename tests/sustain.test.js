@@ -226,4 +226,53 @@ for (const version of ["v13", "v14"]) {
             assert.deepEqual([...playerLine.whisper], [], "a player's spell ending is public");
         });
     });
+
+    /**
+     * The record of a player's Sustain, which the GM writes on effects on creatures the player doesn't own: only
+     * sustained effects of a caster the player owns are recorded (#64)
+     */
+    describe(`Sustain: the record, checked by the GM (${version})`, () => {
+        async function ask(world, player, effects) {
+            let answer = null;
+            const data = { effectUuids: effects.map((e) => e.uuid) };
+            player.run(() => player.scripts["settings.js"].askGM("recordSustained", data)).then((a) => (answer = a));
+            await settle(world, () => answer !== null);
+            return answer;
+        }
+        const recorded = (effect) => effect.flags["evan-character-homebrew"]?.sustained ?? null;
+        /** Forget the record made when the effect was cast this round, so only the request's shows */
+        const forget = (...effects) => effects.forEach((e) => delete e.flags["evan-character-homebrew"]?.sustained);
+
+        it("records the player's caster's sustained effects, and nothing else", async (t) => {
+            const { world, player, witch, fighter, goblin, boss, learn, cast, act } = await setup(t, version);
+            await act("startCombat");
+            const mine = await cast(witch, learn(witch, "Phantom Pain"), goblin);
+            const bosses = await cast(boss, learn(boss, "Fear"), fighter);
+            const plain = await cast(witch, learn(witch, "Daze"), goblin);
+            plain.system.duration = { ...plain.system.duration, sustained: false };
+            forget(mine, bosses, plain);
+
+            const answer = await ask(world, player, [mine, bosses, plain]);
+            assert.equal(answer.ok, true);
+            await settle(world, () => !!recorded(mine));
+            assert.ok(recorded(mine));
+            assert.equal(recorded(bosses), null, "another caster's isn't recorded");
+            assert.equal(recorded(plain), null, "an effect that isn't sustained isn't recorded");
+        });
+
+        it("refuses a Sustain of nothing the player's caster sustains", async (t) => {
+            const { world, player, fighter, boss, learn, cast, act } = await setup(t, version);
+            t.mock.method(console, "warn", () => {});
+            await act("startCombat");
+            const bosses = await cast(boss, learn(boss, "Fear"), fighter);
+            forget(bosses);
+            assert.deepEqual(await ask(world, player, [bosses]), {
+                ok: false,
+                reason: "refused",
+                error: "none of those are sustained spells of Player's",
+            });
+            await settle(world);
+            assert.equal(recorded(bosses), null);
+        });
+    });
 }

@@ -200,16 +200,21 @@ function isInjected(value) {
  * src/module/rules/rule-element/choice-set/rule-element.ts, the same in pf2e 7.x and 8.x). Choices drawn from items or
  * settings are left for pf2e to ask. Returns false when the user cancels.
  */
-async function makeChoices(source, actor) {
-    const esc = Handlebars.escapeExpression;
+/** Whether a choice's predicate lets the creature have it (one drawn from the item is pf2e's to resolve) */
+function choiceTester(actor) {
     const options = new Set(actor.getRollOptions?.() ?? []);
-    const passes = (predicate) => {
+    return (predicate) => {
         if (!Array.isArray(predicate) || predicate.length === 0) return true;
         // A predicate drawn from the item ("{item|…}") is pf2e's to resolve
         if (isInjected(predicate)) return true;
         const Predicate = game.pf2e?.Predicate;
         return Predicate ? new Predicate(foundry.utils.deepClone(predicate)).test(options) : true;
     };
+}
+
+async function makeChoices(source, actor) {
+    const esc = Handlebars.escapeExpression;
+    const passes = choiceTester(actor);
     for (const rule of source.system.rules ?? []) {
         if (rule?.key !== "ChoiceSet" || !Array.isArray(rule.choices) || rule.selection != null) continue;
         if (Array.isArray(rule.predicate) && rule.predicate.length > 0) continue;
@@ -253,16 +258,17 @@ function choicesMade(source) {
 
 /**
  * Make the choices a player made for an effect on its source: on a ChoiceSet rule with a list, one of the list's
- * values. Returns false when a choice isn't one of them.
+ * values whose predicate the creature passes, as the player's dialog offered them. Returns false otherwise.
  */
-function applyChoicesMade(source, selections) {
+function applyChoicesMade(source, selections, actor) {
     const rules = source.system.rules ?? [];
+    const passes = choiceTester(actor);
     for (const [index, selection] of (Array.isArray(selections) ? selections : []).entries()) {
         if (selection === null || selection === undefined) continue;
         const rule = rules[index];
         if (rule?.key !== "ChoiceSet" || !Array.isArray(rule.choices) || rule.selection != null) return false;
         const choice = rule.choices.find(
-            (c) => c && "value" in c && JSON.stringify(c.value) === JSON.stringify(selection),
+            (c) => c && "value" in c && JSON.stringify(c.value) === JSON.stringify(selection) && passes(c.predicate),
         );
         if (!choice) return false;
         rule.selection = foundry.utils.deepClone(choice.value);
@@ -473,7 +479,8 @@ async function checkApply(data, sender) {
         if (!linked.has(uuid)) refuse(`${spell.name} doesn't link that effect`);
         const source = await buildSpellEffectSource(uuid, { spell, target: actor, casterToken, rollOptions });
         if (!source) refuse("the effect was not found");
-        if (!applyChoicesMade(source, selections)) refuse(`a choice for ${source.name} isn't one of its options`);
+        if (!applyChoicesMade(source, selections, actor))
+            refuse(`a choice for ${source.name} isn't one of its options`);
         sources.push(source);
         deleteIds.push(...findExisting(actor, uuid, caster).map((e) => e.id));
     }

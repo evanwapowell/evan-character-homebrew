@@ -336,4 +336,50 @@ for (const version of ["v13", "v14"]) {
             assert.equal(effect.flags[MODULE_ID].spellSource.rank, 2);
         });
     });
+
+    /**
+     * A player's record of whom they applied the conditions to, which the GM writes on a message they can't update:
+     * the GM's session keeps only the creatures that saved against the spell and are the player's (#64)
+     */
+    describe(`Spell conditions: the record, checked by the GM (${version})`, () => {
+        async function ask(world, player, data) {
+            let answer = null;
+            player
+                .run(() => player.scripts["settings.js"].askGM("spellConditionsApplied", data))
+                .then((a) => (answer = a));
+            await settle(world, () => answer !== null);
+            return answer;
+        }
+
+        it("records only the player's creature that saved", async (t) => {
+            const { world, actors, player, addSpell, rollSave } = await setup(t, version);
+            const save = await rollSave(addSpell("blindness"), "blindness", { actor: actors.ezren });
+            const answer = await ask(world, player, {
+                messageId: save.id,
+                actorUuids: [actors.ezren.uuid, actors.goblin.uuid],
+            });
+            assert.equal(answer.ok, true);
+            await settle(world, () => !!save.flags[MODULE_ID].spellConditions);
+            assert.deepEqual(save.flags[MODULE_ID].spellConditions.applied, [actors.ezren.uuid]);
+        });
+
+        it("refuses creatures that didn't save, or aren't the player's", async (t) => {
+            const { world, actors, player, addSpell, rollSave } = await setup(t, version);
+            t.mock.method(console, "warn", () => {});
+            const spell = addSpell("blindness");
+            const ezrens = await rollSave(spell, "blindness", { actor: actors.ezren });
+            const notSaved = await ask(world, player, { messageId: ezrens.id, actorUuids: [actors.goblin.uuid] });
+            assert.equal(notSaved.reason, "refused");
+            const goblins = await rollSave(spell, "blindness");
+            const notTheirs = await ask(world, player, { messageId: goblins.id, actorUuids: [actors.goblin.uuid] });
+            assert.deepEqual(notTheirs, {
+                ok: false,
+                reason: "refused",
+                error: "none of those creatures saved against the spell and are Player's",
+            });
+            await settle(world);
+            assert.equal(ezrens.flags[MODULE_ID].spellConditions, undefined);
+            assert.equal(goblins.flags[MODULE_ID].spellConditions, undefined);
+        });
+    });
 }

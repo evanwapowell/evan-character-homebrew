@@ -44,6 +44,7 @@ async function setup(t, version, { names = [] } = {}) {
         users: [
             { id: "gm", name: "Gamemaster", isGM: true },
             { id: "player", name: "Player" },
+            { id: "other", name: "Other Player" },
         ],
     });
     const scripts = ["recall-knowledge.js"];
@@ -189,6 +190,7 @@ async function setup(t, version, { names = [] } = {}) {
         world,
         gm,
         player,
+        scripts,
         ezren,
         zombie,
         token,
@@ -387,6 +389,81 @@ for (const version of ["v13", "v14"]) {
             const s = await setup(t, version);
             await s.roll({ die: 10 });
             for (const session of [s.gm, s.player]) assert.deepEqual(session.Hooks.errors, []);
+        });
+    });
+
+    /**
+     * Requests about a check, sent by a player: only the check's roller can start its card and ask its question, about
+     * the creature it was rolled against (#64). Until 1.26.20 any player could set the question on a pending card.
+     */
+    describe(`Recall Knowledge: requests checked by the GM (${version})`, () => {
+        async function ask(s, session, action, data) {
+            let answer = null;
+            session.run(() => session.scripts["settings.js"].askGM(action, data)).then((a) => (answer = a));
+            await settle(s.world, () => answer !== null);
+            return answer;
+        }
+
+        it("another player can't ask the question on a check they didn't roll, or start its card", async (t) => {
+            const s = await setup(t, version);
+            t.mock.method(console, "warn", () => {});
+            const message = await s.roll({ die: 10 });
+            const card = s.cardFor(message);
+            const before = structuredClone(card.flags[MODULE_ID].recallKnowledge);
+            const other = await s.world.connect("other", { scripts: s.scripts });
+
+            const question = await ask(s, other, "recallKnowledgeQuestion", {
+                messageId: message.id,
+                tokenUuid: s.token.uuid,
+                question: "other",
+                other: "What's the GM's password?",
+            });
+            assert.deepEqual(question, {
+                ok: false,
+                reason: "refused",
+                error: "the check isn't theirs, or isn't in chat",
+            });
+            const start = await ask(s, other, "recallKnowledgeStart", {
+                messageId: message.id,
+                tokenUuid: s.token.uuid,
+                kind: "recall",
+            });
+            assert.equal(start.reason, "refused");
+            await settle(s.world);
+            assert.equal(card.flags[MODULE_ID].recallKnowledge.question, before.question);
+            assert.equal(card.flags[MODULE_ID].recallKnowledge.other, before.other);
+            assert.equal(s.cards().length, 1);
+        });
+
+        it("the roller can't start a card about a creature the check wasn't against", async (t) => {
+            const s = await setup(t, version);
+            t.mock.method(console, "warn", () => {});
+            const message = await s.roll({ die: 10 });
+            const ogre = makeActor(s.world, { name: "Ogre", type: "npc" });
+            const ogreToken = addToken(s.world, s.token.parent, ogre, { x: 3 });
+            const answer = await ask(s, s.player, "recallKnowledgeStart", {
+                messageId: message.id,
+                tokenUuid: ogreToken.uuid,
+                kind: "recall",
+            });
+            assert.deepEqual(answer, { ok: false, reason: "refused", error: "the check wasn't against that creature" });
+            assert.equal(s.cards().length, 1);
+        });
+
+        it("the roller's own question is set on the card", async (t) => {
+            const s = await setup(t, version);
+            const message = await s.roll({ die: 10 });
+            const answer = await ask(s, s.player, "recallKnowledgeQuestion", {
+                messageId: message.id,
+                tokenUuid: s.token.uuid,
+                question: "other",
+                other: "Does it sleep?",
+            });
+            assert.equal(answer.ok, true);
+            await settle(s.world);
+            const record = s.cardFor(message).flags[MODULE_ID].recallKnowledge;
+            assert.equal(record.question, "other");
+            assert.equal(record.other, "Does it sleep?");
         });
     });
 }
