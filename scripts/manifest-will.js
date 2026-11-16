@@ -4,8 +4,11 @@
  * tradition effect at the start of each turn instead, and removes it at the start of the next.
  */
 
+import { isChargeEffect } from "./lib/charge-effect.js";
 import { auraFiles, finchAuraRules, playAura } from "./lib/finch.js";
 import { tokenDistance } from "./lib/geometry.js";
+import { chooseOne } from "./lib/ui.js";
+import { MODULE_ID, effectContext, esc, getSceneToken } from "./lib/util.js";
 import {
     askGM,
     canAnimate,
@@ -20,7 +23,6 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("manifestWill");
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
@@ -31,8 +33,6 @@ const EFFECTS = {
     occult: `${PACK}.zs66wcnBpWxSmvys`,
     primal: `${PACK}.DJJvRoc5yfNaraKe`,
 };
-
-const esc = (text) => Handlebars.escapeExpression(text);
 
 /** The tradition chosen on an Aura: Manifest Will effect */
 function getTradition(auraEffect) {
@@ -96,11 +96,7 @@ async function onTurnStart(combatant) {
         const source = effect.toObject();
         // Spell rank: set when dragged from the chat card, otherwise the caster's cantrip rank
         source.system.level.value = Math.max(auraEffect.level, Math.ceil(caster.level / 2));
-        source.system.context = {
-            origin: { actor: caster.uuid, token: centerToken.uuid, item: null, spellcasting: null },
-            target: null,
-            roll: null,
-        };
+        source.system.context = effectContext({ origin: caster, token: centerToken });
         source.flags[MODULE_ID] = { manifestWill: { origin: caster.uuid } };
         toCreate.push(source);
         traditionsApplied.add(tradition);
@@ -122,7 +118,7 @@ function playCastAnimation(auraEffect) {
     if (!canAnimate()) return;
 
     const file = CAST_ANIMATIONS[getTradition(auraEffect)];
-    const token = auraEffect.actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene);
+    const token = getSceneToken(auraEffect.actor);
     if (!(file && token)) return;
 
     new Sequence()
@@ -167,13 +163,7 @@ hooks.on("createItem", (item, options, userId) => {
 /* Seneschal: "When you cast or Sustain manifest will, as long as your charge is within 30 feet, you can choose to
  * center the spell's emanation on your charge instead of yourself." */
 
-/** ID of pf2e's Effect: Witch's Charge, the same in every pf2e version */
-const CHARGE_EFFECT_ID = "ugeStF0Rj8phBPWL";
 const CHARGE_RANGE = 30;
-
-function getSceneToken(actor) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === canvas.scene) ?? null;
-}
 
 /** The caster's Aura: Manifest Will effect, on themselves or a creature it's centered on */
 function findAuraEffect(caster) {
@@ -189,11 +179,8 @@ function findAuraEffect(caster) {
 
 /** Whether a creature is the caster's charge: it has Effect: Witch's Charge from the caster */
 function isChargeOf(actor, caster) {
-    return actor.itemTypes.effect.some((e) => {
-        const fromCompendium = [e.sourceId, e.uuid].some((u) => String(u ?? "").endsWith(`.${CHARGE_EFFECT_ID}`));
-        // Without an origin, the effect counts as its holder's own: assume it's from this caster
-        return (fromCompendium || e.name === "Effect: Witch's Charge") && [caster, actor].includes(e.origin);
-    });
+    // Without an origin, the effect counts as its holder's own: assume it's from this caster
+    return actor.itemTypes.effect.some((e) => isChargeEffect(e) && [caster, actor].includes(e.origin));
 }
 
 /** Tokens of the caster's charges within 30 feet: creatures with Effect: Witch's Charge from the caster */
@@ -217,11 +204,7 @@ async function moveAuraEffect(effectUuid, centerActorUuid) {
     // the compendium is the caster's own, so the copy on the charge names the caster
     if (!source.system.context?.origin?.actor) {
         const token = effect.actor.getActiveTokens(true, true)[0] ?? null;
-        source.system.context = {
-            origin: { actor: effect.actor.uuid, token: token?.uuid ?? null, item: null, spellcasting: null },
-            target: null,
-            roll: null,
-        };
+        source.system.context = effectContext({ origin: effect.actor, token });
     }
     const [created] = await center.createEmbeddedDocuments("Item", [source]);
     // pf2e sets a new start time on creation; keep counting the spell's duration from when it was cast
@@ -240,35 +223,20 @@ async function offerRecenter(caster, { spell, effect }) {
     if (chargeTokens.length === 0) return;
 
     const centers = [casterToken, ...chargeTokens];
-    const content = centers
-        .map((token, index) => {
-            const label = index === 0 ? `${token.name} (you)` : `${token.name} (charge)`;
-            const current = token.actor === auraEffect.actor;
-            return [
-                `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
-                `<input type="radio" name="choice" value="${index}" ${current ? "checked" : ""}>`,
-                `<span>${esc(label)}${current ? " <em>(current)</em>" : ""}</span>`,
-                `</label>`,
-            ].join("");
-        })
-        .join("");
-
-    const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title: "Center Manifest Will on" },
-        content,
-        buttons: [
-            {
-                action: "center",
-                label: "Center",
-                default: true,
-                callback: (_event, button) => button.form.elements.choice.value,
-            },
-            { action: "keep", label: "Keep" },
-        ],
-        rejectClose: false,
+    const current = centers.findIndex((token) => token.actor === auraEffect.actor);
+    const choices = centers.map((token, index) => {
+        const label = index === 0 ? `${token.name} (you)` : `${token.name} (charge)`;
+        return `${esc(label)}${index === current ? " <em>(current)</em>" : ""}`;
     });
-    if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
-    const center = centers[Number(choice)].actor;
+    const choice = await chooseOne({
+        title: "Center Manifest Will on",
+        choices,
+        checked: current,
+        confirm: "Center",
+        cancel: "Keep",
+    });
+    if (choice === null) return;
+    const center = centers[choice].actor;
     if (center === auraEffect.actor) return;
 
     if (auraEffect.isOwner && center.isOwner) return moveAuraEffect(auraEffect.uuid, center.uuid);

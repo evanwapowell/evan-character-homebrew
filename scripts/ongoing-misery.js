@@ -8,11 +8,12 @@
 import { isSpellCast } from "./lib/casting.js";
 import { playCurse } from "./lib/finch.js";
 import { tokenDistance } from "./lib/geometry.js";
+import { chooseOne } from "./lib/ui.js";
+import { MODULE_ID, byDistance, endsWithId, esc, getSceneToken } from "./lib/util.js";
 import {
     askGM,
     canAnimate,
     canAnimateFinch,
-    confirmActiveGM,
     createdHere,
     featureHooks,
     guardApi,
@@ -22,7 +23,6 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("ongoingMisery");
 /** IDs of the pf2e compendium items, the same in every pf2e version */
@@ -49,22 +49,18 @@ function isOncePerCase() {
     return game.settings.get(MODULE_ID, "ongoingMiseryOncePerCase");
 }
 
-function isFromSource(item, id) {
-    return [item?.sourceId, item?.uuid].some((uuid) => typeof uuid === "string" && uuid.endsWith(`.${id}`));
-}
-
 /**
  * Whether the witch's familiar has the ability. pf2e grants it through the witch's patron (The Resentment), which
  * boxes it in hex descriptions instead of adding it to the familiar, but it can also be on the familiar's sheet.
  */
 function hasOngoingMisery(witch, familiar) {
     const fromPatron = witch.items.some(
-        (i) => isFromSource(i, RESENTMENT_ID) || JSON.stringify(i._source.system.rules ?? []).includes("OngoingMisery"),
+        (i) => endsWithId(i, RESENTMENT_ID) || JSON.stringify(i._source.system.rules ?? []).includes("OngoingMisery"),
     );
     return (
         fromPatron ||
         !!familiar?.items.some(
-            (i) => isFromSource(i, ABILITY_ID) || i.name.toLowerCase() === "familiar of ongoing misery",
+            (i) => endsWithId(i, ABILITY_ID) || i.name.toLowerCase() === "familiar of ongoing misery",
         )
     );
 }
@@ -120,7 +116,6 @@ function prolongable(actor, effect) {
 }
 
 function announce(familiar, token, conditions) {
-    const esc = Handlebars.escapeExpression;
     const names = esc(conditions.map((c) => c.name).join(", "));
     return `${esc(familiar.name)} curses ${esc(token.name)}, prolonging ${names} by 1 round.`;
 }
@@ -164,7 +159,7 @@ function playCurseAnimation(familiarToken, targetToken) {
     }
     if (!canAnimate()) return;
 
-    const bolt = (CURSE_BOLTS.find(([feet]) => distance <= feet) ?? CURSE_BOLTS.at(-1))[1];
+    const bolt = byDistance(CURSE_BOLTS, distance);
     const mark = String(Math.floor(Math.random() * CURSE_MARKS) + 1).padStart(3, "0");
     new Sequence()
         .effect()
@@ -190,43 +185,27 @@ async function promptOngoingMisery(actor) {
     if (!familiar) return warnOnce(`${witch.name} has no familiar actor linked.`);
 
     // The 15-foot range is measured from the familiar
-    const familiarToken = familiar.getActiveTokens(true, true).find((t) => t.parent === canvas.scene);
+    const familiarToken = getSceneToken(familiar);
     if (!familiarToken) return warnOnce(`${familiar.name} has no token on this scene.`);
     const options = getEligibleEffects(familiarToken);
     if (options.length === 0) return;
 
-    const esc = Handlebars.escapeExpression;
-    const choices = options.map(({ token, effect, conditions, rounds }, index) => {
+    const choices = options.map(({ token, effect, conditions, rounds }) => {
         const conditionNames = conditions.map((c) => c.name).join(", ");
         return [
-            `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
-            `<input type="radio" name="choice" value="${index}" ${index === 0 ? "checked" : ""}>`,
-            `<span><strong>${esc(token.name)}</strong>: ${esc(conditionNames)} `,
-            `<em>(${esc(effect.name)}, ${rounds} ${rounds === 1 ? "round" : "rounds"} left)</em></span>`,
-            `</label>`,
+            `<strong>${esc(token.name)}</strong>: ${esc(conditionNames)} `,
+            `<em>(${esc(effect.name)}, ${rounds} ${rounds === 1 ? "round" : "rounds"} left)</em>`,
         ].join("");
     });
-    const content = [
-        `<p>${esc(familiar.name)} can curse a creature within 15 feet, prolonging a negative condition by 1 round.</p>`,
-        ...choices,
-    ].join("");
-
-    const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title: "Familiar of Ongoing Misery" },
-        content,
-        buttons: [
-            {
-                action: "curse",
-                label: "Curse",
-                default: true,
-                callback: (_event, button) => button.form.elements.choice.value,
-            },
-            { action: "skip", label: "Skip" },
-        ],
-        rejectClose: false,
+    const choice = await chooseOne({
+        title: "Familiar of Ongoing Misery",
+        intro: `<p>${esc(familiar.name)} can curse a creature within 15 feet, prolonging a negative condition by 1 round.</p>`,
+        choices,
+        confirm: "Curse",
+        cancel: "Skip",
     });
-    if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
-    const { token, effect, conditions } = options[Number(choice)];
+    if (choice === null) return;
+    const { token, effect, conditions } = options[choice];
     const announcement = announce(familiar, token, conditions);
     const extension = { familiarTokenUuid: familiarToken.uuid, announcement };
 

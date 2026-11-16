@@ -8,11 +8,28 @@
  */
 
 import { findItems } from "./lib/items.js";
-import { reportedSaveMessage, reportedToolbeltSave } from "./lib/saves.js";
+import {
+    BASIC_SAVE_MULTIPLIERS,
+    OUTCOMES,
+    effectRoll,
+    outcomeLabel,
+    reportedSaveMessage,
+    reportedToolbeltSave,
+} from "./lib/saves.js";
 import { serially } from "./lib/serially.js";
+import { chooseOne } from "./lib/ui.js";
+import {
+    MODULE_ID,
+    byDistance,
+    damageRollClass,
+    effectContext,
+    endsWithId,
+    esc,
+    getSceneToken,
+    logger,
+} from "./lib/util.js";
 import { askGM, canAnimate, confirmActiveGM, createdHere, featureHooks, onGMRequest, refuse } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("extractElement");
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
@@ -23,13 +40,12 @@ const KINETIC_AURA_ID = "pLurcSPQb2gjAzoP";
 const EFFECT_UUID = `${PACK}.otpFtLUFZlVa0nhn`;
 const RANGE = 30;
 const ELEMENTS = { air: "Air", earth: "Earth", fire: "Fire", metal: "Metal", water: "Water", wood: "Wood" };
-/** Degrees of success, by their index */
-const OUTCOMES = ["criticalFailure", "failure", "success", "criticalSuccess"];
-const DAMAGE = {
-    criticalSuccess: { multiplier: 0, text: "unaffected" },
-    success: { multiplier: 0.5, text: "half damage" },
-    failure: { multiplier: 1, text: "full damage" },
-    criticalFailure: { multiplier: 2, text: "double damage" },
+/** The damage for each result of the target's basic Fortitude save */
+const DAMAGE_TEXT = {
+    criticalSuccess: "unaffected",
+    success: "half damage",
+    failure: "full damage",
+    criticalFailure: "double damage",
 };
 /** Damage from the kineticist's impulses, at the time it's applied or a check against them is rolled */
 const FROM_IMPULSE = [
@@ -37,12 +53,12 @@ const FROM_IMPULSE = [
     { or: ["origin:action:trait:impulse", "item:trait:impulse"] },
 ];
 
-const esc = (text) => Handlebars.escapeExpression(text);
+const log = logger("Extract Element");
 const warn = (text) => ui.notifications.warn(`Extract Element: ${text}`);
 
 function isExtractElement(item) {
     if (item?.slug === "extract-element") return true;
-    return [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${ACTION_ID}`));
+    return endsWithId(item, ACTION_ID);
 }
 
 /** Whether a chat message is the action's card, rather than a save or damage rolled from it */
@@ -63,10 +79,6 @@ function hasKineticAura(kineticist) {
     return !!kineticist.rollOptions?.all?.["self:effect:kinetic-aura"];
 }
 
-function getSceneToken(actor, scene) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === scene) ?? null;
-}
-
 /** The target's Effect: Extract Element from this kineticist: matter already in their aura */
 function findExtraction(target, kineticist) {
     return (
@@ -80,29 +92,13 @@ function findExtraction(target, kineticist) {
 
 /** Ask which element to extract, among those given. Resolves to the element, or null if cancelled. */
 async function chooseElement(elements, prompt) {
-    const choices = elements.map((element, index) =>
-        [
-            `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
-            `<input type="radio" name="element" value="${element}" ${index === 0 ? "checked" : ""}>`,
-            `<span>${ELEMENTS[element]}</span>`,
-            `</label>`,
-        ].join(""),
-    );
-    const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title: "Extract Element" },
-        content: [`<p>${prompt}</p>`, ...choices].join(""),
-        buttons: [
-            {
-                action: "extract",
-                label: "Extract",
-                default: true,
-                callback: (_event, button) => button.form.elements.element.value,
-            },
-            { action: "cancel", label: "Cancel" },
-        ],
-        rejectClose: false,
+    const index = await chooseOne({
+        title: "Extract Element",
+        intro: `<p>${prompt}</p>`,
+        choices: elements.map((element) => ELEMENTS[element]),
+        confirm: "Extract",
     });
-    return elements.includes(choice) ? choice : null;
+    return index === null ? null : elements[index];
 }
 
 /**
@@ -217,7 +213,7 @@ function playExtractAnimation(element, targetToken, kineticistToken) {
     if (targetToken.parent !== kineticistToken.parent) return;
 
     const distance = kineticistToken.object.distanceTo(targetToken.object);
-    const stream = (animation.stream.find(([feet]) => distance <= feet) ?? animation.stream.at(-1))[1];
+    const stream = byDistance(animation.stream, distance);
     new Sequence()
         .effect()
         .file(`${JB2A_LIBRARY}/${animation.burst}`)
@@ -296,17 +292,16 @@ function getBypassRules(target) {
 
 /** Roll Extract Element's damage, post it, and apply it to the target for its degree of success */
 async function applyDamage({ kineticist, kineticistToken, item, target, targetToken, outcome }) {
-    const { multiplier, text } = DAMAGE[outcome];
-    const DamageRoll = CONFIG.Dice.rolls.find((r) => r.name === "DamageRoll");
-    if (!DamageRoll) throw new Error("pf2e's DamageRoll wasn't found");
+    const multiplier = BASIC_SAVE_MULTIPLIERS[outcome];
+    const DamageRoll = damageRollClass();
 
     // "@Damage[(ceil(@actor.level/2))d4[untyped]]": damage with no damage type
     const dice = Math.max(1, Math.ceil(kineticist.level / 2));
     const roll = await new DamageRoll(`${dice}d4[untyped]`).evaluate();
-    const outcomeLabel = game.i18n.localize(`PF2E.Check.Result.Degree.Check.${outcome}`);
+    const label = `${outcomeLabel(outcome)}: ${DAMAGE_TEXT[outcome]}`;
     await roll.toMessage({
         speaker: ChatMessage.getSpeaker({ actor: kineticist, token: kineticistToken }),
-        flavor: `<strong>Extract Element</strong> damage to ${esc(target.name)} (${esc(outcomeLabel)}: ${text}, applied)`,
+        flavor: `<strong>Extract Element</strong> damage to ${esc(target.name)} (${esc(label)}, applied)`,
         // Applied below, so the card has no buttons to apply it again
         flags: { pf2e: { suppressDamageButtons: true, ...(item ? { origin: item.getOriginData() } : {}) } },
     });
@@ -333,7 +328,7 @@ async function applyExtraction(data) {
     const kineticist = await fromUuid(data.kineticistUuid);
     const targetToken = await fromUuid(data.targetTokenUuid);
     const target = targetToken?.actor;
-    if (!kineticist || !target || !ELEMENTS[element] || !DAMAGE[outcome]) return;
+    if (!kineticist || !target || !ELEMENTS[element] || !OUTCOMES.includes(outcome)) return;
     const item = data.itemUuid ? await fromUuid(data.itemUuid) : null;
     const kineticistToken = (data.kineticistTokenUuid && (await fromUuid(data.kineticistTokenUuid))) || null;
     const speaker = ChatMessage.getSpeaker({ actor: kineticist, token: kineticistToken });
@@ -376,21 +371,17 @@ async function applyExtraction(data) {
     source.name = `${source.name} (${ELEMENTS[element]})`;
     source.system.level = { value: kineticist.level };
     source.system.rules = [...source.system.rules, ...getBypassRules(target)];
-    source.system.context = {
-        origin: {
-            actor: kineticist.uuid,
-            token: kineticistToken?.uuid ?? null,
-            item: item?.uuid ?? null,
-            spellcasting: null,
-            rollOptions: [],
-        },
-        target: { actor: target.uuid, token: targetToken.uuid },
-        roll: Number.isFinite(total) ? { total, degreeOfSuccess: OUTCOMES.indexOf(outcome) } : null,
-    };
+    source.system.context = effectContext({
+        origin: kineticist,
+        token: kineticistToken,
+        item,
+        target: { actor: target, token: targetToken },
+        roll: effectRoll(total, outcome),
+    });
     source.flags = { ...source.flags, [MODULE_ID]: { extractElement: { kineticist: kineticist.uuid, element } } };
     await target.createEmbeddedDocuments("Item", [source]);
 
-    const { text } = DAMAGE[outcome];
+    const text = DAMAGE_TEXT[outcome];
     await ChatMessage.create({
         speaker,
         content: [
@@ -408,7 +399,7 @@ async function applyExtraction(data) {
  */
 async function onSave({ card, kineticist, item, targetToken, outcome, total, message = null }) {
     const target = targetToken?.actor;
-    if (!kineticist || !target || !DAMAGE[outcome]) return;
+    if (!kineticist || !target || !OUTCOMES.includes(outcome)) return;
 
     card ??= game.messages.contents.findLast((m) => isCard(m) && m.actor?.uuid === kineticist.uuid) ?? null;
     const record = card?.flags[MODULE_ID]?.extractElement;
@@ -458,8 +449,6 @@ function getSave(message) {
     return { kineticist, item, targetToken, outcome: context.outcome, total: message.rolls[0]?.total, message };
 }
 
-const log = (error) => console.error(`${MODULE_ID} | Extract Element`, error);
-
 hooks.on("createChatMessage", (message, options, userId) => {
     if (!createdHere(message, options, userId)) return;
     if (isCard(message)) return void onUse(message).catch(log);
@@ -477,7 +466,7 @@ hooks.on("pf2e-toolbelt.rollSave", ({ message, target, data }) => {
 
 function isKineticAuraEffect(item) {
     if (item.type !== "effect") return false;
-    if (String(item.sourceId ?? "").endsWith(`.${KINETIC_AURA_ID}`)) return true;
+    if (endsWithId(item, KINETIC_AURA_ID)) return true;
     return item.slug === "effect-kinetic-aura" || item.name === "Effect: Kinetic Aura";
 }
 

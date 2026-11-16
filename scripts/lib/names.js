@@ -11,11 +11,11 @@
  * (src/module/chat-message/listeners/damage-taken.ts).
  */
 
+import { esc } from "./util.js";
+
 /** What's said in place of a name players can't see */
 const UNSEEN = "the creature";
 const ATTRIBUTE = "data-ehb-for-players";
-
-const esc = (text) => Handlebars.escapeExpression(String(text ?? ""));
 
 /** The token of an actor or token: an unlinked token's own, or a linked actor's on the scene being viewed */
 function tokenOf(doc) {

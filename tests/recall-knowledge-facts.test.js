@@ -233,6 +233,39 @@ describe("draft", () => {
         assert.notEqual(wrong.text, "");
     });
 
+    it("doesn't take common abilities or defensive reactions for the most dangerous", () => {
+        const ogre = {
+            ...EMPTY,
+            name: "Ogre",
+            abilities: [
+                // pf2e's Reactive Strike is a defensive ability, Grab a common offensive one
+                {
+                    id: "rs",
+                    name: "Reactive Strike",
+                    slug: "reactive-strike",
+                    kind: "action",
+                    category: "defensive",
+                    actionType: "reaction",
+                    traits: [],
+                    description: "",
+                },
+                {
+                    id: "grab",
+                    name: "Grab",
+                    slug: "grab",
+                    kind: "action",
+                    category: "offensive",
+                    actionType: "action",
+                    traits: [],
+                    description: "",
+                },
+                { id: "club", name: "Club", slug: "club", kind: "strike", modifier: 12, damageTypes: ["Bludgeoning"] },
+            ],
+        };
+        const [result] = draft({ profile: ogre, degree: "success", question: "abilities" }).answers;
+        assert.deepEqual(result.reveal, { abilities: ["club"] });
+    });
+
     it("on a plain failure, tells nothing", () => {
         assert.deepEqual(draft({ profile: GHOUL, degree: "failure", question: "weaknesses" }), {
             name: null,

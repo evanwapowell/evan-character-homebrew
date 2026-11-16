@@ -9,7 +9,9 @@
 
 import { isSpellCast } from "./lib/casting.js";
 import { serially } from "./lib/serially.js";
-import { reportedSaveMessage } from "./lib/saves.js";
+import { OUTCOMES, outcomeLabel, reportedSaveMessage, rollPublicSave } from "./lib/saves.js";
+import { cardButton, cardNote, chooseOne } from "./lib/ui.js";
+import { MODULE_ID, byDistance, endsWithId, esc, getSceneToken, logger } from "./lib/util.js";
 import {
     askGM,
     canAnimate,
@@ -22,7 +24,6 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("parasiticMight");
 /** IDs of the pf2e compendium items, the same in every pf2e version */
@@ -31,14 +32,10 @@ const DEVOURER_OF_DECAY_ID = "T9wA833bzZVlB3Lo";
 const RANGE = 15;
 /** Saves rolled from this module's card carry this identifier, followed by the card's ID */
 const SAVE_IDENTIFIER = "parasitic-might:";
-const OUTCOMES = ["criticalFailure", "failure", "success", "criticalSuccess"];
 const FAILED = new Set(["failure", "criticalFailure"]);
 const TITLE = "Familiar of Parasitic Might";
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | Parasitic Might`, error);
-const outcomeLabel = (outcome) => game.i18n.localize(`PF2E.Check.Result.Degree.Check.${outcome}`);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
+const log = logger("Parasitic Might");
 
 /**
  * Whether the witch's familiar has the ability. pf2e grants it through the witch's patron (Devourer of Decay), which
@@ -84,10 +81,6 @@ function getSpellDC(witch, spell) {
     return statistic?.dc.value ?? null;
 }
 
-function getSceneToken(actor, scene = canvas.scene) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === scene) ?? null;
-}
-
 function getSickened(actor) {
     return actor.itemTypes.condition.find((c) => c.slug === "sickened" && c.active) ?? null;
 }
@@ -131,7 +124,7 @@ function playDrainAnimation(familiarToken, targetToken) {
     if (!familiarToken.object || !targetToken.object) return;
 
     const distance = familiarToken.object.distanceTo(targetToken.object);
-    const strand = (DRAIN_STRANDS.find(([feet]) => distance <= feet) ?? DRAIN_STRANDS.at(-1))[1];
+    const strand = byDistance(DRAIN_STRANDS, distance);
     new Sequence()
         .effect()
         .file(`${JB2A_LIBRARY}/${strand}`)
@@ -167,39 +160,27 @@ async function promptParasiticMight(actor, { spell = null } = {}) {
         0,
         candidates.findIndex((c) => !c.immune && !c.sickened),
     );
-    const choices = candidates.map(({ token, immune, sickened }, index) => {
+    const choices = candidates.map(({ token, immune, sickened }) => {
         const notes = [immune ? "immune to sickened" : null, sickened ? `already sickened ${sickened}` : null]
             .filter((n) => n)
             .join(", ");
-        return [
-            `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
-            `<input type="radio" name="choice" value="${index}" ${index === defaultIndex ? "checked" : ""}>`,
-            `<span><strong>${esc(token.name)}</strong>${notes ? ` <em>(${esc(notes)})</em>` : ""}</span>`,
-            `</label>`,
-        ].join("");
+        return `<strong>${esc(token.name)}</strong>${notes ? ` <em>(${esc(notes)})</em>` : ""}`;
     });
-    const content = [
+    const intro = [
         `<p>${esc(familiar.name)} can draw on the waning strength of a creature within 15 feet with less than half its `,
         `Hit Points: it becomes sickened 1 unless it succeeds at a Fortitude save (DC ${dc}).</p>`,
-        ...choices,
     ].join("");
 
-    const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title: TITLE },
-        content,
-        buttons: [
-            {
-                action: "drain",
-                label: "Drain",
-                default: true,
-                callback: (_event, button) => button.form.elements.choice.value,
-            },
-            { action: "skip", label: "Skip" },
-        ],
-        rejectClose: false,
+    const choice = await chooseOne({
+        title: TITLE,
+        intro,
+        choices,
+        checked: defaultIndex,
+        confirm: "Drain",
+        cancel: "Skip",
     });
-    if (typeof choice !== "string" || !/^\d+$/.test(choice)) return;
-    const { token, immune } = candidates[Number(choice)];
+    if (choice === null) return;
+    const { token, immune } = candidates[choice];
     await postCard({ witch, familiar, familiarToken, targetToken: token, dc, immune });
 }
 
@@ -238,14 +219,11 @@ async function rollSave(card) {
     if (!game.user.isGM && !game.users.activeGM) {
         return ui.notifications.warn(`${TITLE}: a GM must be logged in to apply the result.`);
     }
-    await target.saves?.fortitude?.roll({
-        dc: { value: record.dc },
+    await rollPublicSave(target, "fortitude", {
+        dc: record.dc,
         origin: witch,
         token: targetToken,
         identifier: `${SAVE_IDENTIFIER}${card.id}`,
-        // Shown to everyone, whatever the roller's default roll mode: pf2e 7.x reads rollMode, 8.x messageMode
-        rollMode: "publicroll",
-        messageMode: "public",
     });
 }
 
@@ -347,12 +325,6 @@ function renderCard(message, html) {
 
     const target = fromUuidSync(record.target)?.actor;
     const name = esc(target?.name ?? "the creature");
-    const note = (text) => {
-        const p = document.createElement("p");
-        p.innerHTML = `<em>${text}</em>`;
-        return p;
-    };
-
     if (record.outcome) {
         const label = esc(outcomeLabel(record.outcome));
         const result = !FAILED.has(record.outcome)
@@ -362,20 +334,15 @@ function renderCard(message, html) {
               : record.result === "immune"
                 ? `${name} is immune to sickened.`
                 : `${name} was already sickened.`;
-        return controls.replaceChildren(note(`Fortitude save: ${label}. ${result}`));
+        return controls.replaceChildren(cardNote(`Fortitude save: ${label}. ${result}`));
     }
-    if (!target?.isOwner) return controls.replaceChildren(note(`Waiting for ${name}'s Fortitude save.`));
+    if (!target?.isOwner) return controls.replaceChildren(cardNote(`Waiting for ${name}'s Fortitude save.`));
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.innerHTML = `<i class="fa-solid fa-dice-d20"></i> Fortitude Save DC ${record.dc}: ${name}`;
-    button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        button.disabled = true;
-        rollSave(message)
-            .catch(log)
-            .finally(() => (button.disabled = false));
+    const button = cardButton({
+        icon: "fa-dice-d20",
+        label: `Fortitude Save DC ${record.dc}: ${name}`,
+        onClick: () => rollSave(message),
+        log,
     });
     controls.replaceChildren(button);
 }

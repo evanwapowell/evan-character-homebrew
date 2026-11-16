@@ -20,10 +20,23 @@
  */
 
 import { tokenDistance } from "./lib/geometry.js";
+import { BASIC_SAVE_MULTIPLIERS, OUTCOMES, outcomeLabel, rollPublicSave } from "./lib/saves.js";
+import { cardButton, cardNote, chooseOne } from "./lib/ui.js";
+import {
+    MODULE_ID,
+    byDistance,
+    damageRollClass,
+    effectContext,
+    endsWithId,
+    esc,
+    getSceneToken,
+    logger,
+} from "./lib/util.js";
 import {
     askGM,
     canAnimate,
     createdHere,
+    featureHooks,
     guardApi,
     hasModuleData,
     isAuthor,
@@ -33,7 +46,8 @@ import {
     refuse,
 } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
+/** This script's hooks do nothing while both features are turned off in the module's settings */
+const hooks = featureHooks("shedSpirit", "stitchingStrike");
 const PACK = `Compendium.${MODULE_ID}.evans-character-homebrew.Item`;
 /** This module's Effect: Stitching Strike (immobilized for 1 round, or until an Escape) */
 const IMMOBILIZED_EFFECT_UUID = `${PACK}.4vnb6uF59O5c4qNh`;
@@ -41,13 +55,13 @@ const IMMOBILIZED_EFFECT_UUID = `${PACK}.4vnb6uF59O5c4qNh`;
 const SAVE_IDENTIFIER = "familiar-strike:";
 /** How far the spirit flies from the enemy to the ally it heals */
 const HEAL_RANGE = 30;
-const OUTCOMES = ["criticalFailure", "failure", "success", "criticalSuccess"];
 const FAILED = new Set(["failure", "criticalFailure"]);
-const DAMAGE = {
-    criticalSuccess: { multiplier: 0, text: "is unaffected" },
-    success: { multiplier: 0.5, text: "takes half damage" },
-    failure: { multiplier: 1, text: "takes full damage" },
-    criticalFailure: { multiplier: 2, text: "takes double damage" },
+/** The damage for each result of the enemy's basic save */
+const DAMAGE_TEXT = {
+    criticalSuccess: "is unaffected",
+    success: "takes half damage",
+    failure: "takes full damage",
+    criticalFailure: "takes double damage",
 };
 
 /** The two activities. The IDs are pf2e's, the same in every pf2e version. */
@@ -73,10 +87,7 @@ const KINDS = {
 };
 const SAVE_LABELS = { will: "Will", reflex: "Reflex" };
 
-const esc = (text) => Handlebars.escapeExpression(text);
-const log = (error) => console.error(`${MODULE_ID} | Spirit and Stitched Familiar`, error);
-const outcomeLabel = (outcome) => game.i18n.localize(`PF2E.Check.Result.Degree.Check.${outcome}`);
-const endsWithId = (item, id) => [item?.sourceId, item?.uuid].some((uuid) => String(uuid ?? "").endsWith(`.${id}`));
+const log = logger("Spirit and Stitched Familiar");
 
 /** Which activity an item is, if either */
 function getKind(item) {
@@ -106,10 +117,6 @@ function getSpellDC(witch) {
     return witch.system.attributes.spellDC?.value ?? null;
 }
 
-function getSceneToken(actor, scene = canvas.scene) {
-    return actor?.getActiveTokens(true, true).find((t) => t.parent === scene) ?? null;
-}
-
 /** The witch and their familiar, from either of them */
 function getPair(actor) {
     if (actor?.isOfType?.("familiar")) return { witch: actor.master ?? null, familiar: actor };
@@ -129,30 +136,16 @@ function isAvailable(token) {
 }
 
 /** Ask which creature, among those given. Resolves to its index, or null if cancelled. */
-async function chooseToken({ title, prompt, entries, defaultIndex = 0, confirm }) {
-    const choices = entries.map(({ token, note }, index) =>
-        [
-            `<label style="display: flex; gap: 0.5em; align-items: center; margin: 0.25em 0">`,
-            `<input type="radio" name="choice" value="${index}" ${index === defaultIndex ? "checked" : ""}>`,
-            `<span><strong>${esc(token.name)}</strong>${note ? ` <em>(${esc(note)})</em>` : ""}</span>`,
-            `</label>`,
-        ].join(""),
-    );
-    const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title },
-        content: [`<p>${prompt}</p>`, ...choices].join(""),
-        buttons: [
-            {
-                action: "choose",
-                label: confirm,
-                default: true,
-                callback: (_event, button) => button.form.elements.choice.value,
-            },
-            { action: "cancel", label: "Cancel" },
-        ],
-        rejectClose: false,
+function chooseToken({ title, prompt, entries, defaultIndex = 0, confirm }) {
+    return chooseOne({
+        title,
+        intro: `<p>${prompt}</p>`,
+        choices: entries.map(
+            ({ token, note }) => `<strong>${esc(token.name)}</strong>${note ? ` <em>(${esc(note)})</em>` : ""}`,
+        ),
+        checked: defaultIndex,
+        confirm,
     });
-    return typeof choice === "string" && /^\d+$/.test(choice) ? Number(choice) : null;
 }
 
 /**
@@ -211,9 +204,9 @@ const FIBERS_ENCOMPASS = "Generic/Energy/ShieldEldritchWebAbove01_01_Dark_Purple
 const FIBERS_REFORM = "Generic/Energy/EnergyStrandIN01_01_Regular_Green_600x600.webm";
 const FIBERS_BIND = "2nd_Level/Web/Opacities/Web_01_White_01_75OPA_400x400.webm";
 
-function byDistance(files, from, to) {
-    const distance = from.object.distanceTo(to.object);
-    return `${JB2A_LIBRARY}/${(files.find(([feet]) => distance <= feet) ?? files.at(-1))[1]}`;
+/** The file that spans the distance between two tokens */
+function fileFor(files, from, to) {
+    return `${JB2A_LIBRARY}/${byDistance(files, from.object.distanceTo(to.object))}`;
 }
 
 function canPlay(...tokens) {
@@ -232,7 +225,7 @@ function playStrike(kind, familiarToken, targetToken) {
             .scaleToObject(1.5)
             .opacity(0.8)
             .effect()
-            .file(byDistance(SPIRIT_FLIGHT, familiarToken, targetToken))
+            .file(fileFor(SPIRIT_FLIGHT, familiarToken, targetToken))
             .atLocation(familiarToken)
             .stretchTo(targetToken)
             .delay(300)
@@ -250,7 +243,7 @@ function playStrike(kind, familiarToken, targetToken) {
         .atLocation(familiarToken)
         .scaleToObject(1.5)
         .effect()
-        .file(byDistance(FIBERS, familiarToken, targetToken))
+        .file(fileFor(FIBERS, familiarToken, targetToken))
         .atLocation(familiarToken)
         .stretchTo(targetToken)
         .delay(200)
@@ -262,7 +255,7 @@ function playStrike(kind, familiarToken, targetToken) {
         .fadeIn(200)
         .fadeOut(500)
         .effect()
-        .file(byDistance(FIBERS, targetToken, familiarToken))
+        .file(fileFor(FIBERS, targetToken, familiarToken))
         .atLocation(targetToken)
         .stretchTo(familiarToken)
         .delay(2200)
@@ -280,7 +273,7 @@ function playHeal(familiarToken, targetToken, allyToken) {
     if (!canPlay(familiarToken, targetToken, allyToken)) return;
     new Sequence()
         .effect()
-        .file(byDistance(SPIRIT_FLIGHT, targetToken, allyToken))
+        .file(fileFor(SPIRIT_FLIGHT, targetToken, allyToken))
         .atLocation(targetToken)
         .stretchTo(allyToken)
         .effect()
@@ -290,7 +283,7 @@ function playHeal(familiarToken, targetToken, allyToken) {
         .delay(700)
         .fadeOut(400)
         .effect()
-        .file(byDistance(SPIRIT_FLIGHT, allyToken, familiarToken))
+        .file(fileFor(SPIRIT_FLIGHT, allyToken, familiarToken))
         .atLocation(allyToken)
         .stretchTo(familiarToken)
         .delay(1600)
@@ -307,7 +300,7 @@ function playReturn(familiarToken, targetToken) {
     if (!canPlay(familiarToken, targetToken)) return;
     new Sequence()
         .effect()
-        .file(byDistance(SPIRIT_FLIGHT, targetToken, familiarToken))
+        .file(fileFor(SPIRIT_FLIGHT, targetToken, familiarToken))
         .atLocation(targetToken)
         .stretchTo(familiarToken)
         .effect()
@@ -356,8 +349,7 @@ async function useStrike(kind, actor, { item = null } = {}) {
         ui.notifications.info(`${title}: ${targetToken.name} isn't an enemy of ${witch.name}.`);
     }
 
-    const DamageRoll = CONFIG.Dice.rolls.find((r) => r.name === "DamageRoll");
-    if (!DamageRoll) throw new Error("pf2e's DamageRoll wasn't found");
+    const DamageRoll = damageRollClass();
     const dice = getDice(familiar.level ?? witch.level);
     const roll = await new DamageRoll(`(${dice}d6)[${damageType}]`).evaluate();
     const speaker = ChatMessage.getSpeaker({ actor: familiar, token: familiarToken });
@@ -417,14 +409,11 @@ async function rollSave(card) {
         return ui.notifications.warn(`${title}: a GM must be logged in to apply the result.`);
     }
     const witch = record.witch ? fromUuidSync(record.witch) : null;
-    await target.saves?.[save]?.roll({
-        dc: { value: record.dc },
+    await rollPublicSave(target, save, {
+        dc: record.dc,
         origin: witch,
         token: targetToken,
         identifier: `${SAVE_IDENTIFIER}${card.id}`,
-        // Shown to everyone, whatever the roller's default roll mode: pf2e 7.x reads rollMode, 8.x messageMode
-        rollMode: "publicroll",
-        messageMode: "public",
     });
 }
 
@@ -460,7 +449,7 @@ async function resolveSave({ cardId, outcome }) {
         }
 
         let dealt = 0;
-        const { multiplier } = DAMAGE[outcome];
+        const multiplier = BASIC_SAVE_MULTIPLIERS[outcome];
         if (multiplier > 0) {
             const item = record.item ? fromUuidSync(record.item) : null;
             const rollOptions = new Set([
@@ -518,11 +507,7 @@ async function immobilize({ witch, familiar, targetToken, dc, cardId }) {
     source.system.level = { value: familiar.level ?? witch.level };
     source.system.description.value += `<p><strong>Escape</strong> DC ${dc}: [[/act escape dc=${dc}]]{Escape}</p>`;
     // "For 1 round" counts from the witch's turn, when the familiar acted: pf2e ends it at the start of their next
-    source.system.context = {
-        origin: { actor: witch.uuid, token: null, item: null, spellcasting: null, rollOptions: [] },
-        target: { actor: target.uuid, token: targetToken.uuid },
-        roll: null,
-    };
+    source.system.context = effectContext({ origin: witch, target: { actor: target, token: targetToken } });
     source.flags = { ...source.flags, [MODULE_ID]: { stitchingStrike: { witch: witch.uuid, dc, card: cardId } } };
     const [created] = await target.createEmbeddedDocuments("Item", [source]);
     if (created) playBound(created, targetToken);
@@ -658,7 +643,7 @@ async function onEscape(message, context) {
 const isEscape = (context) =>
     (context.options ?? []).some((o) => o === "action:escape" || o.startsWith("action:escape:"));
 
-Hooks.on("createChatMessage", (message, options, userId) => {
+hooks.on("createChatMessage", (message, options, userId) => {
     if (!createdHere(message, options, userId)) return;
     const kind = getCardKind(message);
     if (kind) {
@@ -697,25 +682,8 @@ function renderCard(message, html) {
 
     const target = fromUuidSync(record.target)?.actor;
     const name = esc(fromUuidSync(record.target)?.name ?? target?.name ?? "the creature");
-    const note = (text) => {
-        const p = document.createElement("p");
-        p.innerHTML = `<em>${text}</em>`;
-        return p;
-    };
-    const button = (icon, text, onClick) => {
-        const element = document.createElement("button");
-        element.type = "button";
-        element.innerHTML = `<i class="fa-solid ${icon}"></i> ${text}`;
-        element.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            element.disabled = true;
-            onClick()
-                .catch(log)
-                .finally(() => (element.disabled = false));
-        });
-        return element;
-    };
+    const note = cardNote;
+    const button = (icon, label, onClick) => cardButton({ icon, label, onClick, log });
     const saveLabel = SAVE_LABELS[config.save];
 
     if (!record.outcome) {
@@ -725,8 +693,8 @@ function renderCard(message, html) {
         );
     }
 
-    const parts = [`${saveLabel} save: ${esc(outcomeLabel(record.outcome))}. ${name} ${DAMAGE[record.outcome].text}`];
-    if (Number.isFinite(record.dealt) && DAMAGE[record.outcome].multiplier > 0) {
+    const parts = [`${saveLabel} save: ${esc(outcomeLabel(record.outcome))}. ${name} ${DAMAGE_TEXT[record.outcome]}`];
+    if (Number.isFinite(record.dealt) && BASIC_SAVE_MULTIPLIERS[record.outcome] > 0) {
         parts[0] += ` (${record.dealt} damage dealt)`;
     }
     parts[0] += ".";
@@ -752,7 +720,7 @@ function renderCard(message, html) {
     controls.replaceChildren(note(parts.join(" ")), ...children);
 }
 
-Hooks.on("renderChatMessageHTML", (message, html) => {
+hooks.on("renderChatMessageHTML", (message, html) => {
     if (message.flags[MODULE_ID]?.familiarStrike) renderCard(message, html);
 });
 
@@ -810,4 +778,4 @@ function checkHeal({ cardId, allyTokenUuid }, sender) {
 onGMRequest("familiarStrikeSave", (data) => resolveSave(data), { check: checkSave });
 onGMRequest("shedSpiritHeal", (data) => resolveHeal(data), { check: checkHeal });
 
-export { degreeOf, getCardKind, getDice, getKind };
+export { getCardKind };

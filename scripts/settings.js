@@ -17,8 +17,7 @@ import {
 } from "./lib/session.js";
 import { askGM, isAuthor, onGMRequest, owns, refuse, warnGM } from "./lib/gm.js";
 import { onTurnEnd, onTurnStart } from "./lib/turns.js";
-
-const MODULE_ID = "evan-character-homebrew";
+import { MODULE_ID, esc } from "./lib/util.js";
 
 /**
  * The features, in the menu's order. `key` is the switch's setting when a script already had one; `settings` are the
@@ -172,7 +171,6 @@ const GENERAL_SETTINGS = ["animations", "finchVersion"];
 
 const switchKey = (feature) => feature.key ?? `enabled${feature.id[0].toUpperCase()}${feature.id.slice(1)}`;
 const byId = new Map(FEATURES.map((f) => [f.id, f]));
-const esc = (text) => Handlebars.escapeExpression(text);
 
 /** Whether a feature is on. A feature this file doesn't know about, or a switch not registered yet, counts as on. */
 function isEnabled(id) {
@@ -187,13 +185,14 @@ function isEnabled(id) {
 
 /**
  * `Hooks.on` for a feature: the hook does nothing while the feature is off. `onTurnEnd` and `onTurnStart` register the
- * active GM's work at the end and the start of a creature's turn (scripts/lib/turns.js) the same way.
+ * active GM's work at the end and the start of a creature's turn (scripts/lib/turns.js) the same way. A script with
+ * several features names them all: its hooks run while any is on, and check which.
  */
-function featureHooks(id) {
+function featureHooks(...ids) {
     const guard =
         (fn) =>
         (...args) =>
-            isEnabled(id) ? fn(...args) : undefined;
+            ids.some((id) => isEnabled(id)) ? fn(...args) : undefined;
     return {
         on: (name, fn) => Hooks.on(name, guard(fn)),
         onTurnEnd: (fn) => onTurnEnd(guard(fn)),
@@ -429,7 +428,6 @@ Hooks.once("init", () => {
 });
 
 export {
-    FEATURES,
     askGM,
     confirmActiveGM,
     confirmPrimarySession,
@@ -444,12 +442,8 @@ export {
     isEnabled,
     isFinchVersion,
     isPrimarySession,
-    menuContent,
     onGMRequest,
     owns,
     refuse,
-    saveMenu,
-    switchKey,
     warnGM,
-    wireMenu,
 };

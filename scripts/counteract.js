@@ -34,10 +34,11 @@ import {
     spellRankDC,
 } from "./lib/counteract-rules.js";
 import { UNSEEN, forPlayers, nameForUser, playersCanSeeName, shownName } from "./lib/names.js";
+import { outcomeLabel } from "./lib/saves.js";
+import { toolbeltTargets } from "./lib/toolbelt.js";
+import { MODULE_ID, esc, groupByActor, logger, resolveSync, spellDC } from "./lib/util.js";
 import { askGM, createdHere, featureHooks, guardApi, isAuthor, onGMRequest, owns, refuse } from "./settings.js";
 
-const MODULE_ID = "evan-character-homebrew";
-const TOOLBELT_ID = "pf2e-toolbelt";
 /** This script's hooks do nothing while it's turned off in the module's settings */
 const hooks = featureHooks("counteract");
 /** Counteract checks rolled by this module carry this identifier, followed by the request's ID */
@@ -49,23 +50,12 @@ const MAGIC_TRAITS = ["magical", "arcane", "divine", "occult", "primal"];
 /** What players see in place of an effect pf2e keeps unidentified */
 const UNIDENTIFIED = "Unidentified effect";
 
-const esc = (text) => Handlebars.escapeExpression(String(text ?? ""));
-const log = (error) => console.error(`${MODULE_ID} | Counteract`, error);
-const outcomeLabel = (outcome) => game.i18n.localize(`PF2E.Check.Result.Degree.Check.${outcome}`);
+const log = logger("Counteract");
 const signed = (value) => (value < 0 ? `${value}` : `+${value}`);
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Requests whose check is being rolled, by ID, until its message arrives */
 const pending = new Map();
-
-function resolveSync(uuid) {
-    if (typeof uuid !== "string" || !uuid) return null;
-    try {
-        return fromUuidSync(uuid);
-    } catch {
-        return null;
-    }
-}
 
 /** An actor from an actor's or token's UUID */
 function actorOf(doc) {
@@ -80,12 +70,6 @@ function isPwol() {
 /** pf2e's "Show DCs to players" setting */
 function showDCs() {
     return !!game.pf2e?.settings?.metagame?.dcs;
-}
-
-function spellDC(spell) {
-    if (!spell?.actor) return null;
-    const statistic = spell.spellcasting?.statistic;
-    return statistic?.withRollOptions?.({ item: spell })?.dc.value ?? statistic?.dc?.value ?? null;
 }
 
 /* What can be counteracted */
@@ -349,12 +333,7 @@ function getCandidates(actor, { counteractor = null } = {}) {
 
 /** The creatures the counteract is aimed at: PF2e Toolbelt's targets on the card, the user's targets, or the counteractor */
 function getTargetActors(message, counteractor) {
-    const recorded =
-        message && game.modules.get(TOOLBELT_ID)?.active ? message.flags?.[TOOLBELT_ID]?.targetHelper?.targets : null;
-    const tokens =
-        Array.isArray(recorded) && recorded.length > 0
-            ? recorded.map(resolveSync)
-            : [...(game.user.targets ?? [])].map((t) => t.document);
+    const tokens = toolbeltTargets(message) ?? [...(game.user.targets ?? [])].map((t) => t.document);
     const actors = tokens.map((t) => t?.actor).filter((a, i, all) => a && all.indexOf(a) === i);
     return actors.length > 0 ? actors : [counteractor].filter((a) => a);
 }
@@ -688,19 +667,12 @@ function getOutcomes(request, message, rolled) {
  * checks them against the roll's message and the request it was rolled for
  */
 async function removeItems(uuids, { message = null, request = null } = {}) {
-    const byActor = new Map();
-    for (const uuid of uuids) {
-        const item = resolveSync(uuid);
-        if (!item?.actor || !REMOVABLE_TYPES.includes(item.type)) continue;
-        if (!byActor.has(item.actor)) byActor.set(item.actor, []);
-        byActor.get(item.actor).push(item);
-    }
+    const byActor = groupByActor(uuids.map(resolveSync).filter((item) => REMOVABLE_TYPES.includes(item?.type)));
     const done = new Set();
     const forGM = [];
     for (const [actor, items] of byActor) {
         if (actor.isOwner) {
-            const ids = items.map((i) => i.id).filter((id) => actor.items.has(id));
-            if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
+            await deleteFrom(actor, items);
             items.forEach((i) => done.add(i.uuid));
         } else {
             forGM.push(...items.map((i) => i.uuid));
@@ -720,20 +692,22 @@ async function removeItems(uuids, { message = null, request = null } = {}) {
     return done;
 }
 
+/** Delete a creature's items, those it still has */
+async function deleteFrom(actor, items) {
+    const ids = items.map((i) => i.id).filter((id) => actor.items.has(id));
+    if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
+}
+
 /** The GM's side of `removeItems`: delete what it can, and answer with the UUIDs of what's gone */
 async function removeForGM({ uuids }) {
-    const byActor = new Map();
-    for (const uuid of Array.isArray(uuids) ? uuids : []) {
-        const item = await fromUuid(uuid).catch(() => null);
-        if (!item?.actor || !REMOVABLE_TYPES.includes(item.type)) continue;
-        if (!byActor.has(item.actor)) byActor.set(item.actor, []);
-        byActor.get(item.actor).push(item);
-    }
+    const items = await Promise.all(
+        (Array.isArray(uuids) ? uuids : []).map((uuid) => fromUuid(uuid).catch(() => null)),
+    );
+    const byActor = groupByActor(items.filter((item) => REMOVABLE_TYPES.includes(item?.type)));
     const removed = [];
     for (const [actor, items] of byActor) {
         try {
-            const ids = items.map((i) => i.id).filter((id) => actor.items.has(id));
-            if (ids.length > 0) await actor.deleteEmbeddedDocuments("Item", ids);
+            await deleteFrom(actor, items);
             removed.push(...items.map((i) => i.uuid));
         } catch (error) {
             log(error);
@@ -981,7 +955,6 @@ async function counteractManually({ actor = null } = {}) {
     });
     if (!picked) return;
     const { source, modifier, request } = picked;
-    if (!Number.isFinite(request.rank)) request.rank = source.rank ?? rankFromLevel(actor.level ?? 0);
     const token = canvas.tokens?.controlled.find((t) => t.actor === actor)?.document ?? null;
     await rollCheck({ request, source, modifier, actor, token });
 }
@@ -1023,9 +996,7 @@ async function resolveOtherRoll(message) {
         rolled,
     });
     if (!picked) return;
-    const { request } = picked;
-    if (!Number.isFinite(request.rank)) return ui.notifications.warn("Counteract: fill in your counteract rank.");
-    await resolve(message, request, { sourceName: message.item?.name ?? null });
+    await resolve(message, picked.request, { sourceName: message.item?.name ?? null });
 }
 
 /* Chat cards */
@@ -1142,15 +1113,4 @@ Hooks.once("init", () => {
     module.api = { ...module.api, counteract: guardApi("counteract", (options) => counteractManually(options)) };
 });
 
-export {
-    describeSource,
-    endHeld,
-    getCandidates,
-    getOutcomes,
-    isOtherCounteractRoll,
-    readForm,
-    removeItems,
-    resolve,
-    resultLine,
-    rollCheck,
-};
+export { endHeld, getCandidates, readForm, resolve, rollCheck };

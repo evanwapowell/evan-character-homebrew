@@ -37,9 +37,22 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       "refused"). It returns the data the handler gets; the handler gets `(data, sender)`. A GM's requests skip it.
     - `lib/geometry.js`: distances between tokens from their documents (`spaceOf`, `distanceBetween`, `tokenDistance`),
       as pf2e counts them on a square grid, for checks on a scene the GM's session isn't viewing.
-    - `lib/saves.js`: a save a player's client reports, read again where it was rolled: `reportedSaveMessage` (their
+    - `lib/saves.js`: degrees of success (`OUTCOMES`, by index; `outcomeLabel`; `BASIC_SAVE_MULTIPLIERS`; `effectRoll`
+      for an effect's `context.roll`), `rollPublicSave` (a save rolled from a module's card, public, with the card's
+      identifier), and a save a player's client reports, read again where it was rolled: `reportedSaveMessage` (their
       save message, for a creature they own) or `reportedToolbeltSave` (PF2e Toolbelt's result on the card,
       `toolbeltSave`).
+    - `lib/toolbelt.js`: PF2e Toolbelt's Target Helper: `toolbeltActive`, and `toolbeltTargets(message, { splash })`,
+      the tokens it recorded on a card (null when none, to fall back on the user's targets).
+    - `lib/util.js`: what every script needs: `MODULE_ID`, `esc`, `logger(label)` (a feature's error log, for
+      `.catch`), `endsWithId` (an item by its compendium ID), `getSceneToken(actor, scene)`, `resolveSync`,
+      `byDistance` (a JB2A file by the distance it spans), `spellDC`, `effectContext` (an effect's `system.context`,
+      with its origin, target and roll), `damageRollClass` (pf2e's DamageRoll) and `groupByActor`. Use these rather
+      than writing them again.
+    - `lib/ui.js`: `chooseOne` (a dialog to pick one of several, with radio buttons; resolves to the index or null),
+      and a card's `cardButton` (disabled while its work runs, errors logged) and `cardNote`.
+    - `lib/charge-effect.js`: pf2e's Effect: Witch's Charge (`isChargeEffect`), for Designate Witch's Charge and
+      Manifest Will.
     - `lib/turns.js`: the turns of an encounter. A combat update also arrives when the turn order goes back, and when
       the turn's index shifts under the creature whose turn it is (a combatant added, removed or moved in the order),
       so it reads what an update did, once for every script: the turn that ended and the turn that started, only going
@@ -285,8 +298,9 @@ Vulnerability (`fodJ3zuwQsYnBbtk`). Each script declares the ones it uses as con
   prompts don't overlap. They add spell effects to the spell conditions' Apply button through `spellEffects`
   (`(spell, outcome) => [effect UUIDs]`). Macro entry points go on `game.modules.get(MODULE_ID).api`.
 - Every feature can be turned off in the Features menu. A new feature gets an entry in `FEATURES` in
-  `scripts/settings.js` (its switch is registered there), registers its hooks with `featureHooks("<id>")` (cleanup
-  hooks, like ending effects, can stay on `Hooks.on`), and checks `isEnabled` in its Sustain handlers and
+  `scripts/settings.js` (its switch is registered there), registers its hooks with `featureHooks("<id>")` (a script
+  with several features names them all, and its hooks check which is on; cleanup hooks, like ending effects, can stay
+  on `Hooks.on`), and checks `isEnabled` in its Sustain handlers and
   `spellEffects`; macro entry points are wrapped in `guardApi`. Animations check `canAnimate()`.
 - World settings live next to the feature they control, registered in that script's `init` hook with `config: false`,
   and are listed in the feature's `settings` in `FEATURES` so the menu shows them. Keep existing setting keys, so saved

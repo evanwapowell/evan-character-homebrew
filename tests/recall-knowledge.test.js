@@ -372,6 +372,16 @@ for (const version of ["v13", "v14"]) {
             assert.match(s.render(next).text, /Known already: Zombie Shambler \| \(false\) It's weak to /);
         });
 
+        it("names a damage type pf2e has no translation for by its slug, not its key", async (t) => {
+            const s = await setup(t, version);
+            // Foundry's localize returns a key it can't translate
+            s.gm.run(() => (CONFIG.PF2E.weaknessTypes = { vitality: "Vitality", fire: "PF2E.TraitFire" }));
+            const card = s.cardFor(await s.roll({ die: 1, modifier: 0 })); // critical failure: a lie
+            const whisper = await s.send(card);
+            assert.match(whisper.content, /It&#x27;s weak to fire\./);
+            assert.doesNotMatch(whisper.content, /PF2E\./i);
+        });
+
         it("on a critical failure, keeps the name already known rather than a false one (#56)", async (t) => {
             const names = [
                 {
