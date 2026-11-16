@@ -144,7 +144,8 @@ supports Foundry v13 and v14 (pf2e 7.x and 8.x); v12 is no longer supported.
       or Basic Action Macros' (which rolls one d20 for every skill and Lore: each skill's modifier is worked out from
       its statistic without rolling, and a Lore is listed but isn't the default). The roller's player picks a question
       (or writes one); the GM gets a card with the degree of success against the creature's identification DCs (harder
-      for each later attempt, counted again when the card is reviewed), reviews what's learned (success: name and
+      for each later attempt, counted again when the card is reviewed; with pf2e's degree adjustments, the character's
+      and, on pf2e 8.x, the creature's for checks against it), reviews what's learned (success: name and
       answer; critical success: the lore entry too; critical failure: a name (the one already known, else a false one,
       else the true one) and a lie; Dubious Knowledge: the answer and a wrong answer to the same question) and sends it
       as a whisper. What's learned is recorded per creature, for the party or (world setting) only the character, by

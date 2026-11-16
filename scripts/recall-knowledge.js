@@ -342,25 +342,55 @@ function levelDC(target) {
     return standard.dc - (DC_STEPS[standard.start] ?? 0);
 }
 
-/** pf2e's degree of success adjustments that apply to a check (Unmistakable Lore, for example) */
-function getAdjustments(actor, domains, options, total, die, dc) {
-    const rollOptions = new Set([
-        ...options,
+/**
+ * pf2e's degree of success adjustments that apply to a check about the creature, merged as Check.roll merges them (the
+ * last for each outcome wins): the character's own (Unmistakable Lore, for example), then on pf2e 8.x the creature's
+ * for checks made against it (AdjustDegreeOfSuccess with `affects: "origin"`; `extractDegreeOfSuccessAdjustments` in
+ * src/module/system/degree-of-success.ts).
+ */
+function getAdjustments({ actor, target, domains, options, total, die, dc }) {
+    domains = [...new Set(domains)];
+    options = [...options];
+    const postRoll = [
         `check:total:${total}`,
         `check:total:natural:${die}`,
         `check:roll:total:natural:${die}`,
         `check:total:delta:${total - dc}`,
-    ]);
+    ];
+    const rollOptions = new Set([...postRoll, ...options]);
+    const own = domains.flatMap((d) => actor.synthetics?.degreeOfSuccessAdjustments?.[d] ?? []);
+    const applies = own.filter((a) => a.predicate?.test(rollOptions) ?? true);
+    const opposing = target?.synthetics?.opposingDegreeOfSuccessAdjustments?.origin ?? {};
+    const theirs = domains.flatMap((d) => opposing[d] ?? []);
+    if (theirs.length > 0) {
+        const theirOptions = new Set([...postRoll, ...opposerOptions({ actor, target, domains, options })]);
+        applies.push(...theirs.filter((a) => a.predicate?.test(theirOptions) ?? true));
+    }
     const record = {};
-    for (const domain of domains) {
-        for (const adjustment of actor.synthetics?.degreeOfSuccessAdjustments?.[domain] ?? []) {
-            if (adjustment.predicate && !adjustment.predicate.test(rollOptions)) continue;
-            for (const outcome of ["all", ...DEGREES]) {
-                if (adjustment.adjustments?.[outcome]) record[outcome] = { ...adjustment.adjustments[outcome] };
-            }
+    for (const adjustment of applies) {
+        for (const outcome of ["all", ...DEGREES]) {
+            if (adjustment.adjustments?.[outcome]) record[outcome] = { ...adjustment.adjustments[outcome] };
         }
     }
     return record;
+}
+
+/**
+ * The creature's roll options for the creature's adjustments, as pf2e's roll context makes its clone for a check
+ * against it (`#cloneActor` in src/module/actor/roll-context/base.ts): its own, the roller as origin (its options,
+ * whether it's an ally or enemy, the action's traits), and the check's item and check options. The roller's options
+ * pf2e copies into the clone are left out of it again, so they aren't added here.
+ */
+function opposerOptions({ actor, target, domains, options }) {
+    const alliance = target.alliance ? (target.alliance === actor.alliance ? "origin:ally" : "origin:enemy") : null;
+    return [
+        ...(target.getRollOptions?.(domains) ?? []),
+        "origin",
+        alliance,
+        ...(actor.getSelfRollOptions?.("origin") ?? []),
+        ...options.filter((o) => o.startsWith("self:action:trait:")).map((o) => o.replace(/^self:/, "origin:")),
+        ...options.filter((o) => o.startsWith("item:") || o.startsWith("check:")),
+    ].filter(Boolean);
 }
 
 /** The creature's identification DCs for this attempt, by kind */
@@ -447,9 +477,18 @@ function readSkills({ actor, target, message, check }) {
     });
 }
 
-/** A row's degree of success against a DC, with the character's degree adjustments for the roll's options */
-function grade(actor, row, reading, dc) {
-    const adjustments = getAdjustments(actor, reading?.domains ?? [], reading?.options ?? [], row.total, row.die, dc);
+/** A row's degree of success against a DC, with the character's and the creature's degree adjustments */
+function grade({ actor, target }, row, reading, dc) {
+    const { total, die } = row;
+    const adjustments = getAdjustments({
+        actor,
+        target,
+        domains: reading?.domains ?? [],
+        options: reading?.options ?? [],
+        total,
+        die,
+        dc,
+    });
     return { ...row, dc, ...degreeOfSuccess({ total: row.total, die: row.die, dc, adjustments }) };
 }
 
@@ -473,7 +512,7 @@ function getRecallChecks({ actor, target, message, check, attempt }) {
             // is the GM's call
             const preferred = skill.preferred && index === 0;
             const row = { slug, label, total, die, kind, unusual, lore, preferred };
-            rows.push(grade(actor, row, skill, dcs[kind]));
+            rows.push(grade({ actor, target }, row, skill, dcs[kind]));
         });
     }
     return rows;
@@ -494,7 +533,7 @@ function regrade(record, { actor, target, attempt }) {
         for (const row of record.checks) readings.set(row.slug, context);
     }
     const dcs = dcsFor(target, attempt);
-    return record.checks.map((row) => grade(actor, row, readings.get(row.slug), dcs[row.kind]));
+    return record.checks.map((row) => grade({ actor, target }, row, readings.get(row.slug), dcs[row.kind]));
 }
 
 /**
@@ -627,7 +666,15 @@ function diverseLoreSucceeds(message, actor, tokenDoc) {
     const die = dieOf(roll);
     const context = message.flags.pf2e?.context ?? {};
     const grade = (dc) => {
-        const adjustments = getAdjustments(actor, context.domains ?? [], context.options ?? [], roll.total, die, dc);
+        const adjustments = getAdjustments({
+            actor,
+            target,
+            domains: context.domains ?? [],
+            options: context.options ?? [],
+            total: roll.total,
+            die,
+            dc,
+        });
         return degreeOfSuccess({ total: roll.total, die, dc, adjustments }).degree;
     };
     if (grade(levelDC(target)) < 2) return false;
@@ -677,7 +724,15 @@ function readRoll({ kind, message, check, actor, target, attempt }) {
     if (kind === "exploit") {
         const context = message.flags.pf2e?.context ?? {};
         const dc = levelDC(target);
-        const adjustments = getAdjustments(actor, context.domains ?? [], context.options ?? [], roll.total, die, dc);
+        const adjustments = getAdjustments({
+            actor,
+            target,
+            domains: context.domains ?? [],
+            options: context.options ?? [],
+            total: roll.total,
+            die,
+            dc,
+        });
         const { degree, adjustment } = degreeOfSuccess({ total: roll.total, die, dc, adjustments });
         data.exploit = { total: roll.total, dc, degree, adjustment };
         // Diverse Lore: the same result against the Recall Knowledge DC
@@ -692,7 +747,7 @@ function readRoll({ kind, message, check, actor, target, attempt }) {
                 lore: false,
                 preferred: true,
             };
-            data.checks = [grade(actor, row, context, dcsFor(target, attempt).standard)];
+            data.checks = [grade({ actor, target }, row, context, dcsFor(target, attempt).standard)];
             data.chosen = 0;
         }
         return data;
