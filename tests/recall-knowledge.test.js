@@ -452,6 +452,77 @@ for (const version of ["v13", "v14"]) {
             assert.deepEqual(results, ["2", "-1"], "a success, then nothing");
         });
 
+        /**
+         * The zombie's adjustments to checks made against it (pf2e 8.x's AdjustDegreeOfSuccess with `affects:
+         * "origin"`, in `synthetics.opposingDegreeOfSuccessAdjustments.origin`), and Ezren's own
+         */
+        function adjust(s, { theirs = [], own = [] }) {
+            const Predicate = s.gm.run(() => game.pf2e.Predicate);
+            const synthetic = ({ outcome, amount, label, predicate = [] }) => ({
+                adjustments: { [outcome]: { label, amount } },
+                predicate: new Predicate(predicate),
+            });
+            s.zombie.synthetics = {
+                degreeOfSuccessAdjustments: {},
+                opposingDegreeOfSuccessAdjustments: { origin: { "skill-check": theirs.map(synthetic) }, target: {} },
+            };
+            s.ezren.synthetics = { degreeOfSuccessAdjustments: { "skill-check": own.map(synthetic) } };
+        }
+
+        it("the creature's adjustments to checks about it, tested from its side", async (t) => {
+            const s = await setup(t, version);
+            adjust(s, {
+                theirs: [
+                    // Its own options, the roller as an enemy origin, and the check's
+                    {
+                        outcome: "success",
+                        amount: -1,
+                        label: "Obscure Origins",
+                        predicate: ["self:type:npc", "origin:enemy", "origin:type:character", "check:total:17"],
+                    },
+                    // The roller's options from the roller's side aren't the creature's
+                    { outcome: "failure", amount: 1, label: "Wrong Side", predicate: ["self:type:character"] },
+                ],
+            });
+            const card = s.cardFor(await s.roll({ die: 10 })); // 17 vs DC 15: a success, a failure adjusted
+            const { checks } = card.flags[MODULE_ID].recallKnowledge;
+            assert.equal(checks[0].degree, 1);
+            assert.match(s.render(card).text, /17 vs DC 15 \(1st attempt\): Failure \(Obscure Origins\)/);
+        });
+
+        it("the creature's adjustment comes after the character's, as pf2e merges them", async (t) => {
+            const s = await setup(t, version);
+            adjust(s, {
+                own: [{ outcome: "success", amount: 1, label: "Unmistakable Lore" }],
+                theirs: [{ outcome: "success", amount: -1, label: "Obscure Origins" }],
+            });
+            const card = s.cardFor(await s.roll({ die: 10 })); // 17 vs DC 15: a success
+            assert.equal(card.flags[MODULE_ID].recallKnowledge.checks[0].degree, 1, "the creature's wins");
+
+            // Without the creature's, the character's applies
+            adjust(s, { own: [{ outcome: "success", amount: 1, label: "Unmistakable Lore" }] });
+            const next = s.cardFor(await s.roll({ die: 13 })); // 20 vs DC 17 (2nd attempt): a success
+            assert.equal(next.flags[MODULE_ID].recallKnowledge.checks[0].degree, 3);
+        });
+
+        it("Exploit Vulnerability is graded with the creature's adjustments", async (t) => {
+            const s = await setup(t, version);
+            adjust(s, {
+                theirs: [
+                    {
+                        outcome: "success",
+                        amount: -1,
+                        label: "Shifting Form",
+                        predicate: ["item:slug:exploit-vulnerability"],
+                    },
+                ],
+            });
+            const card = s.cardFor(await exploit(s, { die: 15, modifier: 5 })); // 20 against DC 15: a success
+            const { exploit: graded } = card.flags[MODULE_ID].recallKnowledge;
+            assert.equal(graded.degree, 1);
+            assert.equal(s.questions(), 0, "Diverse Lore needs Exploit Vulnerability to succeed");
+        });
+
         it("turns the macro entry points off with the feature", async (t) => {
             const s = await setup(t, version);
             await s.gm.run(() => game.settings.set(MODULE_ID, "enabledRecallKnowledge", false));
